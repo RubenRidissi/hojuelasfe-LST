@@ -495,7 +495,7 @@ export default function RecepcionesPage() {
       </div>
 
       {/* Ajustes NC/ND proveedor */}
-      {(true && (
+      {(
         <div className="card" style={{ marginBottom: 16 }}>
           <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 13 }}>± Notas de Crédito / Débito del Proveedor</div>
           <div className="table-wrap desktop-table">
