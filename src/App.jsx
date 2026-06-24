@@ -8,6 +8,8 @@ import VentasPage from './pages/VentasPage'
 import PagosPage from './pages/PagosPage'
 import RemitosPage from './pages/RemitosPage'
 import CtaCorrientePage from './pages/CtaCorrientePage'
+import ProveedorPage from './pages/ProveedorPage'
+import RecepcionesPage from './pages/RecepcionesPage'
 import Sidebar from './components/Sidebar'
 import MobileNav from './components/MobileNav'
 import FabButton from './components/FabButton'
@@ -31,6 +33,8 @@ function AppLayout() {
           <Route path="/pagos"    element={<PagosPage />} />
           <Route path="/remitos"  element={<RemitosPage />} />
           <Route path="/ctacte"   element={<CtaCorrientePage />} />
+          <Route path="/proveedor" element={<ProveedorPage />} />
+          <Route path="/recepciones" element={<RecepcionesPage />} />
           <Route path="*"         element={<Navigate to="/" replace />} />
         </Routes>
       </main>
