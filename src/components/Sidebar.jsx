@@ -10,13 +10,13 @@ const NAV_ADMIN = [
     group: 'Clientes', icon: '👥', defaultOpen: true, items: [
       { to: '/clientes', icon: '👥', label: 'Listado' },
       { to: '/mapa',     icon: '🗺️', label: 'Mapa' },
+      { to: '/pedidos',  icon: '📋', label: 'Pedidos' },
+      { to: '/ventas',   icon: '🧾', label: 'Ventas' },
+      { to: '/remitos',  icon: '🚚', label: 'Remitos' },
+      { to: '/pagos',    icon: '💰', label: 'Pagos' },
+      { to: '/ctacte',   icon: '📒', label: 'Cta. Corriente' },
     ]
   },
-  { to: '/pedidos',  icon: '📋', label: 'Pedidos' },
-  { to: '/ventas',   icon: '🧾', label: 'Ventas' },
-  { to: '/remitos',  icon: '🚚', label: 'Remitos' },
-  { to: '/pagos',    icon: '💰', label: 'Pagos' },
-  { to: '/ctacte',   icon: '📒', label: 'Cta. Corriente' },
   {
     group: 'Proveedores', icon: '🏭', defaultOpen: false, items: [
       { to: '/proveedor',   icon: '📋', label: 'Pedidos' },
@@ -42,11 +42,12 @@ const NAV_VENDEDOR = [
     group: 'Clientes', icon: '👥', defaultOpen: true, items: [
       { to: '/clientes', icon: '👥', label: 'Listado' },
       { to: '/mapa',     icon: '🗺️', label: 'Mapa' },
+      { to: '/pedidos',  icon: '📋', label: 'Pedidos' },
+      { to: '/ventas',   icon: '🧾', label: 'Ventas' },
+      { to: '/pagos',    icon: '💰', label: 'Cobros' },
+      { to: '/ctacte',   icon: '📒', label: 'Cta. Corriente' },
     ]
   },
-  { to: '/pedidos', icon: '📋', label: 'Pedidos' },
-  { to: '/ventas',  icon: '🧾', label: 'Ventas' },
-  { to: '/pagos',   icon: '💰', label: 'Cobros' },
   {
     group: 'Productos', icon: '🏷️', defaultOpen: false, items: [
       { to: '/listas', icon: '📋', label: 'Listas de Precios' },
