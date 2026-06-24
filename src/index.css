@@ -300,6 +300,7 @@ input:focus, select:focus, textarea:focus {
   .hide-on-mobile { display: none !important; }
   .desktop-table  { display: none !important; }
   .mobile-cards   { display: block !important; }
+  .main-content   { padding-bottom: 80px !important; }
 }
 @media (min-width: 769px) {
   .hide-on-desktop { display: none !important; }
