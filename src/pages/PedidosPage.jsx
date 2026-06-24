@@ -3,7 +3,7 @@ import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { nombreCliente } from '../utils/helpers'
 import { useToast } from '../hooks/useToast'
-import { useComprobante, ComprobanteModal } from '../hooks/useComprobante'
+import { useComprobante, ComprobanteModal } from '../hooks/useComprobante.jsx'
 import { ToastContainer } from '../components/Toast'
 
 const ESTADOS = ['pendiente', 'confirmado', 'entregado', 'cancelado']
