@@ -6,21 +6,15 @@ import Sidebar from './components/Sidebar'
 import { ToastContainer } from './components/Toast'
 import { useToast } from './hooks/useToast'
 
-// Páginas — se van agregando módulo a módulo
-// import ClientesPage from './pages/ClientesPage'
-
 function AppLayout() {
-  const { toasts, toast } = useToast()
-
+  const { toasts } = useToast()
   return (
     <div className="app-layout">
       <Sidebar />
       <main className="main-content">
         <Routes>
-          <Route path="/"         element={<DashboardPage />} />
-          {/* Próximamente: */}
-          {/* <Route path="/clientes"  element={<ClientesPage />} /> */}
-          <Route path="*"         element={<Navigate to="/" replace />} />
+          <Route path="/"    element={<DashboardPage />} />
+          <Route path="*"    element={<Navigate to="/" replace />} />
         </Routes>
       </main>
       <ToastContainer toasts={toasts} />
@@ -38,11 +32,25 @@ function ProtectedRoute({ children }) {
   return user ? children : <Navigate to="/login" replace />
 }
 
+function PublicRoute({ children }) {
+  const { user, loading } = useAuth()
+  if (loading) return (
+    <div style={{ display:'flex', alignItems:'center', justifyContent:'center', minHeight:'100vh' }}>
+      <div style={{ color:'var(--muted)' }}>Cargando...</div>
+    </div>
+  )
+  return user ? <Navigate to="/" replace /> : children
+}
+
 export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/login" element={<LoginPage />} />
+        <Route path="/login" element={
+          <PublicRoute>
+            <LoginPage />
+          </PublicRoute>
+        } />
         <Route path="/*" element={
           <ProtectedRoute>
             <AppLayout />
