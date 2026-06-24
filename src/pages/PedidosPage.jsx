@@ -3,6 +3,7 @@ import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { nombreCliente } from '../utils/helpers'
 import { useToast } from '../hooks/useToast'
+import { useComprobante, ComprobanteModal } from '../hooks/useComprobante'
 import { ToastContainer } from '../components/Toast'
 
 const ESTADOS = ['pendiente', 'confirmado', 'entregado', 'cancelado']
@@ -14,6 +15,7 @@ const EMPTY_FORM = {
 export default function PedidosPage() {
   const { user, isAdmin } = useAuth()
   const { toasts, toast } = useToast()
+  const { comp, cerrarComp, imprimir, descargar, verComprobantePedido, verRemito, imprimirRemito } = useComprobante()
 
   const [pedidos, setPedidos] = useState([])
   const [clientes, setClientes] = useState([])
@@ -288,15 +290,15 @@ export default function PedidosPage() {
     } catch (e) { toast('Error al convertir: ' + e.message, 'error') } finally { setConvirtiendo(false) }
   }
 
-  // ===== REMITO =====
-  async function imprimirRemito(pedidoId) {
-    toast('Función de remito — próximamente', 'info')
-  }
-  async function verRemito(pedidoId) {
-    toast('Función ver remito — próximamente', 'info')
-  }
+  // ===== COMPROBANTE / REMITO =====
   async function verComprobante(pedidoId) {
-    toast('Función comprobante — próximamente', 'info')
+    try { await verComprobantePedido(pedidoId) } catch(e) { toast('Error: ' + e.message, 'error') }
+  }
+  async function handleVerRemito(pedidoId) {
+    try { await verRemito('pedido', pedidoId) } catch(e) { toast('Error: ' + e.message, 'error') }
+  }
+  async function handleImprimirRemito(pedidoId) {
+    try { await imprimirRemito('pedido', pedidoId); loadPedidos() } catch(e) { toast('Error: ' + e.message, 'error') }
   }
 
   // ===== RENDER =====
@@ -394,8 +396,8 @@ export default function PedidosPage() {
                           {p.estado === 'pendiente' && !yaConvertido && <button className="btn btn-sm btn-secondary" style={{ padding: '3px 6px' }} onClick={() => editPedido(p)}>✏</button>}
                           <button className="btn btn-sm btn-secondary" style={{ padding: '3px 6px' }} onClick={() => verComprobante(p.id)}>📋</button>
                           {tieneRemito
-                            ? <button className="btn btn-sm" style={{ padding: '3px 6px', background: '#F3F4F6', color: '#374151' }} onClick={() => verRemito(p.id)}>👁</button>
-                            : puedeRemitir && <button className="btn btn-sm" style={{ padding: '3px 6px', background: '#FEF3C7', color: '#92400E' }} onClick={() => imprimirRemito(p.id)}>🚚</button>
+                            ? <button className="btn btn-sm" style={{ padding: '3px 6px', background: '#F3F4F6', color: '#374151' }} onClick={() => handleVerRemito(p.id)}>👁</button>
+                            : puedeRemitir && <button className="btn btn-sm" style={{ padding: '3px 6px', background: '#FEF3C7', color: '#92400E' }} onClick={() => handleImprimirRemito(p.id)}>🚚</button>
                           }
                           {isAdmin && !yaConvertido && <button className="btn btn-sm btn-danger" style={{ padding: '3px 6px', fontSize: 11 }} onClick={() => deletePedido(p)}>✕</button>}
                         </div>
@@ -447,8 +449,8 @@ export default function PedidosPage() {
                   : <span className="badge badge-green" style={{ flex: 1, textAlign: 'center' }}>✓ Facturado</span>
                 }
                 {tieneRemito
-                  ? <button className="btn btn-secondary" onClick={() => verRemito(p.id)}>👁 Remito</button>
-                  : puedeRemitir && <button className="btn btn-secondary" onClick={() => imprimirRemito(p.id)}>🚚 Remito</button>
+                  ? <button className="btn btn-secondary" onClick={() => handleVerRemito(p.id)}>👁 Remito</button>
+                  : puedeRemitir && <button className="btn btn-secondary" onClick={() => handleImprimirRemito(p.id)}>🚚 Remito</button>
                 }
               </div>
             </div>
@@ -600,6 +602,7 @@ export default function PedidosPage() {
         </div>
       )}
 
+      <ComprobanteModal comp={comp} onClose={cerrarComp} onPrint={imprimir} onDownload={descargar} />
       <ToastContainer toasts={toasts} />
     </div>
   )

@@ -4,6 +4,7 @@ import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { nombreCliente } from '../utils/helpers'
 import { useToast } from '../hooks/useToast'
+import { useComprobante, ComprobanteModal } from '../hooks/useComprobante'
 import { ToastContainer } from '../components/Toast'
 
 const EMPTY_FORM = {
@@ -18,6 +19,7 @@ function badgePago(estado) {
 export default function VentasPage() {
   const { user, isAdmin } = useAuth()
   const { toasts, toast } = useToast()
+  const { comp, cerrarComp, imprimir, descargar, verComprobanteVenta, verRemito, imprimirRemito } = useComprobante()
   const navigate = useNavigate()
 
   const [ventas, setVentas] = useState([])
@@ -321,10 +323,10 @@ export default function VentasPage() {
                               onClick={() => { setModalFecha({ id: v.id, fechaActual: '' }); setFechaInput(new Date().toISOString().split('T')[0]) }}
                               title="Marcar como entregado">📦 Entregar</button>
                           )}
-                          <button className="btn btn-sm btn-secondary" onClick={() => toast('Comprobante — próximamente', 'info')}>🧾</button>
+                          <button className="btn btn-sm btn-secondary" onClick={async () => { try { await verComprobanteVenta(v.id) } catch(e) { toast('Error', 'error') } }}>🧾</button>
                           {tieneRemito
-                            ? <button className="btn btn-sm" style={{ background: '#F3F4F6', color: '#374151' }} onClick={() => toast('Ver remito — próximamente', 'info')}>👁 Remito</button>
-                            : <button className="btn btn-sm" style={{ background: '#FEF3C7', color: '#92400E' }} onClick={() => toast('Imprimir remito — próximamente', 'info')}>🚚</button>
+                            ? <button className="btn btn-sm" style={{ background: '#F3F4F6', color: '#374151' }} onClick={async () => { try { await verRemito('venta', v.id) } catch(e) { toast('Error', 'error') } }}>👁 Remito</button>
+                            : <button className="btn btn-sm" style={{ background: '#FEF3C7', color: '#92400E' }} onClick={async () => { try { await imprimirRemito('venta', v.id); loadVentas() } catch(e) { toast('Error', 'error') } }}>🚚</button>
                           }
                           {isAdmin && v.estado_pago !== 'pagado' && (
                             <button className="btn btn-sm btn-danger" onClick={() => deleteVenta(v)}>Borrar</button>
@@ -362,7 +364,7 @@ export default function VentasPage() {
               <div className="op-card-cliente">{v.clientes ? nombreCliente(v.clientes) : '—'}</div>
               <div className="op-card-total">${parseFloat(v.total || 0).toLocaleString('es-AR', { maximumFractionDigits: 0 })}</div>
               <div className="op-card-actions">
-                <button className="btn btn-secondary" onClick={() => toast('Comprobante — próximamente', 'info')}>🧾 Ver</button>
+                <button className="btn btn-secondary" onClick={async () => { try { await verComprobanteVenta(v.id) } catch(e) { toast('Error', 'error') } }}>🧾 Ver</button>
                 {!v.fecha_entrega_real && (
                   <button className="btn btn-secondary"
                     onClick={() => { setModalFecha({ id: v.id, fechaActual: '' }); setFechaInput(new Date().toISOString().split('T')[0]) }}>
@@ -373,8 +375,8 @@ export default function VentasPage() {
                   <button className="btn btn-success" onClick={() => navigate('/pagos')}>💰 Cobrar</button>
                 )}
                 {tieneRemito
-                  ? <button className="btn btn-secondary" onClick={() => toast('Ver remito — próximamente', 'info')}>👁 Remito</button>
-                  : <button className="btn btn-secondary" onClick={() => toast('Imprimir remito — próximamente', 'info')}>🚚 Remito</button>
+                  ? <button className="btn btn-secondary" onClick={async () => { try { await verRemito('venta', v.id) } catch(e) { toast('Error', 'error') } }}>👁 Remito</button>
+                  : <button className="btn btn-secondary" onClick={async () => { try { await imprimirRemito('venta', v.id); loadVentas() } catch(e) { toast('Error', 'error') } }}>🚚 Remito</button>
                 }
               </div>
             </div>
@@ -501,6 +503,7 @@ export default function VentasPage() {
         </div>
       )}
 
+      <ComprobanteModal comp={comp} onClose={cerrarComp} onPrint={imprimir} onDownload={descargar} />
       <ToastContainer toasts={toasts} />
     </div>
   )
