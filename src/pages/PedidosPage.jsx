@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { nombreCliente, formatMoney, formatDate, badgeEstado } from '../utils/helpers'
@@ -56,20 +56,19 @@ export default function PedidosPage() {
 
   async function loadAll() {
     try {
-      const [{ data: v }, { data: c }, { data: p }, { data: ver }] = await Promise.all([
+      const [{ data: v }, { data: c }, { data: p }] = await Promise.all([
         supabase.from('user_roles').select('user_id,nombre').eq('rol', 'vendedor').order('nombre'),
         supabase.from('clientes').select('id,nombre,nombre_fantasia,vendedor_id,descuento_pct,modalidad_factura,estado_cliente').order('nombre'),
         supabase.from('productos').select('id,codigo,nombre,precio,precio_mayorista,margen_mayorista,costo,promo,precio_editable,familia').order('codigo'),
-        supabase.from('listas_precios_repo').select('id,nombre,fecha').order('fecha', { ascending: false }).limit(10)
       ])
       setVendedores(v || [])
       setClientes(c || [])
       setProductos(p || [])
-      setVersiones(ver || [])
     } catch (e) { console.error(e) }
+    loadPedidos()
   }
 
-  const loadPedidos = useCallback(async () => {
+  async function loadPedidos() {
     setLoading(true)
     try {
       let q = supabase.from('pedidos')
@@ -83,7 +82,6 @@ export default function PedidosPage() {
 
       const { data: peds } = await q
 
-      // Buscar remitos
       const ids = (peds || []).map(p => p.id)
       const ventaIds = (peds || []).filter(p => p.convertido_venta_id).map(p => p.convertido_venta_id)
       const todosIds = [...ids, ...ventaIds]
@@ -94,9 +92,9 @@ export default function PedidosPage() {
 
       setPedidos(peds || [])
     } catch (e) { console.error(e) } finally { setLoading(false) }
-  }, [filtroEstado, filtroCliente, filtroVendedor, isAdmin, user])
+  }
 
-  useEffect(() => { loadPedidos() }, [loadPedidos])
+  useEffect(() => { loadPedidos() }, [filtroEstado, filtroCliente, filtroVendedor])
 
   // ===== PRECIO DE PRODUCTO =====
   function getPrecio(productoId) {
