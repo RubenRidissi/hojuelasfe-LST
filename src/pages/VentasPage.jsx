@@ -32,6 +32,7 @@ export default function VentasPage() {
 
   // Remitos
   const [origenesConRemito, setOrigenesConRemito] = useState(new Set())
+  const [pedRelMap, setPedRelMap] = useState({})
 
   // Modal venta
   const [modalOpen, setModalOpen] = useState(false)
@@ -94,8 +95,6 @@ export default function VentasPage() {
       setVentas(vents || [])
     } catch (e) { console.error(e) } finally { setLoading(false) }
   }
-
-  const [pedRelMap, setPedRelMap] = useState({})
 
   useEffect(() => { loadVentas() }, [filtroCliente, filtroVendedor])
 

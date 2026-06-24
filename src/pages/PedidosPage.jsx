@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
-import { nombreCliente, formatMoney, formatDate, badgeEstado } from '../utils/helpers'
+import { nombreCliente } from '../utils/helpers'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
 
@@ -19,7 +19,6 @@ export default function PedidosPage() {
   const [clientes, setClientes] = useState([])
   const [vendedores, setVendedores] = useState([])
   const [productos, setProductos] = useState([])
-  const [versiones, setVersiones] = useState([])
   const [loading, setLoading] = useState(true)
 
   // Filtros
