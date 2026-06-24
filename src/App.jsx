@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
+import ClientesPage from './pages/ClientesPage'
 import Sidebar from './components/Sidebar'
 import { ToastContainer } from './components/Toast'
 import { useToast } from './hooks/useToast'
@@ -13,8 +14,9 @@ function AppLayout() {
       <Sidebar />
       <main className="main-content">
         <Routes>
-          <Route path="/"    element={<DashboardPage />} />
-          <Route path="*"    element={<Navigate to="/" replace />} />
+          <Route path="/"          element={<DashboardPage />} />
+          <Route path="/clientes"  element={<ClientesPage />} />
+          <Route path="*"          element={<Navigate to="/" replace />} />
         </Routes>
       </main>
       <ToastContainer toasts={toasts} />
@@ -46,16 +48,8 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/login" element={
-          <PublicRoute>
-            <LoginPage />
-          </PublicRoute>
-        } />
-        <Route path="/*" element={
-          <ProtectedRoute>
-            <AppLayout />
-          </ProtectedRoute>
-        } />
+        <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
+        <Route path="/*" element={<ProtectedRoute><AppLayout /></ProtectedRoute>} />
       </Routes>
     </BrowserRouter>
   )
