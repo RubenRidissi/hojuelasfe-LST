@@ -22,6 +22,7 @@ function AppLayout() {
         <Routes>
           <Route path="/"         element={<DashboardPage />} />
           <Route path="/clientes" element={<ClientesPage />} />
+          <Route path="/pedidos"  element={<PedidosPage />} />
           <Route path="*"         element={<Navigate to="/" replace />} />
         </Routes>
       </main>
