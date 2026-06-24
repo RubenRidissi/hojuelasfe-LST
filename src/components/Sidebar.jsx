@@ -1,41 +1,48 @@
 import { NavLink } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
-const LOGO_URL = 'https://raw.githubusercontent.com/RubenRidissi/hojuelasfe/main/Distrilst/icon-192.png'
+const LOGO_URL = 'https://raw.githubusercontent.com/hojuelasfe/Distrilst/main/icon-192.png'
 
 const NAV_ADMIN = [
-  { to: '/',           icon: '📊', label: 'Dashboard' },
-  { to: '/clientes',   icon: '👥', label: 'Clientes' },
-  { to: '/pedidos',    icon: '📋', label: 'Pedidos' },
-  { to: '/ventas',     icon: '🧾', label: 'Ventas' },
-  { to: '/remitos',    icon: '🚚', label: 'Remitos' },
-  { to: '/pagos',      icon: '💰', label: 'Pagos' },
-  { to: '/ctacte',     icon: '📒', label: 'Cta. Corriente' },
+  { to: '/', icon: '📊', label: 'Dashboard' },
+  { separator: 'Clientes' },
+  { to: '/clientes',    icon: '👥', label: 'Listado' },
+  { to: '/mapa',        icon: '🗺️', label: 'Mapa' },
+  { separator: 'Operaciones' },
+  { to: '/pedidos',     icon: '📋', label: 'Pedidos' },
+  { to: '/ventas',      icon: '🧾', label: 'Ventas' },
+  { to: '/remitos',     icon: '🚚', label: 'Remitos' },
+  { to: '/pagos',       icon: '💰', label: 'Pagos' },
+  { to: '/ctacte',      icon: '📒', label: 'Cta. Corriente' },
   { separator: 'Proveedores' },
-  { to: '/proveedor',  icon: '🏭', label: 'Pedidos Prov.' },
-  { to: '/recepciones',icon: '📦', label: 'Recepciones' },
-  { separator: 'Inventario' },
-  { to: '/productos',  icon: '🏷️', label: 'Productos' },
-  { to: '/stock',      icon: '📦', label: 'Stock' },
-  { to: '/listas',     icon: '📋', label: 'Listas de Precios' },
+  { to: '/proveedor',   icon: '📋', label: 'Pedidos' },
+  { to: '/recepciones', icon: '📦', label: 'Recepciones' },
+  { to: '/ctacte-prov', icon: '📒', label: 'Cta. Cte.', disabled: true, tag: 'próx.' },
+  { separator: 'Productos' },
+  { to: '/productos',   icon: '🏷️', label: 'Catálogo' },
+  { to: '/stock',       icon: '📦', label: 'Stock' },
+  { to: '/listas',      icon: '📋', label: 'Listas de Precios Vigentes' },
   { separator: 'Finanzas' },
-  { to: '/finanzas',   icon: '💵', label: 'Finanzas' },
-  { to: '/reportes',   icon: '📊', label: 'Reportes' },
-  { to: '/config',     icon: '⚙️', label: 'Configuración' },
+  { to: '/finanzas',    icon: '💵', label: 'Finanzas' },
+  { to: '/reportes',    icon: '📊', label: 'Reportes' },
+  { to: '/config',      icon: '⚙️', label: 'Configuración' },
 ]
 
 const NAV_VENDEDOR = [
-  { to: '/',           icon: '📊', label: 'Inicio' },
-  { to: '/clientes',   icon: '👥', label: 'Clientes' },
-  { to: '/pedidos',    icon: '📋', label: 'Pedidos' },
-  { to: '/ventas',     icon: '🧾', label: 'Ventas' },
-  { to: '/pagos',      icon: '💰', label: 'Cobros' },
-  { to: '/listas',     icon: '📋', label: 'Listas de Precios' },
-  { to: '/perfil',     icon: '👤', label: 'Mi Perfil' },
+  { to: '/',          icon: '📊', label: 'Inicio' },
+  { separator: 'Clientes' },
+  { to: '/clientes',  icon: '👥', label: 'Listado' },
+  { to: '/mapa',      icon: '🗺️', label: 'Mapa' },
+  { separator: 'Operaciones' },
+  { to: '/pedidos',   icon: '📋', label: 'Pedidos' },
+  { to: '/ventas',    icon: '🧾', label: 'Ventas' },
+  { to: '/pagos',     icon: '💰', label: 'Cobros' },
+  { separator: 'Productos' },
+  { to: '/listas',    icon: '📋', label: 'Listas de Precios' },
 ]
 
 export default function Sidebar() {
-  const { nombre, rol, isAdmin, logout } = useAuth()
+  const { nombre, isAdmin, logout } = useAuth()
   const nav = isAdmin ? NAV_ADMIN : NAV_VENDEDOR
 
   return (
@@ -51,15 +58,12 @@ export default function Sidebar() {
       overflowY: 'auto'
     }}>
       {/* Logo */}
-      <div style={{ padding: '20px 16px 16px', borderBottom: '1px solid var(--border)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <img src={LOGO_URL} alt="Hojuelas" style={{ height: 36 }}
-            onError={e => e.target.style.display = 'none'} />
-          <div>
-            <div style={{ fontWeight: 700, fontSize: 14 }}>Hojuelas SFE</div>
-            <div style={{ fontSize: 11, color: 'var(--muted)' }}>Panel de gestión</div>
-          </div>
-        </div>
+      <div style={{ padding: '20px 16px 16px', textAlign: 'center', borderBottom: '1px solid var(--border)' }}>
+        <img src={LOGO_URL} alt="Hojuelas"
+          style={{ height: 64, marginBottom: 8 }}
+          onError={e => e.target.style.display = 'none'} />
+        <div style={{ fontWeight: 700, fontSize: 15 }}>Hojuelas SFE</div>
+        <div style={{ fontSize: 11, color: 'var(--muted)' }}>Panel de gestión</div>
       </div>
 
       {/* Nav */}
@@ -68,7 +72,7 @@ export default function Sidebar() {
           if (item.separator) {
             return (
               <div key={i} style={{
-                padding: '12px 16px 4px',
+                padding: '14px 16px 4px',
                 fontSize: 10,
                 fontWeight: 700,
                 textTransform: 'uppercase',
@@ -79,16 +83,32 @@ export default function Sidebar() {
               </div>
             )
           }
+
+          if (item.disabled) {
+            return (
+              <div key={i} style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '8px 16px 8px 28px',
+                fontSize: 13, color: '#C4B8A8',
+                cursor: 'default'
+              }}>
+                <span>{item.icon}</span>
+                <span>{item.label}</span>
+                {item.tag && <span style={{ fontSize:10, background:'#F3F4F6', color:'#9CA3AF', padding:'1px 6px', borderRadius:8, marginLeft:'auto' }}>{item.tag}</span>}
+              </div>
+            )
+          }
+
           return (
             <NavLink
-              key={item.to}
+              key={item.to + i}
               to={item.to}
               end={item.to === '/'}
               style={({ isActive }) => ({
                 display: 'flex',
                 alignItems: 'center',
                 gap: 10,
-                padding: '9px 16px',
+                padding: '8px 16px 8px 28px',
                 textDecoration: 'none',
                 color: isActive ? 'var(--primary-dark)' : 'var(--text)',
                 background: isActive ? 'var(--primary-light)' : 'transparent',
@@ -99,7 +119,7 @@ export default function Sidebar() {
                 transition: 'background 0.15s',
               })}
             >
-              <span>{item.icon}</span>
+              <span style={{ fontSize: 15 }}>{item.icon}</span>
               <span>{item.label}</span>
             </NavLink>
           )
