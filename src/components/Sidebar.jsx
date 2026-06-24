@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
-const LOGO_URL = 'https://raw.githubusercontent.com/hojuelasfe/Distrilst/main/icon-192.png'
+const LOGO_URL = 'https://raw.githubusercontent.com/RubenRidissi/hojuelasfe/main/Distrilst/icon-192.png'
 
 const NAV_ADMIN = [
   { to: '/', icon: '📊', label: 'Dashboard' },
