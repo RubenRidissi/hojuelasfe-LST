@@ -4,13 +4,12 @@ import { supabase } from '../services/supabase'
 const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(null)       // userId de Supabase
-  const [rol, setRol] = useState(null)         // 'admin' | 'vendedor'
-  const [nombre, setNombre] = useState(null)   // nombre para mostrar
-  const [loading, setLoading] = useState(true) // cargando sesión inicial
+  const [user, setUser] = useState(null)
+  const [rol, setRol] = useState(null)
+  const [nombre, setNombre] = useState(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Verificar sesión existente al cargar
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         loadUserRole(session.user.id)
@@ -19,7 +18,6 @@ export function AuthProvider({ children }) {
       }
     })
 
-    // Escuchar cambios de auth
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session) {
         loadUserRole(session.user.id)
@@ -37,19 +35,27 @@ export function AuthProvider({ children }) {
   async function loadUserRole(userId) {
     try {
       const { data, error } = await supabase
-        .from('usuarios')
+        .from('user_roles')
         .select('rol, nombre')
         .eq('user_id', userId)
-        .single()
 
-      if (error || !data) throw error || new Error('Usuario no encontrado')
+      if (error) throw error
 
-      setUser(userId)
-      setRol(data.rol)
-      setNombre(data.nombre)
+      if (data && data.length > 0) {
+        setUser(userId)
+        setRol(data[0].rol)
+        setNombre(data[0].nombre)
+      } else {
+        // Sin registro en user_roles — rol por defecto
+        setUser(userId)
+        setRol('vendedor')
+        setNombre('Usuario')
+      }
     } catch (e) {
       console.error('Error cargando rol:', e)
-      await supabase.auth.signOut()
+      setUser(userId)
+      setRol('vendedor')
+      setNombre('Usuario')
     } finally {
       setLoading(false)
     }
