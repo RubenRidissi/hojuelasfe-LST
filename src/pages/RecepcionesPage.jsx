@@ -495,14 +495,16 @@ export default function RecepcionesPage() {
       </div>
 
       {/* Ajustes NC/ND proveedor */}
-      {ajustes.length > 0 && (
+      {(true && (
         <div className="card" style={{ marginBottom: 16 }}>
-          <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 13 }}>± NC / ND Proveedor</div>
+          <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 13 }}>± Notas de Crédito / Débito del Proveedor</div>
           <div className="table-wrap desktop-table">
             <table>
               <thead><tr><th>Tipo</th><th>Fecha</th><th>N° Comp.</th><th>Recepción</th><th>Monto</th><th>Concepto</th><th></th></tr></thead>
               <tbody>
-                {ajustes.map(a => (
+                {ajustes.length === 0 ? (
+                  <tr><td colSpan={7} style={{ textAlign:'center', padding:16, color:'var(--muted)' }}>Sin ajustes registrados</td></tr>
+                ) : ajustes.map(a => (
                   <tr key={a.id}>
                     <td><span className={`badge ${a.tipo === 'NC' ? 'badge-green' : 'badge-red'}`}>{a.tipo}</span></td>
                     <td style={{ fontSize: 12 }}>{new Date(a.fecha + 'T00:00:00').toLocaleDateString('es-AR')}</td>
