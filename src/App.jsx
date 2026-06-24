@@ -5,6 +5,7 @@ import DashboardPage from './pages/DashboardPage'
 import ClientesPage from './pages/ClientesPage'
 import PedidosPage from './pages/PedidosPage'
 import VentasPage from './pages/VentasPage'
+import PagosPage from './pages/PagosPage'
 import Sidebar from './components/Sidebar'
 import MobileNav from './components/MobileNav'
 import FabButton from './components/FabButton'
@@ -25,6 +26,7 @@ function AppLayout() {
           <Route path="/clientes" element={<ClientesPage />} />
           <Route path="/pedidos"  element={<PedidosPage />} />
           <Route path="/ventas"   element={<VentasPage />} />
+          <Route path="/pagos"    element={<PagosPage />} />
           <Route path="*"         element={<Navigate to="/" replace />} />
         </Routes>
       </main>
