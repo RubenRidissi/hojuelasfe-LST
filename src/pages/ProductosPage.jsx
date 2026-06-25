@@ -4,6 +4,8 @@ import { useAuth } from '../context/AuthContext'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
 
+const TIPOS_CLIENTE = ['Representante', 'Distribuidor', 'Mayorista', 'Supermercado', 'Almacén']
+
 const MARKUP_COLS = [
   { key: 'markup_representante', precio: 'precio_representante', label: 'Representante' },
   { key: 'markup_distribuidor', precio: 'precio_distribuidor', label: 'Distribuidor' },
@@ -13,28 +15,24 @@ const MARKUP_COLS = [
 ]
 
 const EMPTY_FORM = {
-  id: '',
-  codigo: '',
-  codigo_viejo: '',
-  familia: '',
-  variante: '',
-  nombre: '',
-  descripcion: '',
-  costo: '',
+  id: '', codigo: '', codigo_viejo: '', familia: '', variante: '',
+  nombre: '', descripcion: '', costo: '', descuento_costo: '0',
+  markup_representante: '0', markup_distribuidor: '0',
+  markup_mayorista: '0', markup_supermercado: '0', markup_almacen: '0',
+  unidad: 'unidad', stock: 0, stock_minimo: 0,
+  promo: false, promo_paga: '', promo_lleva: '',
+  precio_editable: false, activo: true
+}
+
+
+const EMPTY_BULK_PRICE_FORM = {
   descuento_costo: '0',
   markup_representante: '0',
   markup_distribuidor: '0',
   markup_mayorista: '0',
   markup_supermercado: '0',
   markup_almacen: '0',
-  unidad: 'unidad',
-  stock: 0,
-  stock_minimo: 0,
-  promo: false,
-  promo_paga: '',
-  promo_lleva: '',
-  precio_editable: false,
-  activo: true,
+  aplicarSoloFiltrados: false
 }
 
 function calcPrecio(costo, descuento_costo, markup) {
@@ -43,13 +41,6 @@ function calcPrecio(costo, descuento_costo, markup) {
   const m = parseFloat(markup) || 0
   const costoNeto = c * (1 - d / 100)
   return costoNeto * (1 + m / 100)
-}
-
-function money(value, digits = 2) {
-  return parseFloat(value || 0).toLocaleString('es-AR', {
-    maximumFractionDigits: digits,
-    minimumFractionDigits: digits,
-  })
 }
 
 export default function ProductosPage() {
@@ -61,95 +52,89 @@ export default function ProductosPage() {
   const [filtroFamilia, setFiltroFamilia] = useState('')
   const [search, setSearch] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
+  const [priceModalOpen, setPriceModalOpen] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
+  const [bulkPriceForm, setBulkPriceForm] = useState(EMPTY_BULK_PRICE_FORM)
   const [saving, setSaving] = useState(false)
+  const [savingPrices, setSavingPrices] = useState(false)
 
-  useEffect(() => {
-    loadProductos()
-  }, [])
+  useEffect(() => { loadProductos() }, [])
 
   async function loadProductos() {
     setLoading(true)
     try {
-      const [{ data: prods, error: prodsError }, { data: stockData, error: stockError }] = await Promise.all([
+      const [{ data: prods }, { data: stockData }] = await Promise.all([
         supabase.from('productos').select('*').order('codigo'),
-        supabase.from('stock_actual').select('id,stock'),
+        supabase.from('stock_actual').select('id,stock')
       ])
-
-      if (prodsError) throw prodsError
-      if (stockError) throw stockError
-
       const stockMap = {}
-      ;(stockData || []).forEach(s => {
-        stockMap[s.id] = parseFloat(s.stock || 0)
-      })
-
+      ;(stockData || []).forEach(s => { stockMap[s.id] = parseFloat(s.stock || 0) })
       setProductos((prods || []).map(p => ({ ...p, stock_real: stockMap[p.id] ?? 0 })))
-    } catch (e) {
-      console.error(e)
-      toast('Error al cargar productos: ' + e.message, 'error')
-    } finally {
-      setLoading(false)
-    }
+    } catch (e) { console.error(e) } finally { setLoading(false) }
   }
 
-  const familias = useMemo(() => {
-    return [...new Set(productos.map(p => p.familia).filter(Boolean))].sort()
-  }, [productos])
+  const familias = useMemo(() => [...new Set(productos.map(p => p.familia).filter(Boolean))].sort(), [productos])
 
   const productosFiltrados = useMemo(() => {
     let list = productos
     if (filtroFamilia) list = list.filter(p => p.familia === filtroFamilia)
-    if (search) {
-      const q = search.toLowerCase()
-      list = list.filter(p => `${p.nombre || ''} ${p.codigo || ''}`.toLowerCase().includes(q))
-    }
+    if (search) list = list.filter(p => (p.nombre + ' ' + (p.codigo || '')).toLowerCase().includes(search.toLowerCase()))
     return list
   }, [productos, filtroFamilia, search])
 
+  // Precios calculados en tiempo real para el formulario
   const preciosPreview = useMemo(() => {
     return MARKUP_COLS.map(col => ({
       label: col.label,
-      precio: calcPrecio(form.costo, form.descuento_costo, form[col.key]),
+      precio: calcPrecio(form.costo, form.descuento_costo, form[col.key])
     }))
-  }, [
-    form.costo,
-    form.descuento_costo,
-    form.markup_representante,
-    form.markup_distribuidor,
-    form.markup_mayorista,
-    form.markup_supermercado,
-    form.markup_almacen,
-  ])
+  }, [form.costo, form.descuento_costo, form.markup_representante, form.markup_distribuidor, form.markup_mayorista, form.markup_supermercado, form.markup_almacen])
 
-  async function actualizarPrecios() {
+  async function aplicarPoliticaPrecios() {
+    const productosObjetivo = bulkPriceForm.aplicarSoloFiltrados ? productosFiltrados : productos
+
+    if (!productosObjetivo.length) {
+      toast('No hay productos para actualizar', 'error')
+      return
+    }
+
+    const alcance = bulkPriceForm.aplicarSoloFiltrados ? `${productosObjetivo.length} productos filtrados` : 'todos los productos'
+    if (!confirm(`¿Aplicar esta política de precios a ${alcance}?`)) return
+
+    setSavingPrices(true)
     try {
+      const payload = {
+        descuento_costo: parseFloat(bulkPriceForm.descuento_costo) || 0,
+        markup_representante: parseFloat(bulkPriceForm.markup_representante) || 0,
+        markup_distribuidor: parseFloat(bulkPriceForm.markup_distribuidor) || 0,
+        markup_mayorista: parseFloat(bulkPriceForm.markup_mayorista) || 0,
+        markup_supermercado: parseFloat(bulkPriceForm.markup_supermercado) || 0,
+        markup_almacen: parseFloat(bulkPriceForm.markup_almacen) || 0,
+      }
+
+      const ids = productosObjetivo.map(p => p.id).filter(Boolean)
+      const { error } = await supabase
+        .from('productos')
+        .update(payload)
+        .in('id', ids)
+
+      if (error) throw error
+
+      toast('Política de precios aplicada')
+      setPriceModalOpen(false)
       await loadProductos()
-      toast('Precios actualizados')
     } catch (e) {
-      console.error(e)
-      toast('Error al refrescar precios: ' + e.message, 'error')
+      toast('Error al actualizar precios: ' + e.message, 'error')
+    } finally {
+      setSavingPrices(false)
     }
   }
 
   async function saveProducto() {
-    if (!form.nombre.trim()) {
-      toast('El nombre es obligatorio', 'error')
-      return
-    }
-
-    if (!form.codigo.trim()) {
-      toast('El código es obligatorio', 'error')
-      return
-    }
-
-    if (form.promo && (!form.promo_paga || !form.promo_lleva)) {
-      toast('Completá los valores de la promoción', 'error')
-      return
-    }
-
+    if (!form.nombre.trim()) { toast('El nombre es obligatorio', 'error'); return }
+    if (!form.codigo.trim()) { toast('El código es obligatorio', 'error'); return }
+    if (form.promo && (!form.promo_paga || !form.promo_lleva)) { toast('Completá los valores de la promoción', 'error'); return }
     setSaving(true)
-
     try {
       const data = {
         codigo: form.codigo.trim().toUpperCase(),
@@ -170,85 +155,58 @@ export default function ProductosPage() {
         stock_minimo: parseInt(form.stock_minimo) || 0,
         promo: form.promo ? `${parseInt(form.promo_paga) || 0}+${parseInt(form.promo_lleva) || 0}` : null,
         precio_editable: form.precio_editable,
-        activo: form.activo,
+        activo: form.activo
       }
-
       if (form.id) {
-        const { error } = await supabase.from('productos').update(data).eq('id', form.id)
-        if (error) throw error
+        await supabase.from('productos').update(data).eq('id', form.id)
         toast('Producto actualizado')
       } else {
-        const { error } = await supabase.from('productos').insert(data)
-        if (error) throw error
+        await supabase.from('productos').insert(data)
         toast('Producto creado')
       }
-
       setModalOpen(false)
       setForm(EMPTY_FORM)
-      await loadProductos()
-    } catch (e) {
-      toast('Error: ' + e.message, 'error')
-    } finally {
-      setSaving(false)
-    }
+      loadProductos()
+    } catch (e) { toast('Error: ' + e.message, 'error') } finally { setSaving(false) }
   }
 
   function editProducto(p) {
-    const [promoPaga, promoLleva] = p.promo ? String(p.promo).split('+') : ['', '']
-
+    const [promoPaga, promoLleva] = p.promo ? p.promo.split('+') : ['', '']
     setForm({
-      id: p.id,
-      codigo: p.codigo || '',
-      codigo_viejo: p.codigo_viejo || '',
-      familia: p.familia || '',
-      variante: p.variante || '',
-      nombre: p.nombre || '',
-      descripcion: p.descripcion || '',
-      costo: p.costo || '',
-      descuento_costo: p.descuento_costo ?? '0',
+      id: p.id, codigo: p.codigo || '', codigo_viejo: p.codigo_viejo || '',
+      familia: p.familia || '', variante: p.variante || '',
+      nombre: p.nombre || '', descripcion: p.descripcion || '',
+      costo: p.costo || '', descuento_costo: p.descuento_costo ?? '0',
       markup_representante: p.markup_representante ?? '0',
       markup_distribuidor: p.markup_distribuidor ?? '0',
       markup_mayorista: p.markup_mayorista ?? '0',
       markup_supermercado: p.markup_supermercado ?? '0',
       markup_almacen: p.markup_almacen ?? '0',
       unidad: p.unidad || 'unidad',
-      stock: p.stock || 0,
-      stock_minimo: p.stock_minimo || 0,
-      promo: !!p.promo,
-      promo_paga: promoPaga || '',
-      promo_lleva: promoLleva || '',
-      precio_editable: !!p.precio_editable,
-      activo: p.activo !== false,
+      stock: p.stock || 0, stock_minimo: p.stock_minimo || 0,
+      promo: !!p.promo, promo_paga: promoPaga || '', promo_lleva: promoLleva || '',
+      precio_editable: !!p.precio_editable, activo: p.activo !== false
     })
-
     setModalOpen(true)
   }
 
   async function deleteProducto() {
     if (!form.id) return
     if (!confirm(`¿Eliminar el producto "${form.nombre}"?`)) return
-
     try {
-      const { error } = await supabase.from('productos').delete().eq('id', form.id)
-      if (error) throw error
+      await supabase.from('productos').delete().eq('id', form.id)
       toast('Producto eliminado')
       setModalOpen(false)
       setForm(EMPTY_FORM)
-      await loadProductos()
-    } catch (e) {
-      toast('Error: ' + e.message, 'error')
-    }
+      loadProductos()
+    } catch (e) { toast('Error: ' + e.message, 'error') }
   }
 
   function stockBadge(p) {
     const stock = p.stock_real ?? 0
-    const low = p.stock_minimo > 0 && stock <= p.stock_minimo
-    const empty = stock <= 0
-    return (
-      <span className={empty || low ? 'badge badge-warning' : 'badge'}>
-        {(empty || low) && '⚠ '}{stock}
-      </span>
-    )
+    if (stock <= 0) return <span className="badge badge-red">⚠ {stock}</span>
+    if (p.stock_minimo > 0 && stock <= p.stock_minimo) return <span className="badge badge-yellow">⚠ {stock}</span>
+    return <span className="badge badge-green">{stock}</span>
   }
 
   const grupos = useMemo(() => {
@@ -261,343 +219,336 @@ export default function ProductosPage() {
     return g
   }, [productosFiltrados])
 
-  function costoNeto(p) {
+  const costoNeto = (p) => {
     const c = parseFloat(p.costo || 0)
     const d = parseFloat(p.descuento_costo || 0)
     return c * (1 - d / 100)
   }
 
   return (
-    <>
-      <ToastContainer toasts={toasts} />
-
-      <div className="page">
-        <div className="page-header">
-          <h1 className="page-title">Productos</h1>
-
-          {isAdmin && (
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              <button
-                className="btn btn-secondary"
-                onClick={actualizarPrecios}
-                disabled={loading}
-              >
-                💲 Actualizar precios
-              </button>
-
-              <button
-                className="btn btn-primary"
-                onClick={() => {
-                  setForm(EMPTY_FORM)
-                  setModalOpen(true)
-                }}
-              >
-                + Nuevo producto
-              </button>
-            </div>
-          )}
-        </div>
-
-        <div className="card" style={{ marginBottom: 16 }}>
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-            <input
-              className="input"
-              placeholder="Buscar por nombre o código..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              style={{ flex: 2, minWidth: 220 }}
-            />
-
-            <select
-              className="input"
-              value={filtroFamilia}
-              onChange={e => setFiltroFamilia(e.target.value)}
-              style={{ flex: 1, minWidth: 180 }}
-            >
-              <option value="">Todas las familias</option>
-              {familias.map(f => (
-                <option key={f} value={f}>{f}</option>
-              ))}
-            </select>
+    <div>
+      <div className="page-header">
+        <h1 className="page-title">Productos</h1>
+        {isAdmin && (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button className="btn btn-secondary" onClick={() => setPriceModalOpen(true)}>💲 Actualizar precios</button>
+            <button className="btn btn-primary" onClick={() => { setForm(EMPTY_FORM); setModalOpen(true) }}>+ Nuevo producto</button>
           </div>
-        </div>
-
-        {loading ? (
-          <div className="card" style={{ textAlign: 'center', padding: 32 }}>
-            <div style={{ fontSize: 32 }}>⏳</div>
-            <div>Cargando...</div>
-          </div>
-        ) : (
-          <>
-            <div className="desktop-table">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Código</th>
-                    <th>Nombre</th>
-                    <th>Costo</th>
-                    <th>Costo neto</th>
-                    {MARKUP_COLS.map(c => (
-                      <th key={c.key}>{c.label}</th>
-                    ))}
-                    <th>Stock</th>
-                    {isAdmin && <th></th>}
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {Object.entries(grupos).map(([fam, prods]) => (
-                    <FragmentGroup
-                      key={fam}
-                      fam={fam}
-                      prods={prods}
-                      isAdmin={isAdmin}
-                      editProducto={editProducto}
-                      costoNeto={costoNeto}
-                      stockBadge={stockBadge}
-                    />
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="mobile-cards">
-              {Object.entries(grupos).map(([fam, prods]) => (
-                <div key={fam} style={{ marginBottom: 16 }}>
-                  <h3>{fam}</h3>
-                  {prods.map(p => (
-                    <div className="card" key={p.id} style={{ marginBottom: 12 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
-                        <div>
-                          <strong>{p.nombre}</strong>
-                          {p.codigo && <div><code>{p.codigo}</code></div>}
-                          {p.variante && <small>{p.variante}</small>}
-                        </div>
-                        <div>{stockBadge(p)}</div>
-                      </div>
-
-                      <div style={{ marginTop: 8 }}>
-                        Costo: ${money(p.costo)}
-                        {parseFloat(p.descuento_costo || 0) > 0 && (
-                          <span> (neto: ${money(costoNeto(p))})</span>
-                        )}
-                      </div>
-
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8 }}>
-                        {MARKUP_COLS.map(col => (
-                          <div key={col.key}>
-                            <small>{col.label}</small>
-                            <div><strong>${money(p[col.precio], 0)}</strong></div>
-                          </div>
-                        ))}
-                      </div>
-
-                      {isAdmin && (
-                        <button className="btn btn-secondary" onClick={() => editProducto(p)} style={{ marginTop: 12 }}>
-                          ✏ Editar
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
-          </>
         )}
       </div>
 
-      {modalOpen && (
-        <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && setModalOpen(false)}>
-          <div className="modal">
-            <div className="modal-header">
-              <h2>{form.id ? 'Editar producto' : 'Nuevo producto'}</h2>
-              <button className="btn btn-secondary" onClick={() => setModalOpen(false)}>✕</button>
-            </div>
+      <div className="filter-bar">
+        <input type="text" placeholder="Buscar producto..." value={search} onChange={e => setSearch(e.target.value)} style={{ flex: 2 }} />
+        <select value={filtroFamilia} onChange={e => setFiltroFamilia(e.target.value)} style={{ flex: 1 }}>
+          <option value="">Todas las familias</option>
+          {familias.map(f => <option key={f} value={f}>{f}</option>)}
+        </select>
+      </div>
 
-            <div className="form-grid">
-              <label>
-                Código *
-                <input className="input" value={form.codigo} onChange={e => setForm(f => ({ ...f, codigo: e.target.value }))} />
-              </label>
-
-              <label>
-                Código viejo
-                <input className="input" value={form.codigo_viejo} onChange={e => setForm(f => ({ ...f, codigo_viejo: e.target.value }))} />
-              </label>
-
-              <label>
-                Familia
-                <input className="input" value={form.familia} onChange={e => setForm(f => ({ ...f, familia: e.target.value }))} list="familias-list" />
-                <datalist id="familias-list">
-                  {familias.map(f => <option key={f} value={f} />)}
-                </datalist>
-              </label>
-
-              <label>
-                Nombre *
-                <input className="input" value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} />
-              </label>
-
-              <label>
-                Variante
-                <input className="input" value={form.variante} onChange={e => setForm(f => ({ ...f, variante: e.target.value }))} placeholder="Ej: 500g" />
-              </label>
-
-              <label>
-                Unidad
-                <input className="input" value={form.unidad} onChange={e => setForm(f => ({ ...f, unidad: e.target.value }))} />
-              </label>
-            </div>
-
-            <label>
-              Descripción
-              <textarea className="input" value={form.descripcion} onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))} />
-            </label>
-
-            <h3>Costos</h3>
-            <div className="form-grid">
-              <label>
-                Costo de fábrica
-                <input className="input" type="number" step="0.01" value={form.costo} onChange={e => setForm(f => ({ ...f, costo: e.target.value }))} />
-              </label>
-
-              <label>
-                Descuento s/costo (%)
-                <input className="input" type="number" step="0.01" value={form.descuento_costo} onChange={e => setForm(f => ({ ...f, descuento_costo: e.target.value }))} />
-              </label>
-
-              <label>
-                Costo neto
-                <input className="input" disabled value={`$${money(calcPrecio(form.costo, form.descuento_costo, 0))}`} />
-              </label>
-            </div>
-
-            <h3>Markup por tipo de cliente</h3>
-            <div className="table-wrapper">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Tipo</th>
-                    <th>Markup %</th>
-                    <th>Precio s/IVA</th>
-                    <th>Precio c/IVA</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {MARKUP_COLS.map((col, i) => {
-                    const precio = preciosPreview[i].precio
-                    return (
-                      <tr key={col.key}>
-                        <td>{col.label}</td>
-                        <td>
-                          <input
-                            className="input"
-                            type="number"
-                            step="0.01"
-                            value={form[col.key]}
-                            onChange={e => setForm(f => ({ ...f, [col.key]: e.target.value }))}
-                            style={{ width: 90, textAlign: 'right', padding: '4px 6px' }}
-                          />
+      {/* Tabla desktop */}
+      <div className="card desktop-table">
+        {loading ? (
+          <div className="empty"><div className="empty-icon">⏳</div><p>Cargando...</p></div>
+        ) : (
+          <div className="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Código</th><th>Nombre</th><th>Costo</th><th>Costo neto</th>
+                  {MARKUP_COLS.map(c => <th key={c.key} style={{ textAlign: 'right' }}>{c.label}</th>)}
+                  <th>Stock</th><th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(grupos).map(([fam, prods]) => [
+                  <tr key={`fam-${fam}`} style={{ background: 'var(--primary-light)' }}>
+                    <td colSpan={9 + MARKUP_COLS.length} style={{ padding: '6px 12px', fontSize: 11, fontWeight: 700, color: 'var(--primary-dark)', textTransform: 'uppercase' }}>{fam}</td>
+                  </tr>,
+                  ...prods.map(p => (
+                    <tr key={p.id}>
+                      <td><code style={{ fontSize: 12, background: 'var(--bg)', padding: '2px 6px', borderRadius: 4 }}>{p.codigo || '—'}</code></td>
+                      <td>
+                        <strong>{p.nombre}</strong>
+                        {p.variante && <><br /><span style={{ fontSize: 11, color: 'var(--muted)' }}>{p.variante}</span></>}
+                      </td>
+                      <td style={{ fontSize: 12 }}>${parseFloat(p.costo || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</td>
+                      <td style={{ fontSize: 12, color: 'var(--muted)' }}>
+                        ${costoNeto(p).toLocaleString('es-AR', { maximumFractionDigits: 2 })}
+                        {parseFloat(p.descuento_costo || 0) > 0 && <span style={{ fontSize: 10, color: 'var(--success)', marginLeft: 4 }}>-{p.descuento_costo}%</span>}
+                      </td>
+                      {MARKUP_COLS.map(col => (
+                        <td key={col.key} style={{ textAlign: 'right', fontSize: 12, fontWeight: 600 }}>
+                          ${parseFloat(p[col.precio] || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}
+                          <span style={{ fontSize: 10, color: 'var(--muted)', display: 'block' }}>{p[col.key] || 0}%</span>
                         </td>
-                        <td>${money(precio)}</td>
-                        <td>${money(precio * 1.21)}</td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
+                      ))}
+                      <td>{stockBadge(p)}</td>
+                      <td>{isAdmin && <button className="btn btn-sm btn-secondary" onClick={() => editProducto(p)}>Editar</button>}</td>
+                    </tr>
+                  ))
+                ])}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
-            <h3>Stock y promoción</h3>
-            <div className="form-grid">
-              <label>
-                Stock actual
-                <input className="input" type="number" value={form.stock} onChange={e => setForm(f => ({ ...f, stock: e.target.value }))} />
-              </label>
-
-              <label>
-                Stock mínimo
-                <input className="input" type="number" value={form.stock_minimo} onChange={e => setForm(f => ({ ...f, stock_minimo: e.target.value }))} />
-              </label>
-            </div>
-
-            <label style={{ display: 'block', marginTop: 12 }}>
-              <input type="checkbox" checked={form.promo} onChange={e => setForm(f => ({ ...f, promo: e.target.checked }))} /> Tiene promoción
-            </label>
-
-            {form.promo && (
-              <div className="form-grid">
-                <label>
-                  Paga
-                  <input className="input" type="number" value={form.promo_paga} onChange={e => setForm(f => ({ ...f, promo_paga: e.target.value }))} />
-                </label>
-
-                <label>
-                  Lleva bonificado
-                  <input className="input" type="number" value={form.promo_lleva} onChange={e => setForm(f => ({ ...f, promo_lleva: e.target.value }))} />
-                </label>
+      {/* Cards mobile */}
+      <div className="mobile-cards">
+        {Object.entries(grupos).map(([fam, prods]) => (
+          <div key={fam}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', padding: '8px 4px 4px' }}>{fam}</div>
+            {prods.map(p => (
+              <div key={p.id} className="op-card" style={{ marginBottom: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <div>
+                    <div style={{ fontWeight: 600 }}>{p.nombre}</div>
+                    {p.codigo && <code style={{ fontSize: 11 }}>{p.codigo}</code>}
+                    <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+                      Costo: ${parseFloat(p.costo || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}
+                      {parseFloat(p.descuento_costo || 0) > 0 && ` (neto: $${costoNeto(p).toLocaleString('es-AR', { maximumFractionDigits: 2 })})`}
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right', fontSize: 12 }}>{stockBadge(p)}</div>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, marginTop: 8 }}>
+                  {MARKUP_COLS.map(col => (
+                    <div key={col.key} style={{ background: 'var(--bg)', borderRadius: 6, padding: '4px 6px', textAlign: 'center' }}>
+                      <div style={{ fontSize: 10, color: 'var(--muted)' }}>{col.label}</div>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>${parseFloat(p[col.precio] || 0).toLocaleString('es-AR', { maximumFractionDigits: 0 })}</div>
+                    </div>
+                  ))}
+                </div>
+                {isAdmin && (
+                  <div className="op-card-actions" style={{ marginTop: 8 }}>
+                    <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => editProducto(p)}>✏ Editar</button>
+                  </div>
+                )}
               </div>
-            )}
+            ))}
+          </div>
+        ))}
+      </div>
 
-            <div style={{ display: 'flex', gap: 16, marginTop: 12, flexWrap: 'wrap' }}>
-              <label>
-                <input type="checkbox" checked={form.precio_editable} onChange={e => setForm(f => ({ ...f, precio_editable: e.target.checked }))} /> Precio editable al cargar
-              </label>
+      {/* Modal política de precios */}
+      {priceModalOpen && (
+        <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && setPriceModalOpen(false)}>
+          <div className="modal" style={{ maxWidth: 620 }}>
+            <div className="modal-header">
+              <h2>Actualizar precios</h2>
+              <button className="btn btn-secondary btn-sm" onClick={() => setPriceModalOpen(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <p style={{ marginTop: 0, color: 'var(--muted)', fontSize: 13 }}>
+                Esta acción actualiza solamente el descuento y los markups. Los precios finales los recalcula Supabase automáticamente.
+              </p>
 
-              <label>
-                <input type="checkbox" checked={form.activo} onChange={e => setForm(f => ({ ...f, activo: e.target.checked }))} /> Activo
+              <div style={{ background: 'var(--bg)', borderRadius: 8, padding: 12, marginBottom: 12 }}>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Descuento s/costo global (%)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.1"
+                      value={bulkPriceForm.descuento_costo}
+                      onChange={e => setBulkPriceForm(f => ({ ...f, descuento_costo: e.target.value }))}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ background: 'var(--bg)', borderRadius: 8, padding: 12, marginBottom: 12 }}>
+                <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8 }}>
+                  Markups por tipo de cliente
+                </div>
+                <div className="form-row">
+                  {MARKUP_COLS.map(col => (
+                    <div className="form-group" key={col.key}>
+                      <label>{col.label} (%)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        value={bulkPriceForm[col.key]}
+                        onChange={e => setBulkPriceForm(f => ({ ...f, [col.key]: e.target.value }))}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontWeight: 'normal' }}>
+                <input
+                  type="checkbox"
+                  checked={bulkPriceForm.aplicarSoloFiltrados}
+                  onChange={e => setBulkPriceForm(f => ({ ...f, aplicarSoloFiltrados: e.target.checked }))}
+                />
+                Aplicar solo a los productos filtrados actualmente ({productosFiltrados.length})
               </label>
             </div>
-
-            <div className="modal-actions">
-              {form.id && (
-                <button className="btn btn-danger" onClick={deleteProducto}>Eliminar</button>
-              )}
-              <button className="btn btn-secondary" onClick={() => setModalOpen(false)}>Cancelar</button>
-              <button className="btn btn-primary" onClick={saveProducto} disabled={saving}>
-                {saving ? 'Guardando...' : 'Guardar'}
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => setPriceModalOpen(false)}>Cancelar</button>
+              <button className="btn btn-primary" onClick={aplicarPoliticaPrecios} disabled={savingPrices}>
+                {savingPrices ? 'Actualizando...' : 'Aplicar política'}
               </button>
             </div>
           </div>
         </div>
       )}
-    </>
-  )
-}
 
-function FragmentGroup({ fam, prods, isAdmin, editProducto, costoNeto, stockBadge }) {
-  return (
-    <>
-      <tr className="group-row">
-        <td colSpan={9}>{fam}</td>
-      </tr>
-      {prods.map(p => (
-        <tr key={p.id}>
-          <td><code>{p.codigo || '—'}</code></td>
-          <td>
-            <strong>{p.nombre}</strong>
-            {p.variante && <><br /><small>{p.variante}</small></>}
-          </td>
-          <td>${money(p.costo)}</td>
-          <td>
-            ${money(costoNeto(p))}
-            {parseFloat(p.descuento_costo || 0) > 0 && <small> -{p.descuento_costo}%</small>}
-          </td>
-          {MARKUP_COLS.map(col => (
-            <td key={col.key}>
-              ${money(p[col.precio])}
-              <br />
-              <small>{p[col.key] || 0}%</small>
-            </td>
-          ))}
-          <td>{stockBadge(p)}</td>
-          {isAdmin && (
-            <td>
-              <button className="btn btn-secondary" onClick={() => editProducto(p)}>Editar</button>
-            </td>
-          )}
-        </tr>
-      ))}
-    </>
+      {/* Modal producto */}
+      {modalOpen && (
+        <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && setModalOpen(false)}>
+          <div className="modal" style={{ maxWidth: 680 }}>
+            <div className="modal-header">
+              <h2>{form.id ? 'Editar producto' : 'Nuevo producto'}</h2>
+              <button className="btn btn-secondary btn-sm" onClick={() => setModalOpen(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Código *</label>
+                  <input value={form.codigo} onChange={e => setForm(f => ({ ...f, codigo: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label>Código viejo</label>
+                  <input value={form.codigo_viejo} onChange={e => setForm(f => ({ ...f, codigo_viejo: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label>Familia</label>
+                  <input value={form.familia} onChange={e => setForm(f => ({ ...f, familia: e.target.value }))} list="familias-list" />
+                  <datalist id="familias-list">{familias.map(f => <option key={f} value={f} />)}</datalist>
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group" style={{ gridColumn: '1/-1' }}>
+                  <label>Nombre *</label>
+                  <input value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} />
+                </div>
+              </div>
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Variante</label>
+                  <input value={form.variante} onChange={e => setForm(f => ({ ...f, variante: e.target.value }))} placeholder="Ej: 500g" />
+                </div>
+                <div className="form-group">
+                  <label>Descripción</label>
+                  <input value={form.descripcion} onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))} />
+                </div>
+              </div>
+
+              {/* Costos */}
+              <div style={{ background: 'var(--bg)', borderRadius: 8, padding: 12, marginBottom: 12 }}>
+                <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8 }}>Costo</div>
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Costo de fábrica</label>
+                    <input type="number" min="0" step="0.01" value={form.costo} onChange={e => setForm(f => ({ ...f, costo: e.target.value }))} />
+                  </div>
+                  <div className="form-group">
+                    <label>Descuento s/costo (%)</label>
+                    <input type="number" min="0" max="100" step="0.1" value={form.descuento_costo} onChange={e => setForm(f => ({ ...f, descuento_costo: e.target.value }))} />
+                  </div>
+                  <div className="form-group">
+                    <label>Costo neto</label>
+                    <input readOnly value={`$${calcPrecio(form.costo, form.descuento_costo, 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}`}
+                      style={{ background: 'var(--bg)', color: 'var(--muted)', fontWeight: 600 }} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Markups y precios */}
+              <div style={{ background: 'var(--bg)', borderRadius: 8, padding: 12, marginBottom: 12 }}>
+                <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8 }}>Markup por tipo de cliente</div>
+                <table style={{ width: '100%', fontSize: 13 }}>
+                  <thead>
+                    <tr>
+                      <th style={{ textAlign: 'left', padding: '4px 8px', color: 'var(--muted)', fontWeight: 600, fontSize: 11 }}>Tipo</th>
+                      <th style={{ textAlign: 'right', padding: '4px 8px', color: 'var(--muted)', fontWeight: 600, fontSize: 11 }}>Markup %</th>
+                      <th style={{ textAlign: 'right', padding: '4px 8px', color: 'var(--muted)', fontWeight: 600, fontSize: 11 }}>Precio s/IVA</th>
+                      <th style={{ textAlign: 'right', padding: '4px 8px', color: 'var(--muted)', fontWeight: 600, fontSize: 11 }}>Precio c/IVA</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {MARKUP_COLS.map((col, i) => {
+                      const precio = preciosPreview[i].precio
+                      return (
+                        <tr key={col.key}>
+                          <td style={{ padding: '6px 8px', fontWeight: 600 }}>{col.label}</td>
+                          <td style={{ padding: '6px 8px', textAlign: 'right' }}>
+                            <input type="number" min="0" step="0.1" value={form[col.key]}
+                              onChange={e => setForm(f => ({ ...f, [col.key]: e.target.value }))}
+                              style={{ width: 80, textAlign: 'right', padding: '4px 6px' }} />
+                          </td>
+                          <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 600, color: 'var(--primary-dark)' }}>
+                            ${precio.toLocaleString('es-AR', { maximumFractionDigits: 2 })}
+                          </td>
+                          <td style={{ padding: '6px 8px', textAlign: 'right', color: '#1D4ED8', fontSize: 12 }}>
+                            ${(precio * 1.21).toLocaleString('es-AR', { maximumFractionDigits: 2 })}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Unidad</label>
+                  <input value={form.unidad} onChange={e => setForm(f => ({ ...f, unidad: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label>Stock actual</label>
+                  <input type="number" value={form.stock} onChange={e => setForm(f => ({ ...f, stock: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label>Stock mínimo</label>
+                  <input type="number" value={form.stock_minimo} onChange={e => setForm(f => ({ ...f, stock_minimo: e.target.value }))} />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontWeight: 'normal' }}>
+                  <input type="checkbox" checked={form.promo} onChange={e => setForm(f => ({ ...f, promo: e.target.checked }))} />
+                  Tiene promoción
+                </label>
+              </div>
+              {form.promo && (
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Paga</label>
+                    <input type="number" min="1" value={form.promo_paga} onChange={e => setForm(f => ({ ...f, promo_paga: e.target.value }))} />
+                  </div>
+                  <div className="form-group">
+                    <label>Lleva (bonificado)</label>
+                    <input type="number" min="1" value={form.promo_lleva} onChange={e => setForm(f => ({ ...f, promo_lleva: e.target.value }))} />
+                  </div>
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 16 }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontWeight: 'normal' }}>
+                  <input type="checkbox" checked={form.precio_editable} onChange={e => setForm(f => ({ ...f, precio_editable: e.target.checked }))} />
+                  Precio editable al cargar
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontWeight: 'normal' }}>
+                  <input type="checkbox" checked={form.activo} onChange={e => setForm(f => ({ ...f, activo: e.target.checked }))} />
+                  Activo
+                </label>
+              </div>
+            </div>
+            <div className="modal-footer">
+              {form.id && <button className="btn btn-danger" onClick={deleteProducto} style={{ marginRight: 'auto' }}>🗑 Eliminar</button>}
+              <button className="btn btn-secondary" onClick={() => setModalOpen(false)}>Cancelar</button>
+              <button className="btn btn-primary" onClick={saveProducto} disabled={saving}>{saving ? 'Guardando...' : 'Guardar'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <ToastContainer toasts={toasts} />
+    </div>
   )
 }
