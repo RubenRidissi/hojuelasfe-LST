@@ -38,6 +38,7 @@ export default function PedidosPage() {
   const [prodSel, setProdSel] = useState('')
   const [cantidad, setCantidad] = useState(1)
   const [versionId, setVersionId] = useState('')
+  const [usarListaHistorica, setUsarListaHistorica] = useState(false)
   const [precioEditable, setPrecioEditable] = useState('')
   const [descuentoItem, setDescuentoItem] = useState('')
   const [promoInfo, setPromoInfo] = useState(null) // { texto, paga, lleva } del producto seleccionado
@@ -67,7 +68,7 @@ export default function PedidosPage() {
     try {
       const [{ data: v }, { data: c }, { data: p }] = await Promise.all([
         supabase.from('user_roles').select('user_id,nombre').eq('rol', 'vendedor').order('nombre'),
-        supabase.from('clientes').select('id,nombre,nombre_fantasia,vendedor_id,descuento_pct,modalidad_factura,estado_cliente').order('nombre'),
+        supabase.from('clientes').select('id,nombre,nombre_fantasia,tipo,vendedor_id,descuento_pct,modalidad_factura,estado_cliente').order('nombre'),
         supabase.from('productos').select('id,codigo,nombre,costo,descuento_costo,markup_representante,markup_distribuidor,markup_mayorista,markup_supermercado,markup_almacen,precio_representante,precio_distribuidor,precio_mayorista,precio_supermercado,precio_almacen,promo,precio_editable,familia').order('codigo'),
       ])
       setVendedores(v || [])
@@ -117,22 +118,31 @@ export default function PedidosPage() {
     'Almacén':       'precio_almacen',
   }
 
+  function getTipoClienteActual() {
+    const cliente = clientes.find(c => c.id === form.clienteId)
+    return cliente?.tipo || 'Distribuidor'
+  }
+
   function getPrecio(productoId) {
     const p = productos.find(x => x.id === productoId)
     if (!p) return 0
-    const cliente = clientes.find(c => c.id === form.clienteId)
-    const tipoCliente = cliente?.tipo || 'Distribuidor'
+
+    // Por ahora, aun si se eligió una lista histórica, usamos los precios actuales.
+    // La selección histórica queda como opción avanzada preparada para una segunda etapa.
+    const tipoCliente = getTipoClienteActual()
     const colPrecio = PRECIO_POR_TIPO[tipoCliente] || 'precio_distribuidor'
     return parseFloat(p[colPrecio] || 0)
   }
 
   function getPrecioLabel(productoId) {
-    const p = productos.find(x => x.id === productoId)
-    if (!p) return ''
-    const cliente = clientes.find(c => c.id === form.clienteId)
-    const tipoCliente = cliente?.tipo || 'Distribuidor'
-    const colPrecio = PRECIO_POR_TIPO[tipoCliente] || 'precio_distribuidor'
-    return parseFloat(p[colPrecio] || 0)
+    return getPrecio(productoId)
+  }
+
+  function cambiarVersion(nuevaVersionId) {
+    setVersionId(nuevaVersionId)
+    if (nuevaVersionId) {
+      toast('Lista histórica seleccionada. En esta etapa los pedidos siguen usando precios actuales.', 'info')
+    }
   }
 
   // Al seleccionar producto, mostrar info de promo
@@ -415,7 +425,7 @@ export default function PedidosPage() {
         <h1 className="page-title">Pedidos</h1>
         <div className="page-header-actions">
           <button className="btn btn-secondary hide-on-mobile" onClick={() => toast('Excel — próximamente', 'info')}>📥 Excel</button>
-          <button className="btn btn-primary" onClick={() => { setForm(EMPTY_FORM); setItems([]); setSearchCliente(''); setVersionId(''); setPromoInfo(null); setAplicarPromo(false); setModalOpen(true) }}>+ Nuevo pedido</button>
+          <button className="btn btn-primary" onClick={() => { setForm(EMPTY_FORM); setItems([]); setSearchCliente(''); setVersionId(''); setUsarListaHistorica(false); setPromoInfo(null); setAplicarPromo(false); setModalOpen(true) }}>+ Nuevo pedido</button>
         </div>
       </div>
 
@@ -602,10 +612,28 @@ export default function PedidosPage() {
               <div className="form-row">
                 <div className="form-group">
                   <label>Lista de precios</label>
-                  <select value={versionId} onChange={e => cambiarVersion(e.target.value)}>
-                    <option value="">Precios actuales</option>
-                    {versiones.map(v => <option key={v.id} value={v.id}>{v.nombre}</option>)}
-                  </select>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <input
+                      type="checkbox"
+                      id="usar-lista-historica"
+                      checked={usarListaHistorica}
+                      onChange={e => {
+                        setUsarListaHistorica(e.target.checked)
+                        if (!e.target.checked) setVersionId('')
+                      }}
+                    />
+                    <label htmlFor="usar-lista-historica" style={{ margin: 0, fontWeight: 500, cursor: 'pointer' }}>
+                      Usar lista histórica / especial
+                    </label>
+                  </div>
+                  {usarListaHistorica ? (
+                    <select value={versionId} onChange={e => cambiarVersion(e.target.value)}>
+                      <option value="">Precios actuales</option>
+                      {versiones.map(v => <option key={v.id} value={v.id}>{v.nombre}</option>)}
+                    </select>
+                  ) : (
+                    <input readOnly value={`Actual automática: ${getTipoClienteActual()}`} style={{ background: 'var(--bg)', color: 'var(--muted)' }} />
+                  )}
                 </div>
                 <div className="form-group">
                   <label>Modalidad de factura</label>
@@ -626,7 +654,7 @@ export default function PedidosPage() {
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   <select value={prodSel} onChange={e => onProdSelChange(e.target.value)} style={{ flex: 3, minWidth: 180 }}>
                     <option value="">— Elegí un producto —</option>
-                    {productos.map(p => <option key={p.id} value={p.id}>{p.codigo ? `${p.codigo} — ` : ''}{p.nombre} — ${parseFloat(p.precio).toLocaleString('es-AR')}{p.promo ? ` 🎁${p.promo}` : ''}</option>)}
+                    {productos.map(p => <option key={p.id} value={p.id}>{p.codigo ? `${p.codigo} — ` : ''}{p.nombre} — $${getPrecio(p.id).toLocaleString('es-AR', { maximumFractionDigits: 2 })}{p.promo ? ` 🎁${p.promo}` : ''}</option>)}
                   </select>
                   <input type="number" min="1" value={cantidad} onChange={e => setCantidad(e.target.value)} style={{ width: 70 }} placeholder="Cant." />
                   {prodSelObj?.precio_editable && (
