@@ -4,12 +4,32 @@ import { useAuth } from '../context/AuthContext'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
 
+const TIPOS_CLIENTE = ['Representante', 'Distribuidor', 'Mayorista', 'Supermercado', 'Almacén']
+
+const MARKUP_COLS = [
+  { key: 'markup_representante', precio: 'precio_representante', label: 'Representante' },
+  { key: 'markup_distribuidor', precio: 'precio_distribuidor', label: 'Distribuidor' },
+  { key: 'markup_mayorista', precio: 'precio_mayorista', label: 'Mayorista' },
+  { key: 'markup_supermercado', precio: 'precio_supermercado', label: 'Supermercado' },
+  { key: 'markup_almacen', precio: 'precio_almacen', label: 'Almacén' },
+]
+
 const EMPTY_FORM = {
   id: '', codigo: '', codigo_viejo: '', familia: '', variante: '',
-  nombre: '', descripcion: '', costo: '', margen_pct: '', precio: '',
-  margen_mayorista: '', precio_mayorista: '', unidad: 'unidad',
-  stock: 0, stock_minimo: 0, promo: false, promo_paga: '', promo_lleva: '',
+  nombre: '', descripcion: '', costo: '', descuento_costo: '0',
+  markup_representante: '0', markup_distribuidor: '0',
+  markup_mayorista: '0', markup_supermercado: '0', markup_almacen: '0',
+  unidad: 'unidad', stock: 0, stock_minimo: 0,
+  promo: false, promo_paga: '', promo_lleva: '',
   precio_editable: false, activo: true
+}
+
+function calcPrecio(costo, descuento_costo, markup) {
+  const c = parseFloat(costo) || 0
+  const d = parseFloat(descuento_costo) || 0
+  const m = parseFloat(markup) || 0
+  const costoNeto = c * (1 - d / 100)
+  return costoNeto * (1 + m / 100)
 }
 
 export default function ProductosPage() {
@@ -20,7 +40,6 @@ export default function ProductosPage() {
   const [loading, setLoading] = useState(true)
   const [filtroFamilia, setFiltroFamilia] = useState('')
   const [search, setSearch] = useState('')
-
   const [modalOpen, setModalOpen] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
   const [saving, setSaving] = useState(false)
@@ -49,25 +68,13 @@ export default function ProductosPage() {
     return list
   }, [productos, filtroFamilia, search])
 
-  // Calcular precio desde margen
-  function calcPrecio(costo, margen) {
-    const c = parseFloat(costo) || 0
-    const m = parseFloat(margen) || 0
-    return m > 0 ? c / (1 - m / 100) : c
-  }
-
-  function handleCostoMargenChange(field, value) {
-    const newForm = { ...form, [field]: value }
-    const precio = calcPrecio(
-      field === 'costo' ? value : newForm.costo,
-      field === 'margen_pct' ? value : newForm.margen_pct
-    )
-    const precioMay = calcPrecio(
-      field === 'costo' ? value : newForm.costo,
-      field === 'margen_mayorista' ? value : newForm.margen_mayorista
-    )
-    setForm({ ...newForm, precio: precio.toFixed(2), precio_mayorista: precioMay.toFixed(2) })
-  }
+  // Precios calculados en tiempo real para el formulario
+  const preciosPreview = useMemo(() => {
+    return MARKUP_COLS.map(col => ({
+      label: col.label,
+      precio: calcPrecio(form.costo, form.descuento_costo, form[col.key])
+    }))
+  }, [form.costo, form.descuento_costo, form.markup_representante, form.markup_distribuidor, form.markup_mayorista, form.markup_supermercado, form.markup_almacen])
 
   async function saveProducto() {
     if (!form.nombre.trim()) { toast('El nombre es obligatorio', 'error'); return }
@@ -83,10 +90,12 @@ export default function ProductosPage() {
         nombre: form.nombre.trim(),
         descripcion: form.descripcion.trim(),
         costo: parseFloat(form.costo) || 0,
-        margen_pct: parseFloat(form.margen_pct) || 0,
-        precio: parseFloat(form.precio) || 0,
-        margen_mayorista: parseFloat(form.margen_mayorista) || 0,
-        precio_mayorista: parseFloat(form.precio_mayorista) || 0,
+        descuento_costo: parseFloat(form.descuento_costo) || 0,
+        markup_representante: parseFloat(form.markup_representante) || 0,
+        markup_distribuidor: parseFloat(form.markup_distribuidor) || 0,
+        markup_mayorista: parseFloat(form.markup_mayorista) || 0,
+        markup_supermercado: parseFloat(form.markup_supermercado) || 0,
+        markup_almacen: parseFloat(form.markup_almacen) || 0,
         unidad: form.unidad.trim() || 'unidad',
         stock: parseInt(form.stock) || 0,
         stock_minimo: parseInt(form.stock_minimo) || 0,
@@ -113,9 +122,13 @@ export default function ProductosPage() {
       id: p.id, codigo: p.codigo || '', codigo_viejo: p.codigo_viejo || '',
       familia: p.familia || '', variante: p.variante || '',
       nombre: p.nombre || '', descripcion: p.descripcion || '',
-      costo: p.costo || '', margen_pct: p.margen_pct || '',
-      precio: p.precio || '', margen_mayorista: p.margen_mayorista || '',
-      precio_mayorista: p.precio_mayorista || '', unidad: p.unidad || 'unidad',
+      costo: p.costo || '', descuento_costo: p.descuento_costo ?? '0',
+      markup_representante: p.markup_representante ?? '0',
+      markup_distribuidor: p.markup_distribuidor ?? '0',
+      markup_mayorista: p.markup_mayorista ?? '0',
+      markup_supermercado: p.markup_supermercado ?? '0',
+      markup_almacen: p.markup_almacen ?? '0',
+      unidad: p.unidad || 'unidad',
       stock: p.stock || 0, stock_minimo: p.stock_minimo || 0,
       promo: !!p.promo, promo_paga: promoPaga || '', promo_lleva: promoLleva || '',
       precio_editable: !!p.precio_editable, activo: p.activo !== false
@@ -125,14 +138,14 @@ export default function ProductosPage() {
 
   async function deleteProducto() {
     if (!form.id) return
-    if (!confirm(`¿Eliminar el producto "${form.nombre}"? Esta acción no se puede deshacer.`)) return
+    if (!confirm(`¿Eliminar el producto "${form.nombre}"?`)) return
     try {
       await supabase.from('productos').delete().eq('id', form.id)
       toast('Producto eliminado')
       setModalOpen(false)
       setForm(EMPTY_FORM)
       loadProductos()
-    } catch (e) { toast('Error al eliminar: ' + e.message, 'error') }
+    } catch (e) { toast('Error: ' + e.message, 'error') }
   }
 
   function stockBadge(p) {
@@ -142,7 +155,6 @@ export default function ProductosPage() {
     return <span className="badge badge-green">{stock}</span>
   }
 
-  // Agrupar por familia
   const grupos = useMemo(() => {
     const g = {}
     productosFiltrados.forEach(p => {
@@ -153,18 +165,21 @@ export default function ProductosPage() {
     return g
   }, [productosFiltrados])
 
+  const costoNeto = (p) => {
+    const c = parseFloat(p.costo || 0)
+    const d = parseFloat(p.descuento_costo || 0)
+    return c * (1 - d / 100)
+  }
+
   return (
     <div>
       <div className="page-header">
         <h1 className="page-title">Productos</h1>
         {isAdmin && (
-          <div className="page-header-actions">
-            <button className="btn btn-primary" onClick={() => { setForm(EMPTY_FORM); setModalOpen(true) }}>+ Nuevo producto</button>
-          </div>
+          <button className="btn btn-primary" onClick={() => { setForm(EMPTY_FORM); setModalOpen(true) }}>+ Nuevo producto</button>
         )}
       </div>
 
-      {/* Filtros */}
       <div className="filter-bar">
         <input type="text" placeholder="Buscar producto..." value={search} onChange={e => setSearch(e.target.value)} style={{ flex: 2 }} />
         <select value={filtroFamilia} onChange={e => setFiltroFamilia(e.target.value)} style={{ flex: 1 }}>
@@ -177,37 +192,40 @@ export default function ProductosPage() {
       <div className="card desktop-table">
         {loading ? (
           <div className="empty"><div className="empty-icon">⏳</div><p>Cargando...</p></div>
-        ) : productosFiltrados.length === 0 ? (
-          <div className="empty"><div className="empty-icon">📦</div><p>No hay productos todavía</p></div>
         ) : (
           <div className="table-wrap">
             <table>
-              <thead><tr><th>Código</th><th>Nombre</th><th>Precio Dist.</th><th>Precio May.</th><th>Stock</th><th>Estado</th><th></th></tr></thead>
+              <thead>
+                <tr>
+                  <th>Código</th><th>Nombre</th><th>Costo</th><th>Costo neto</th>
+                  {MARKUP_COLS.map(c => <th key={c.key} style={{ textAlign: 'right' }}>{c.label}</th>)}
+                  <th>Stock</th><th></th>
+                </tr>
+              </thead>
               <tbody>
                 {Object.entries(grupos).map(([fam, prods]) => [
                   <tr key={`fam-${fam}`} style={{ background: 'var(--primary-light)' }}>
-                    <td colSpan={7} style={{ padding: '6px 12px', fontSize: 11, fontWeight: 700, color: 'var(--primary-dark)', textTransform: 'uppercase', letterSpacing: '.06em' }}>{fam}</td>
+                    <td colSpan={9 + MARKUP_COLS.length} style={{ padding: '6px 12px', fontSize: 11, fontWeight: 700, color: 'var(--primary-dark)', textTransform: 'uppercase' }}>{fam}</td>
                   </tr>,
                   ...prods.map(p => (
                     <tr key={p.id}>
-                      <td>
-                        <code style={{ fontSize: 12, background: 'var(--bg)', padding: '2px 6px', borderRadius: 4, fontWeight: 600 }}>{p.codigo || '—'}</code>
-                        {p.codigo_viejo && <span style={{ fontSize: 11, color: 'var(--muted)', marginLeft: 4 }}>({p.codigo_viejo})</span>}
-                      </td>
+                      <td><code style={{ fontSize: 12, background: 'var(--bg)', padding: '2px 6px', borderRadius: 4 }}>{p.codigo || '—'}</code></td>
                       <td>
                         <strong>{p.nombre}</strong>
-                        {p.promo_costo_activa && <span style={{ background: '#FEF3C7', color: '#92400E', fontSize: 10, padding: '2px 6px', borderRadius: 10, marginLeft: 4 }}>📉 Costo promo</span>}
-                        {p.descripcion && <><br /><span style={{ color: 'var(--muted)', fontSize: 12 }}>{p.descripcion}</span></>}
                         {p.variante && <><br /><span style={{ fontSize: 11, color: 'var(--muted)' }}>{p.variante}</span></>}
                       </td>
-                      <td style={{ fontWeight: 600 }}>${parseFloat(p.precio || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</td>
-                      <td style={{ color: '#2563EB', fontWeight: 600 }}>
-                        {parseFloat(p.precio_mayorista || 0) > 0
-                          ? `$${parseFloat(p.precio_mayorista).toLocaleString('es-AR', { maximumFractionDigits: 2 })}`
-                          : <span style={{ color: 'var(--muted)' }}>—</span>}
+                      <td style={{ fontSize: 12 }}>${parseFloat(p.costo || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</td>
+                      <td style={{ fontSize: 12, color: 'var(--muted)' }}>
+                        ${costoNeto(p).toLocaleString('es-AR', { maximumFractionDigits: 2 })}
+                        {parseFloat(p.descuento_costo || 0) > 0 && <span style={{ fontSize: 10, color: 'var(--success)', marginLeft: 4 }}>-{p.descuento_costo}%</span>}
                       </td>
-                      <td>{stockBadge(p)} <span style={{ fontSize: 11, color: 'var(--muted)' }}>{p.unidad || ''}</span></td>
-                      <td>{p.activo !== false ? <span className="badge badge-green">Activo</span> : <span className="badge badge-gray">Inactivo</span>}</td>
+                      {MARKUP_COLS.map(col => (
+                        <td key={col.key} style={{ textAlign: 'right', fontSize: 12, fontWeight: 600 }}>
+                          ${parseFloat(p[col.precio] || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}
+                          <span style={{ fontSize: 10, color: 'var(--muted)', display: 'block' }}>{p[col.key] || 0}%</span>
+                        </td>
+                      ))}
+                      <td>{stockBadge(p)}</td>
                       <td>{isAdmin && <button className="btn btn-sm btn-secondary" onClick={() => editProducto(p)}>Editar</button>}</td>
                     </tr>
                   ))
@@ -221,41 +239,44 @@ export default function ProductosPage() {
       {/* Cards mobile */}
       <div className="mobile-cards">
         {Object.entries(grupos).map(([fam, prods]) => (
-          <div key={fam} style={{ marginBottom: 4 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '.05em', padding: '8px 4px 4px' }}>{fam}</div>
-            {prods.map(p => {
-              const stock = p.stock_real ?? 0
-              const stockColor = stock <= 0 ? '#DC2626' : (p.stock_minimo > 0 && stock <= p.stock_minimo) ? '#D97706' : '#16A34A'
-              return (
-                <div key={p.id} className="op-card" style={{ marginBottom: 8 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: 15 }}>{p.nombre}</div>
-                      {p.variante && <div style={{ fontSize: 11, color: 'var(--muted)' }}>{p.variante}</div>}
-                      {p.codigo && <code style={{ fontSize: 11, background: 'var(--bg)', padding: '1px 5px', borderRadius: 4 }}>{p.codigo}</code>}
-                    </div>
-                    <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 12 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600 }}>Dist: ${parseFloat(p.precio || 0).toLocaleString('es-AR', { maximumFractionDigits: 0 })}</div>
-                      {parseFloat(p.precio_mayorista || 0) > 0 && <div style={{ fontSize: 12, color: '#2563EB' }}>May: ${parseFloat(p.precio_mayorista).toLocaleString('es-AR', { maximumFractionDigits: 0 })}</div>}
-                      <div style={{ fontSize: 12, color: stockColor, fontWeight: 600 }}>Stock: {stock} {p.unidad || ''}</div>
+          <div key={fam}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', padding: '8px 4px 4px' }}>{fam}</div>
+            {prods.map(p => (
+              <div key={p.id} className="op-card" style={{ marginBottom: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <div>
+                    <div style={{ fontWeight: 600 }}>{p.nombre}</div>
+                    {p.codigo && <code style={{ fontSize: 11 }}>{p.codigo}</code>}
+                    <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+                      Costo: ${parseFloat(p.costo || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}
+                      {parseFloat(p.descuento_costo || 0) > 0 && ` (neto: $${costoNeto(p).toLocaleString('es-AR', { maximumFractionDigits: 2 })})`}
                     </div>
                   </div>
-                  {isAdmin && (
-                    <div className="op-card-actions" style={{ marginTop: 10 }}>
-                      <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => editProducto(p)}>✏ Editar</button>
-                    </div>
-                  )}
+                  <div style={{ textAlign: 'right', fontSize: 12 }}>{stockBadge(p)}</div>
                 </div>
-              )
-            })}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, marginTop: 8 }}>
+                  {MARKUP_COLS.map(col => (
+                    <div key={col.key} style={{ background: 'var(--bg)', borderRadius: 6, padding: '4px 6px', textAlign: 'center' }}>
+                      <div style={{ fontSize: 10, color: 'var(--muted)' }}>{col.label}</div>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>${parseFloat(p[col.precio] || 0).toLocaleString('es-AR', { maximumFractionDigits: 0 })}</div>
+                    </div>
+                  ))}
+                </div>
+                {isAdmin && (
+                  <div className="op-card-actions" style={{ marginTop: 8 }}>
+                    <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => editProducto(p)}>✏ Editar</button>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         ))}
       </div>
 
-      {/* ===== MODAL PRODUCTO ===== */}
+      {/* Modal producto */}
       {modalOpen && (
         <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && setModalOpen(false)}>
-          <div className="modal" style={{ maxWidth: 600 }}>
+          <div className="modal" style={{ maxWidth: 680 }}>
             <div className="modal-header">
               <h2>{form.id ? 'Editar producto' : 'Nuevo producto'}</h2>
               <button className="btn btn-secondary btn-sm" onClick={() => setModalOpen(false)}>✕</button>
@@ -264,71 +285,95 @@ export default function ProductosPage() {
               <div className="form-row">
                 <div className="form-group">
                   <label>Código *</label>
-                  <input value={form.codigo} onChange={e => setForm(f => ({ ...f, codigo: e.target.value }))} placeholder="Ej: 108" />
+                  <input value={form.codigo} onChange={e => setForm(f => ({ ...f, codigo: e.target.value }))} />
                 </div>
                 <div className="form-group">
                   <label>Código viejo</label>
                   <input value={form.codigo_viejo} onChange={e => setForm(f => ({ ...f, codigo_viejo: e.target.value }))} />
                 </div>
-              </div>
-              <div className="form-row">
                 <div className="form-group">
                   <label>Familia</label>
-                  <input value={form.familia} onChange={e => setForm(f => ({ ...f, familia: e.target.value }))} placeholder="Ej: Granola" list="familias-list" />
+                  <input value={form.familia} onChange={e => setForm(f => ({ ...f, familia: e.target.value }))} list="familias-list" />
                   <datalist id="familias-list">{familias.map(f => <option key={f} value={f} />)}</datalist>
-                </div>
-                <div className="form-group">
-                  <label>Variante</label>
-                  <input value={form.variante} onChange={e => setForm(f => ({ ...f, variante: e.target.value }))} placeholder="Ej: 500g" />
                 </div>
               </div>
               <div className="form-row">
                 <div className="form-group" style={{ gridColumn: '1/-1' }}>
                   <label>Nombre *</label>
-                  <input value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} placeholder="Nombre del producto" />
+                  <input value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} />
                 </div>
               </div>
               <div className="form-row">
-                <div className="form-group" style={{ gridColumn: '1/-1' }}>
+                <div className="form-group">
+                  <label>Variante</label>
+                  <input value={form.variante} onChange={e => setForm(f => ({ ...f, variante: e.target.value }))} placeholder="Ej: 500g" />
+                </div>
+                <div className="form-group">
                   <label>Descripción</label>
                   <input value={form.descripcion} onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))} />
                 </div>
               </div>
 
-              {/* Precios */}
+              {/* Costos */}
               <div style={{ background: 'var(--bg)', borderRadius: 8, padding: 12, marginBottom: 12 }}>
-                <div style={{ fontWeight: 600, fontSize: 12, color: 'var(--muted)', marginBottom: 8, textTransform: 'uppercase' }}>Precios — Distribuidor</div>
+                <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8 }}>Costo</div>
                 <div className="form-row">
                   <div className="form-group">
-                    <label>Costo</label>
-                    <input type="number" min="0" step="0.01" value={form.costo} onChange={e => handleCostoMargenChange('costo', e.target.value)} />
+                    <label>Costo de fábrica</label>
+                    <input type="number" min="0" step="0.01" value={form.costo} onChange={e => setForm(f => ({ ...f, costo: e.target.value }))} />
                   </div>
                   <div className="form-group">
-                    <label>Margen %</label>
-                    <input type="number" min="0" max="100" step="0.1" value={form.margen_pct} onChange={e => handleCostoMargenChange('margen_pct', e.target.value)} />
+                    <label>Descuento s/costo (%)</label>
+                    <input type="number" min="0" max="100" step="0.1" value={form.descuento_costo} onChange={e => setForm(f => ({ ...f, descuento_costo: e.target.value }))} />
                   </div>
                   <div className="form-group">
-                    <label>Precio Dist.</label>
-                    <input type="number" min="0" step="0.01" value={form.precio} onChange={e => setForm(f => ({ ...f, precio: e.target.value }))} />
+                    <label>Costo neto</label>
+                    <input readOnly value={`$${calcPrecio(form.costo, form.descuento_costo, 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}`}
+                      style={{ background: 'var(--bg)', color: 'var(--muted)', fontWeight: 600 }} />
                   </div>
                 </div>
-                <div style={{ fontWeight: 600, fontSize: 12, color: 'var(--muted)', marginBottom: 8, textTransform: 'uppercase' }}>Precios — Mayorista</div>
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Margen May. %</label>
-                    <input type="number" min="0" max="100" step="0.1" value={form.margen_mayorista} onChange={e => handleCostoMargenChange('margen_mayorista', e.target.value)} />
-                  </div>
-                  <div className="form-group">
-                    <label>Precio May.</label>
-                    <input type="number" min="0" step="0.01" value={form.precio_mayorista} onChange={e => setForm(f => ({ ...f, precio_mayorista: e.target.value }))} />
-                  </div>
-                </div>
+              </div>
+
+              {/* Markups y precios */}
+              <div style={{ background: 'var(--bg)', borderRadius: 8, padding: 12, marginBottom: 12 }}>
+                <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8 }}>Markup por tipo de cliente</div>
+                <table style={{ width: '100%', fontSize: 13 }}>
+                  <thead>
+                    <tr>
+                      <th style={{ textAlign: 'left', padding: '4px 8px', color: 'var(--muted)', fontWeight: 600, fontSize: 11 }}>Tipo</th>
+                      <th style={{ textAlign: 'right', padding: '4px 8px', color: 'var(--muted)', fontWeight: 600, fontSize: 11 }}>Markup %</th>
+                      <th style={{ textAlign: 'right', padding: '4px 8px', color: 'var(--muted)', fontWeight: 600, fontSize: 11 }}>Precio s/IVA</th>
+                      <th style={{ textAlign: 'right', padding: '4px 8px', color: 'var(--muted)', fontWeight: 600, fontSize: 11 }}>Precio c/IVA</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {MARKUP_COLS.map((col, i) => {
+                      const precio = preciosPreview[i].precio
+                      return (
+                        <tr key={col.key}>
+                          <td style={{ padding: '6px 8px', fontWeight: 600 }}>{col.label}</td>
+                          <td style={{ padding: '6px 8px', textAlign: 'right' }}>
+                            <input type="number" min="0" step="0.1" value={form[col.key]}
+                              onChange={e => setForm(f => ({ ...f, [col.key]: e.target.value }))}
+                              style={{ width: 80, textAlign: 'right', padding: '4px 6px' }} />
+                          </td>
+                          <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 600, color: 'var(--primary-dark)' }}>
+                            ${precio.toLocaleString('es-AR', { maximumFractionDigits: 2 })}
+                          </td>
+                          <td style={{ padding: '6px 8px', textAlign: 'right', color: '#1D4ED8', fontSize: 12 }}>
+                            ${(precio * 1.21).toLocaleString('es-AR', { maximumFractionDigits: 2 })}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
               </div>
 
               <div className="form-row">
                 <div className="form-group">
                   <label>Unidad</label>
-                  <input value={form.unidad} onChange={e => setForm(f => ({ ...f, unidad: e.target.value }))} placeholder="unidad" />
+                  <input value={form.unidad} onChange={e => setForm(f => ({ ...f, unidad: e.target.value }))} />
                 </div>
                 <div className="form-group">
                   <label>Stock actual</label>
@@ -340,7 +385,6 @@ export default function ProductosPage() {
                 </div>
               </div>
 
-              {/* Promo */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontWeight: 'normal' }}>
                   <input type="checkbox" checked={form.promo} onChange={e => setForm(f => ({ ...f, promo: e.target.checked }))} />
@@ -351,16 +395,15 @@ export default function ProductosPage() {
                 <div className="form-row">
                   <div className="form-group">
                     <label>Paga</label>
-                    <input type="number" min="1" value={form.promo_paga} onChange={e => setForm(f => ({ ...f, promo_paga: e.target.value }))} placeholder="Ej: 6" />
+                    <input type="number" min="1" value={form.promo_paga} onChange={e => setForm(f => ({ ...f, promo_paga: e.target.value }))} />
                   </div>
                   <div className="form-group">
                     <label>Lleva (bonificado)</label>
-                    <input type="number" min="1" value={form.promo_lleva} onChange={e => setForm(f => ({ ...f, promo_lleva: e.target.value }))} placeholder="Ej: 1" />
+                    <input type="number" min="1" value={form.promo_lleva} onChange={e => setForm(f => ({ ...f, promo_lleva: e.target.value }))} />
                   </div>
                 </div>
               )}
-
-              <div style={{ display: 'flex', gap: 16, marginBottom: 8 }}>
+              <div style={{ display: 'flex', gap: 16 }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontWeight: 'normal' }}>
                   <input type="checkbox" checked={form.precio_editable} onChange={e => setForm(f => ({ ...f, precio_editable: e.target.checked }))} />
                   Precio editable al cargar

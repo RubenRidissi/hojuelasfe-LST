@@ -39,6 +39,7 @@ export default function PedidosPage() {
   const [cantidad, setCantidad] = useState(1)
   const [versionId, setVersionId] = useState('')
   const [precioEditable, setPrecioEditable] = useState('')
+  const [descuentoItem, setDescuentoItem] = useState('')
   const [promoInfo, setPromoInfo] = useState(null) // { texto, paga, lleva } del producto seleccionado
   const [aplicarPromo, setAplicarPromo] = useState(false)
   const [versiones, setVersiones] = useState([])
@@ -67,7 +68,7 @@ export default function PedidosPage() {
       const [{ data: v }, { data: c }, { data: p }] = await Promise.all([
         supabase.from('user_roles').select('user_id,nombre').eq('rol', 'vendedor').order('nombre'),
         supabase.from('clientes').select('id,nombre,nombre_fantasia,vendedor_id,descuento_pct,modalidad_factura,estado_cliente').order('nombre'),
-        supabase.from('productos').select('id,codigo,nombre,precio,precio_mayorista,margen_mayorista,costo,promo,precio_editable,familia').order('codigo'),
+        supabase.from('productos').select('id,codigo,nombre,costo,descuento_costo,markup_representante,markup_distribuidor,markup_mayorista,markup_supermercado,markup_almacen,precio_representante,precio_distribuidor,precio_mayorista,precio_supermercado,precio_almacen,promo,precio_editable,familia').order('codigo'),
       ])
       setVendedores(v || [])
       setClientes(c || [])
@@ -107,22 +108,31 @@ export default function PedidosPage() {
 
   useEffect(() => { loadPedidos() }, [filtroEstado, filtroCliente, filtroVendedor])
 
-  // ===== PRECIO DE PRODUCTO (con versiones) =====
-  function getPrecio(productoId) {
-    if (versionId && versionItems[versionId] && versionItems[versionId][productoId]) {
-      return versionItems[versionId][productoId].precio || 0
-    }
-    const p = productos.find(x => x.id === productoId)
-    return p?.precio || 0
+  // ===== PRECIO DE PRODUCTO por tipo de cliente =====
+  const PRECIO_POR_TIPO = {
+    'Representante': 'precio_representante',
+    'Distribuidor':  'precio_distribuidor',
+    'Mayorista':     'precio_mayorista',
+    'Supermercado':  'precio_supermercado',
+    'Almacén':       'precio_almacen',
   }
 
-  async function cambiarVersion(vid) {
-    setVersionId(vid)
-    if (!vid) { toast('Usando precios actuales'); return }
-    if (versionItems[vid]) { toast('Versión aplicada'); return }
-    // La lista del repo guarda html, no items individuales
-    // Usamos los precios actuales de productos como fallback
-    toast('Versión seleccionada — precios del catálogo actual')
+  function getPrecio(productoId) {
+    const p = productos.find(x => x.id === productoId)
+    if (!p) return 0
+    const cliente = clientes.find(c => c.id === form.clienteId)
+    const tipoCliente = cliente?.tipo || 'Distribuidor'
+    const colPrecio = PRECIO_POR_TIPO[tipoCliente] || 'precio_distribuidor'
+    return parseFloat(p[colPrecio] || 0)
+  }
+
+  function getPrecioLabel(productoId) {
+    const p = productos.find(x => x.id === productoId)
+    if (!p) return ''
+    const cliente = clientes.find(c => c.id === form.clienteId)
+    const tipoCliente = cliente?.tipo || 'Distribuidor'
+    const colPrecio = PRECIO_POR_TIPO[tipoCliente] || 'precio_distribuidor'
+    return parseFloat(p[colPrecio] || 0)
   }
 
   // Al seleccionar producto, mostrar info de promo
@@ -146,7 +156,9 @@ export default function PedidosPage() {
     if (!prod) return
     const cant = parseInt(cantidad) || 1
     const esEditable = prod.precio_editable
-    const precio = esEditable ? (parseFloat(precioEditable) || 0) : getPrecio(prodSel)
+    const precioBase = esEditable ? (parseFloat(precioEditable) || 0) : getPrecio(prodSel)
+    const descItem = parseFloat(descuentoItem) || 0
+    const precio = descItem > 0 ? precioBase * (1 - descItem / 100) : precioBase
 
     // Promo individual: solo si el vendedor tildó "Aplicar promo"
     let bonificado = 0
@@ -162,13 +174,14 @@ export default function PedidosPage() {
           ? { ...i, cantidad: i.cantidad + cant, bonificado: (i.bonificado || 0) + bonificado }
           : i)
       }
-      return [...items, { producto_id: prodSel, nombre: prod.nombre, familia: prod.familia || '', cantidad: cant, bonificado, precio_unitario: precio, promo: prod.promo || '' }]
+      return [...items, { producto_id: prodSel, nombre: prod.nombre, familia: prod.familia || '', cantidad: cant, bonificado, precio_unitario: precio, descuento_item: descItem, promo: prod.promo || '' }]
     })()
 
     setItems(nuevosItems)
     setCantidad(1)
     setProdSel('')
     setPrecioEditable('')
+    setDescuentoItem('')
     setPromoInfo(null)
     setAplicarPromo(false)
 
@@ -619,6 +632,7 @@ export default function PedidosPage() {
                   {prodSelObj?.precio_editable && (
                     <input type="number" value={precioEditable} onChange={e => setPrecioEditable(e.target.value)} style={{ width: 100 }} placeholder="Precio" />
                   )}
+                  <input type="number" min="0" max="100" step="0.1" value={descuentoItem} onChange={e => setDescuentoItem(e.target.value)} style={{ width: 80 }} placeholder="Dcto %" title="Descuento % sobre precio de lista" />
                   <button className="btn btn-primary" onClick={addItem}>+ Agregar</button>
                 </div>
                 {promoInfo && (
@@ -643,7 +657,7 @@ export default function PedidosPage() {
                         {item.bonificado > 0 && <span style={{ color: 'var(--success)', fontSize: 11 }}> +{item.bonificado} bon.</span>}
                       </span>
                       <span style={{ flex: 1, textAlign: 'right' }}>
-                        {descPct > 0 && <span style={{ textDecoration: 'line-through', color: 'var(--muted)', fontSize: 11 }}>${(item.cantidad * item.precio_unitario).toLocaleString('es-AR')}<br /></span>}
+                        {item.descuento_item > 0 && <span style={{ fontSize: 11, color: 'var(--success)', display: 'block' }}>-{item.descuento_item}% dcto</span>}
                         ${(item.cantidad * item.precio_unitario * (1 - descPct / 100) * ivaFactor).toLocaleString('es-AR', { maximumFractionDigits: 2 })}
                       </span>
                       <button className="btn btn-sm btn-danger" onClick={() => removeItem(i)}>✕</button>

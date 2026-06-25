@@ -46,6 +46,7 @@ export default function VentasPage() {
   const [prodSel, setProdSel] = useState('')
   const [cantidad, setCantidad] = useState(1)
   const [precioEditable, setPrecioEditable] = useState('')
+  const [descuentoItem, setDescuentoItem] = useState('')
   const [promoInfo, setPromoInfo] = useState(null)
   const [aplicarPromo, setAplicarPromo] = useState(false)
   const [searchCliente, setSearchCliente] = useState('')
@@ -63,7 +64,7 @@ export default function VentasPage() {
       const [{ data: v }, { data: c }, { data: p }] = await Promise.all([
         supabase.from('user_roles').select('user_id,nombre').eq('rol', 'vendedor').order('nombre'),
         supabase.from('clientes').select('id,nombre,nombre_fantasia,vendedor_id,descuento_pct,modalidad_factura,estado_cliente').order('nombre'),
-        supabase.from('productos').select('id,codigo,nombre,precio,costo,promo,precio_editable,familia').order('codigo'),
+        supabase.from('productos').select('id,codigo,nombre,costo,descuento_costo,markup_representante,markup_distribuidor,markup_mayorista,markup_supermercado,markup_almacen,precio_representante,precio_distribuidor,precio_mayorista,precio_supermercado,precio_almacen,promo,precio_editable,familia').order('codigo'),
       ])
       setVendedores(v || [])
       setClientes(c || [])
@@ -104,6 +105,23 @@ export default function VentasPage() {
   }
 
   useEffect(() => { loadVentas() }, [filtroCliente, filtroVendedor])
+
+  const PRECIO_POR_TIPO = {
+    'Representante': 'precio_representante',
+    'Distribuidor':  'precio_distribuidor',
+    'Mayorista':     'precio_mayorista',
+    'Supermercado':  'precio_supermercado',
+    'Almacén':       'precio_almacen',
+  }
+
+  function getPrecioVenta(productoId, clienteId) {
+    const p = productos.find(x => x.id === productoId)
+    if (!p) return 0
+    const cliente = clientes.find(c => c.id === clienteId)
+    const tipo = cliente?.tipo || 'Distribuidor'
+    const col = PRECIO_POR_TIPO[tipo] || 'precio_distribuidor'
+    return parseFloat(p[col] || 0)
+  }
 
   function onProdSelChange(pid) {
     setProdSel(pid)
@@ -154,7 +172,9 @@ export default function VentasPage() {
     if (!prod) return
     const cant = parseInt(cantidad) || 1
     const esEditable = prod.precio_editable
-    const precio = esEditable ? (parseFloat(precioEditable) || 0) : (prod.precio || 0)
+    const precioBase = esEditable ? (parseFloat(precioEditable) || 0) : getPrecioVenta(prodSel, form.clienteId)
+    const descItem = parseFloat(descuentoItem) || 0
+    const precio = descItem > 0 ? precioBase * (1 - descItem / 100) : precioBase
 
     // Promo individual: solo si el vendedor tildó "Aplicar promo"
     let bonificado = 0
@@ -170,13 +190,14 @@ export default function VentasPage() {
           ? { ...i, cantidad: i.cantidad + cant, bonificado: (i.bonificado || 0) + bonificado }
           : i)
       }
-      return [...items, { producto_id: prodSel, nombre: prod.nombre, costo: prod.costo || 0, familia: prod.familia || '', cantidad: cant, bonificado, precio_unitario: precio, promo: prod.promo || '' }]
+      return [...items, { producto_id: prodSel, nombre: prod.nombre, costo: prod.costo || 0, familia: prod.familia || '', cantidad: cant, bonificado, precio_unitario: precio, descuento_item: descItem, promo: prod.promo || '' }]
     })()
 
     setItems(nuevosItems)
     setCantidad(1)
     setProdSel('')
     setPrecioEditable('')
+    setDescuentoItem('')
     setPromoInfo(null)
     setAplicarPromo(false)
     verificarPromoCombi(nuevosItems)
@@ -491,6 +512,7 @@ export default function VentasPage() {
                   {prodSelObj?.precio_editable && (
                     <input type="number" value={precioEditable} onChange={e => setPrecioEditable(e.target.value)} style={{ width: 100 }} placeholder="Precio" />
                   )}
+                  <input type="number" min="0" max="100" step="0.1" value={descuentoItem} onChange={e => setDescuentoItem(e.target.value)} style={{ width: 80 }} placeholder="Dcto %" title="Descuento % sobre precio de lista" />
                   <button className="btn btn-primary" onClick={addItem}>+ Agregar</button>
                 </div>
                 {promoInfo && (
