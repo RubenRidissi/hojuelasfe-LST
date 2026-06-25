@@ -63,7 +63,7 @@ export default function VentasPage() {
     try {
       const [{ data: v }, { data: c }, { data: p }] = await Promise.all([
         supabase.from('user_roles').select('user_id,nombre').eq('rol', 'vendedor').order('nombre'),
-        supabase.from('clientes').select('id,nombre,nombre_fantasia,vendedor_id,descuento_pct,modalidad_factura,estado_cliente').order('nombre'),
+        supabase.from('clientes').select('id,nombre,nombre_fantasia,vendedor_id,descuento_pct,modalidad_factura,estado_cliente,tipo').order('nombre'),
         supabase.from('productos').select('id,codigo,nombre,costo,descuento_costo,markup_representante,markup_distribuidor,markup_mayorista,markup_supermercado,markup_almacen,precio_representante,precio_distribuidor,precio_mayorista,precio_supermercado,precio_almacen,promo,precio_editable,familia').order('codigo'),
       ])
       setVendedores(v || [])
@@ -506,7 +506,17 @@ export default function VentasPage() {
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   <select value={prodSel} onChange={e => onProdSelChange(e.target.value)} style={{ flex: 3, minWidth: 180 }}>
                     <option value="">— Elegí un producto —</option>
-                    {productos.map(p => <option key={p.id} value={p.id}>{p.codigo ? `${p.codigo} — ` : ''}{p.nombre} — ${parseFloat(p.precio || 0).toLocaleString('es-AR')}{p.promo ? ` 🎁${p.promo}` : ''}</option>)}
+                    {productos.map(p => {
+                        const cliente = clientes.find(c => c.id === form.clienteId)
+                        const tipo = cliente?.tipo || 'Distribuidor'
+                        const col = PRECIO_POR_TIPO[tipo] || 'precio_distribuidor'
+                        const precio = parseFloat(p[col] || 0)
+                        return (
+                          <option key={p.id} value={p.id}>
+                            {p.codigo ? `${p.codigo} — ` : ''}{p.nombre} — ${precio.toLocaleString('es-AR')}{p.promo ? ` 🎁${p.promo}` : ''}
+                          </option>
+                        )
+                      })}
                   </select>
                   <input type="number" min="1" value={cantidad} onChange={e => setCantidad(e.target.value)} style={{ width: 70 }} placeholder="Cant." />
                   {prodSelObj?.precio_editable && (
