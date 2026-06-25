@@ -307,3 +307,30 @@ input:focus, select:focus, textarea:focus {
   .mobile-cards    { display: none !important; }
   .desktop-table   { display: block !important; }
 }
+
+/* ========== TAMAÑO DE FUENTE ========== */
+body.font-small * { font-size: 11px; }
+body.font-small .op-card-cliente { font-size: 12px !important; }
+body.font-small .op-card-total { font-size: 15px !important; }
+body.font-small .op-card-actions .btn { font-size: 11px !important; padding: 6px 4px !important; }
+body.font-small .btn { font-size: 11px !important; }
+body.font-small table { font-size: 11px !important; }
+body.font-small th, body.font-small td { padding: 6px 4px !important; }
+body.font-small .page-title { font-size: 14px !important; }
+body.font-small .badge { font-size: 10px !important; }
+
+body.font-normal * { font-size: 13px; }
+body.font-normal .op-card-cliente { font-size: 15px !important; }
+body.font-normal .op-card-total { font-size: 20px !important; }
+body.font-normal .page-title { font-size: 18px !important; }
+
+body.font-large * { font-size: 16px; }
+body.font-large .op-card-cliente { font-size: 18px !important; }
+body.font-large .op-card-total { font-size: 24px !important; }
+body.font-large .op-card-actions .btn { font-size: 14px !important; padding: 10px 8px !important; }
+body.font-large .btn { font-size: 15px !important; padding: 10px 18px !important; }
+body.font-large table { font-size: 14px !important; }
+body.font-large th, body.font-large td { padding: 12px 10px !important; }
+body.font-large .page-title { font-size: 22px !important; }
+body.font-large .badge { font-size: 13px !important; }
+body.font-large input, body.font-large select, body.font-large textarea { font-size: 16px !important; }
