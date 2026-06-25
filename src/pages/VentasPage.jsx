@@ -53,6 +53,12 @@ export default function VentasPage() {
   const [modalPromoCombi, setModalPromoCombi] = useState(null)
   const [promoCombiElegido, setPromoCombiElegido] = useState(null)
 
+  // Lista histórica / especial: por ahora queda como referencia avanzada.
+  // La venta usa precio actual automático según tipo de cliente.
+  const [usarListaHistorica, setUsarListaHistorica] = useState(false)
+  const [versionId, setVersionId] = useState('')
+  const [versiones, setVersiones] = useState([])
+
   // Modal fecha entrega
   const [modalFecha, setModalFecha] = useState(null)
   const [fechaInput, setFechaInput] = useState('')
@@ -69,6 +75,13 @@ export default function VentasPage() {
       setVendedores(v || [])
       setClientes(c || [])
       setProductos(p || [])
+
+      const { data: vers } = await supabase
+        .from('listas_precios_repo')
+        .select('id,nombre,created_at')
+        .order('created_at', { ascending: false })
+
+      setVersiones(vers || [])
     } catch (e) { console.error(e) }
     loadVentas()
   }
@@ -112,6 +125,18 @@ export default function VentasPage() {
     'Mayorista':     'precio_mayorista',
     'Supermercado':  'precio_supermercado',
     'Almacén':       'precio_almacen',
+  }
+
+  function getTipoClienteActual() {
+    const cliente = clientes.find(c => c.id === form.clienteId)
+    return cliente?.tipo || 'Distribuidor'
+  }
+
+  function cambiarVersion(nuevaVersionId) {
+    setVersionId(nuevaVersionId)
+    if (nuevaVersionId) {
+      toast('Lista histórica seleccionada. En esta etapa las ventas siguen usando precios actuales.', 'info')
+    }
   }
 
   function getPrecioVenta(productoId, clienteId) {
@@ -327,7 +352,7 @@ export default function VentasPage() {
         <h1 className="page-title">Ventas</h1>
         <div className="page-header-actions">
           <button className="btn btn-secondary hide-on-mobile" onClick={() => toast('Excel — próximamente', 'info')}>📥 Excel</button>
-          <button className="btn btn-primary" onClick={() => { setForm(EMPTY_FORM); setItems([]); setSearchCliente(''); setPromoInfo(null); setAplicarPromo(false); setModalOpen(true) }}>+ Nueva venta</button>
+          <button className="btn btn-primary" onClick={() => { setForm(EMPTY_FORM); setItems([]); setSearchCliente(''); setPromoInfo(null); setAplicarPromo(false); setUsarListaHistorica(false); setVersionId(''); setModalOpen(true) }}>+ Nueva venta</button>
         </div>
       </div>
 
@@ -488,16 +513,45 @@ export default function VentasPage() {
               </div>
               <div className="form-row">
                 <div className="form-group">
+                  <label>Lista de precios</label>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <input
+                      type="checkbox"
+                      id="usar-lista-historica-venta"
+                      checked={usarListaHistorica}
+                      onChange={e => {
+                        setUsarListaHistorica(e.target.checked)
+                        if (!e.target.checked) setVersionId('')
+                      }}
+                    />
+                    <label htmlFor="usar-lista-historica-venta" style={{ margin: 0, fontWeight: 500, cursor: 'pointer' }}>
+                      Usar lista histórica / especial
+                    </label>
+                  </div>
+                  {usarListaHistorica ? (
+                    <select value={versionId} onChange={e => cambiarVersion(e.target.value)}>
+                      <option value="">Precios actuales</option>
+                      {versiones.map(v => <option key={v.id} value={v.id}>{v.nombre}</option>)}
+                    </select>
+                  ) : (
+                    <input
+                      readOnly
+                      value={`Actual automática: ${getTipoClienteActual()}`}
+                      style={{ background: 'var(--bg)', color: 'var(--muted)' }}
+                    />
+                  )}
+                </div>
+                <div className="form-group">
                   <label>Modalidad de factura</label>
                   <select value={form.modalidad} onChange={e => setForm(f => ({ ...f, modalidad: e.target.value }))}>
                     <option value="sin_iva">Sin IVA</option>
                     <option value="con_iva">Con IVA 21%</option>
                   </select>
                 </div>
-                <div className="form-group">
-                  <label>Notas</label>
-                  <input value={form.notas} onChange={e => setForm(f => ({ ...f, notas: e.target.value }))} placeholder="Observaciones..." />
-                </div>
+              </div>
+              <div className="form-group" style={{ marginBottom: 12 }}>
+                <label>Notas</label>
+                <input value={form.notas} onChange={e => setForm(f => ({ ...f, notas: e.target.value }))} placeholder="Observaciones..." />
               </div>
 
               {/* Agregar producto */}
