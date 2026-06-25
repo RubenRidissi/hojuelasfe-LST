@@ -10,6 +10,9 @@ import RemitosPage from './pages/RemitosPage'
 import CtaCorrientePage from './pages/CtaCorrientePage'
 import ProveedorPage from './pages/ProveedorPage'
 import RecepcionesPage from './pages/RecepcionesPage'
+import ProductosPage from './pages/ProductosPage'
+import StockPage from './pages/StockPage'
+import ListasPage from './pages/ListasPage'
 import Sidebar from './components/Sidebar'
 import MobileNav from './components/MobileNav'
 import FabButton from './components/FabButton'
@@ -35,6 +38,9 @@ function AppLayout() {
           <Route path="/ctacte"   element={<CtaCorrientePage />} />
           <Route path="/proveedor" element={<ProveedorPage />} />
           <Route path="/recepciones" element={<RecepcionesPage />} />
+          <Route path="/productos"   element={<ProductosPage />} />
+          <Route path="/stock"       element={<StockPage />} />
+          <Route path="/listas"      element={<ListasPage />} />
           <Route path="*"         element={<Navigate to="/" replace />} />
         </Routes>
       </main>
