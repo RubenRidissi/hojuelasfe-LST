@@ -35,6 +35,7 @@ function AppLayout() {
         <Routes>
           <Route path="/"         element={<DashboardPage />} />
           <Route path="/clientes" element={<ClientesPage />} />
+          <Route path="/mapa"      element={<MapaPage />} />
           <Route path="/pedidos"  element={<PedidosPage />} />
           <Route path="/ventas"   element={<VentasPage />} />
           <Route path="/pagos"    element={<PagosPage />} />
