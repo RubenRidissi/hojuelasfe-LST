@@ -251,8 +251,12 @@ export default function PedidosPage() {
         return supabase.from('pedido_items').insert({ pedido_id: pedidoId, producto_id: item.producto_id, cantidad: item.cantidad, bonificado: item.bonificado || 0, precio_unitario: precioConDesc })
       }))
 
-      // Activar cliente si estaba Pendiente/Inactivo
-      if (cliente && cliente.estado_cliente !== 'Activo') {
+      // Si cliente sin asignar → asignar al vendedor que crea el pedido
+      if (cliente && !cliente.vendedor_id && !isAdmin) {
+        await supabase.from('clientes').update({ vendedor_id: user, estado_cliente: 'Activo' }).eq('id', form.clienteId)
+        toast('✓ Cliente asignado a tu cartera y activado')
+      } else if (cliente && cliente.estado_cliente !== 'Activo') {
+        // Activar cliente si estaba Pendiente/Inactivo
         await supabase.from('clientes').update({ estado_cliente: 'Activo' }).eq('id', form.clienteId)
       }
 
@@ -380,7 +384,10 @@ export default function PedidosPage() {
   }
 
   // ===== RENDER =====
-  const misClientes = isAdmin ? clientes : clientes.filter(c => c.vendedor_id === user)
+  const misClientes = isAdmin ? clientes : clientes.filter(c =>
+    (c.vendedor_id === user && c.estado_cliente === 'Activo') || // sus clientes activos
+    (!c.vendedor_id) // sin asignar (cualquier estado)
+  )
 
   const clienteDelForm = clientes.find(c => c.id === form.clienteId)
   const descPct = parseFloat(clienteDelForm?.descuento_pct || 0)
