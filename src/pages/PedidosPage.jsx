@@ -463,9 +463,15 @@ export default function PedidosPage() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                           {yaConvertido
                             ? <span className="badge badge-green">✓ Facturado</span>
-                            : <select style={{ fontSize: 11, padding: '3px 4px', border: '1px solid var(--border)', borderRadius: 6, maxWidth: 108 }}
+                            : p.estado === 'entregado'
+                              ? <span className={`badge ${{ pendiente: 'badge-yellow', confirmado: 'badge-blue', entregado: 'badge-green', cancelado: 'badge-red' }[p.estado]}`}>{p.estado}</span>
+                              : <select style={{ fontSize: 11, padding: '3px 4px', border: '1px solid var(--border)', borderRadius: 6, maxWidth: 108 }}
                                 value={p.estado} onChange={e => updateEstado(p.id, e.target.value)}>
-                                {ESTADOS.filter(e => !(p.estado === 'pendiente' && e === 'entregado')).map(e => (
+                                {ESTADOS.filter(e => {
+                                    if (p.estado === 'pendiente') return e !== 'entregado' // pendiente → NO entregado directo
+                                    if (p.estado === 'confirmado') return e === 'confirmado' || e === 'entregado' || e === 'cancelado' // confirmado → NO volver a pendiente
+                                    return false // entregado → sin select (no llega aquí porque yaConvertido o select oculto)
+                                  }).map(e => (
                                   <option key={e} value={e}>{e.charAt(0).toUpperCase() + e.slice(1)}</option>
                                 ))}
                               </select>
@@ -517,10 +523,14 @@ export default function PedidosPage() {
               </div>
               <div className="op-card-actions">
                 <button className="btn btn-secondary" onClick={() => verComprobante(p.id)}>📋 Ver</button>
-                {!yaConvertido
+                {!yaConvertido && p.estado !== 'entregado'
                   ? <select style={{ flex: 1, padding: '8px 6px', border: '1px solid var(--border)', borderRadius: 10, fontSize: 12 }}
                       value={p.estado} onChange={e => updateEstado(p.id, e.target.value)}>
-                      {ESTADOS.filter(e => !(p.estado === 'pendiente' && e === 'entregado')).map(e => (
+                      {ESTADOS.filter(e => {
+                        if (p.estado === 'pendiente') return e !== 'entregado'
+                        if (p.estado === 'confirmado') return e === 'confirmado' || e === 'entregado' || e === 'cancelado'
+                        return false
+                      }).map(e => (
                         <option key={e} value={e}>{e.charAt(0).toUpperCase() + e.slice(1)}</option>
                       ))}
                     </select>
