@@ -15,6 +15,7 @@ import StockPage from './pages/StockPage'
 import ListasPage from './pages/ListasPage'
 import FinanzasPage from './pages/FinanzasPage'
 import ReportesPage from './pages/ReportesPage'
+import ConfigPage from './pages/ConfigPage'
 import Sidebar from './components/Sidebar'
 import MobileNav from './components/MobileNav'
 import FabButton from './components/FabButton'
@@ -45,6 +46,7 @@ function AppLayout() {
           <Route path="/listas"      element={<ListasPage />} />
           <Route path="/finanzas"    element={<FinanzasPage />} />
           <Route path="/reportes"    element={<ReportesPage />} />
+          <Route path="/config"      element={<ConfigPage />} />
           <Route path="*"         element={<Navigate to="/" replace />} />
         </Routes>
       </main>
