@@ -18,7 +18,7 @@ export default function ListasPage() {
   const [loadingListas, setLoadingListas] = useState(true)
 
   // Config lista
-  const [tipo, setTipo] = useState('distribuidor')
+  const [tipo, setTipo] = useState('Distribuidor')
   const [clienteId, setClienteId] = useState('')
   const [familia, setFamilia] = useState('')
   const [ivaOpcion, setIvaOpcion] = useState('siniva')
@@ -27,6 +27,7 @@ export default function ListasPage() {
   const [soloConStock, setSoloConStock] = useState(false)
   const [vigencia, setVigencia] = useState(new Date().toLocaleDateString('es-AR'))
   const [nombreLista, setNombreLista] = useState('')
+  const [tituloEditable, setTituloEditable] = useState('')
 
   // Vista previa
   const [preview, setPreview] = useState(null)
@@ -68,7 +69,16 @@ export default function ListasPage() {
         prods = prods.filter(p => (stockMap[p.id] || 0) > 0)
       }
 
-      const descPct = tipo === 'cliente' ? parseFloat(clienteSeleccionado?.descuento_pct || 0) : 0
+      const PRECIO_POR_TIPO = {
+        'Representante': 'precio_representante',
+        'Distribuidor':  'precio_distribuidor',
+        'Mayorista':     'precio_mayorista',
+        'Supermercado':  'precio_supermercado',
+        'Almacén':       'precio_almacen',
+      }
+      const colPrecio = tipo === 'cliente'
+        ? (PRECIO_POR_TIPO[clienteSeleccionado?.tipo] || 'precio_distribuidor')
+        : (PRECIO_POR_TIPO[tipo] || 'precio_distribuidor')
       const grupos = {}
       prods.forEach(p => {
         const fam = p.familia || 'Otros'
@@ -81,8 +91,8 @@ export default function ListasPage() {
       Object.entries(grupos).forEach(([fam, ps]) => {
         tablaRows += `<tr><td colspan="${colSpan}" style="background:#FEF3DC;font-weight:700;font-size:13px;color:#9A5F00;padding:8px 10px">${fam}</td></tr>`
         ps.forEach(p => {
-          const precioBase = tipo === 'mayorista' ? parseFloat(p.precio_mayorista || p.precio || 0) : parseFloat(p.precio || 0)
-          const precioFinal = descPct > 0 ? precioBase * (1 - descPct / 100) : precioBase
+          const precioBase = parseFloat(p[colPrecio] || 0)
+          const precioFinal = precioBase
           const precioIVA = precioFinal * 1.21
           const promoStr = p.promo && mostrarPromo ? `<span style="background:#DCFCE7;color:#15803D;font-size:10px;padding:2px 6px;border-radius:10px;margin-left:6px">${p.promo}</span>` : ''
           tablaRows += `<tr>
@@ -102,12 +112,11 @@ export default function ListasPage() {
         })
       })
 
-      const tituloLista = tipo === 'distribuidor' ? 'Lista de Precios Distribuidor'
-        : tipo === 'mayorista' ? 'Lista de Precios Mayorista'
-        : `Lista de Precios — ${clienteSeleccionado?.nombre_fantasia || clienteSeleccionado?.nombre || ''}`
+      const tituloLista = tipo === 'cliente'
+        ? `Lista de Precios — ${clienteSeleccionado?.nombre_fantasia || clienteSeleccionado?.nombre || ''}`
+        : `Lista de Precios ${tipo}`
 
-      const subtitulo = tipo === 'cliente' && descPct > 0
-        ? `<p style="color:#15803D;font-size:13px;font-weight:600;margin:4px 0 0">Descuento aplicado: ${descPct}% sobre precio de lista</p>` : ''
+      const subtitulo = ''
 
       const ivaLabel = ivaOpcion === 'siniva' ? 'Precios sin IVA'
         : ivaOpcion === 'coniva' ? 'Precios con IVA 21%'
@@ -123,7 +132,7 @@ export default function ListasPage() {
         </div>
         <div style="border-top:3px solid #DC2626;margin-bottom:16px"></div>
         <div style="text-align:center;margin:16px 0">
-          <h3 style="font-size:18px;font-weight:700;margin:0">${tituloLista}</h3>
+          <h3 style="font-size:18px;font-weight:700;margin:0">${tituloEditable || tituloLista}</h3>
           <p style="font-size:13px;color:#78716C;margin:4px 0 0">Vigencia: ${vigencia}</p>
           <p style="font-size:12px;color:#78716C;margin:2px 0 0">${ivaLabel}</p>
           ${subtitulo}
@@ -141,7 +150,8 @@ export default function ListasPage() {
         </div>
       </div>`
 
-      setPreview({ html, titulo: tituloLista, tipo, prods: prods.length })
+      setPreview({ html, titulo: tituloEditable || tituloLista, tipo, prods: prods.length })
+      setTituloEditable(prev => prev || tituloLista)
       setNombreLista(tituloLista + ' — ' + vigencia)
     } catch (e) { toast('Error: ' + e.message, 'error') } finally { setGenerando(false) }
   }
@@ -198,8 +208,8 @@ export default function ListasPage() {
     } catch (e) { toast('Error al eliminar', 'error') }
   }
 
-  const tipoBadge = { distribuidor: 'badge-yellow', mayorista: 'badge-blue', cliente: 'badge-green' }
-  const tipoLabel = { distribuidor: 'Distribuidor', mayorista: 'Mayorista', cliente: 'Cliente' }
+  const tipoBadge = { Representante: 'badge-gray', Distribuidor: 'badge-yellow', Mayorista: 'badge-blue', Supermercado: 'badge-green', Almacén: 'badge-blue', cliente: 'badge-green' }
+  const tipoLabel = { Representante: 'Representante', Distribuidor: 'Distribuidor', Mayorista: 'Mayorista', Supermercado: 'Supermercado', Almacén: 'Almacén', cliente: 'Cliente específico' }
   const baseUrl = typeof window !== 'undefined' ? window.location.origin + '/lista.html' : ''
 
   return (
@@ -215,8 +225,11 @@ export default function ListasPage() {
           <div className="form-group">
             <label>Tipo de lista</label>
             <select value={tipo} onChange={e => setTipo(e.target.value)}>
-              <option value="distribuidor">Distribuidor</option>
-              <option value="mayorista">Mayorista</option>
+              <option value="Representante">Representante</option>
+              <option value="Distribuidor">Distribuidor</option>
+              <option value="Mayorista">Mayorista</option>
+              <option value="Supermercado">Supermercado</option>
+              <option value="Almacén">Almacén</option>
               <option value="cliente">Cliente específico</option>
             </select>
           </div>
@@ -249,6 +262,10 @@ export default function ListasPage() {
           <div className="form-group">
             <label>Vigencia</label>
             <input value={vigencia} onChange={e => setVigencia(e.target.value)} placeholder="Ej: Junio 2026" />
+                </div>
+                <div className="form-group" style={{ flex: 2 }}>
+                  <label>Título de la lista impresa</label>
+                  <input value={tituloEditable} onChange={e => setTituloEditable(e.target.value)} placeholder="Ej: Lista de Precios Mayorista" />
           </div>
         </div>
         <div style={{ display: 'flex', gap: 16, marginBottom: 12, flexWrap: 'wrap' }}>
