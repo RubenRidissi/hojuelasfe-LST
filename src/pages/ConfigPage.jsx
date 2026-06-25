@@ -19,10 +19,24 @@ const TABLAS_EXPORT = [
   { nombre: 'Objetivos Ventas', tabla: 'objetivos_ventas', select: undefined, order: 'anio,mes' },
 ]
 
+// Aplicar tamaño de fuente guardado al body
+export function initFontSize() {
+  const saved = localStorage.getItem('app_font_size') || 'normal'
+  document.body.classList.remove('font-small','font-normal','font-large')
+  document.body.classList.add('font-' + saved)
+}
+
+export function setFontSize(size) {
+  document.body.classList.remove('font-small','font-normal','font-large')
+  document.body.classList.add('font-' + size)
+  localStorage.setItem('app_font_size', size)
+}
+
 export default function ConfigPage() {
   const { isAdmin } = useAuth()
   const { toasts, toast } = useToast()
 
+  const [fontActual, setFontActual] = useState(() => localStorage.getItem('app_font_size') || 'normal')
   const [exportando, setExportando] = useState(false)
   const [exportStatus, setExportStatus] = useState('')
   const [backupStatus, setBackupStatus] = useState('')
@@ -113,6 +127,18 @@ export default function ConfigPage() {
     <div>
       <div className="page-header">
         <h1 className="page-title">Configuración</h1>
+      </div>
+
+      {/* Tamaño de fuente */}
+      <div className="card" style={{padding:20,marginBottom:16}}>
+        <div style={{fontWeight:700,fontSize:15,marginBottom:8}}>🔤 Tamaño de texto</div>
+        <p style={{color:'var(--muted)',fontSize:13,marginBottom:16}}>Ajustá el tamaño del texto a tu preferencia. Se guarda automáticamente.</p>
+        <div style={{display:'flex',gap:8}}>
+          {[{key:'small',label:'A Pequeño'},{key:'normal',label:'A Normal'},{key:'large',label:'A Grande'}].map(({key,label}) => (
+            <button key={key} className="btn" style={{flex:1,background:fontActual===key?'var(--primary)':'var(--bg)',color:fontActual===key?'#fff':'var(--text)',border:'1px solid var(--border)'}}
+              onClick={() => { setFontSize(key); setFontActual(key) }}>{label}</button>
+          ))}
+        </div>
       </div>
 
       {/* Exportar Excel */}
