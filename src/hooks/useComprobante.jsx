@@ -71,10 +71,18 @@ function buildHeader(tipo, num, fecha) {
     </div>`
 }
 
+function buildDomicilioCliente(cliente) {
+  const direccion = cliente?.direccion || '—'
+  const localidad = cliente?.localidad || ''
+  const provincia = cliente?.provincia || ''
+  const zona = [localidad, provincia].filter(Boolean).join(', ')
+  return zona ? `${direccion}<br><span style="font-weight:400;color:#78716C">${zona}</span>` : direccion
+}
+
 function buildClienteInfo(cliente, l1, v1, l2, v2) {
   return `<div class="comp-datos">
     <div><span>Cliente</span><strong>${cliente ? nombreCliente(cliente) : '—'}</strong></div>
-    <div><span>Dirección</span><strong>${cliente?.direccion || '—'}</strong></div>
+    <div><span>Dirección</span><strong>${buildDomicilioCliente(cliente)}</strong></div>
     <div><span>Teléfono</span><strong>${cliente?.telefono || '—'}</strong></div>
     <div><span>${l1}</span><strong>${v1}</strong></div>
     <div><span>${l2}</span><strong>${v2}</strong></div>
@@ -267,7 +275,7 @@ export function useComprobante() {
   async function verComprobanteVenta(id) {
     try {
       const { data: v } = await supabase.from('ventas')
-        .select('id,numero,fecha,fecha_entrega_real,total,estado_pago,notas,clientes(nombre,nombre_fantasia,direccion,telefono,tipo),venta_items(cantidad,bonificado,precio_unitario,productos(nombre,codigo,unidad))')
+        .select('id,numero,fecha,fecha_entrega_real,total,estado_pago,notas,clientes(nombre,nombre_fantasia,direccion,localidad,provincia,telefono,tipo),venta_items(cantidad,bonificado,precio_unitario,productos(nombre,codigo,unidad))')
         .eq('id', id).single()
       if (!v) throw new Error('No se encontró la venta')
       const num = v.numero || 1
@@ -279,7 +287,7 @@ export function useComprobante() {
   async function verComprobantePedido(id) {
     try {
       const { data: p } = await supabase.from('pedidos')
-        .select('id,numero,fecha,fecha_entrega,fecha_entrega_real,estado,notas,total,clientes(nombre,nombre_fantasia,direccion,telefono,tipo),pedido_items(cantidad,bonificado,precio_unitario,productos(nombre,codigo,unidad))')
+        .select('id,numero,fecha,fecha_entrega,fecha_entrega_real,estado,notas,total,clientes(nombre,nombre_fantasia,direccion,localidad,provincia,telefono,tipo),pedido_items(cantidad,bonificado,precio_unitario,productos(nombre,codigo,unidad))')
         .eq('id', id).single()
       if (!p) throw new Error('No se encontró el pedido')
       const num = p.numero || 1
@@ -295,13 +303,13 @@ export function useComprobante() {
       let datos
       if (tipo === 'venta') {
         const { data: v } = await supabase.from('ventas')
-          .select('id,fecha,fecha_entrega_real,estado_pago,notas,clientes(nombre,nombre_fantasia,direccion,telefono,tipo),venta_items(cantidad,bonificado,precio_unitario,productos(nombre,codigo,unidad))')
+          .select('id,fecha,fecha_entrega_real,estado_pago,notas,clientes(nombre,nombre_fantasia,direccion,localidad,provincia,telefono,tipo),venta_items(cantidad,bonificado,precio_unitario,productos(nombre,codigo,unidad))')
           .eq('id', id).single()
         if (!v) throw new Error('No se encontró la venta')
         datos = { fecha_entrega: v.fecha, fecha_entrega_real: v.fecha_entrega_real, estado: v.estado_pago === 'pagado' ? 'Facturada y pagada' : 'Facturada', notas: v.notas, clientes: v.clientes, items: v.venta_items, remito_numero: remito.numero }
       } else {
         const { data: p } = await supabase.from('pedidos')
-          .select('id,fecha_entrega,fecha_entrega_real,estado,notas,clientes(nombre,nombre_fantasia,direccion,telefono,tipo),pedido_items(cantidad,bonificado,precio_unitario,productos(nombre,codigo,unidad))')
+          .select('id,fecha_entrega,fecha_entrega_real,estado,notas,clientes(nombre,nombre_fantasia,direccion,localidad,provincia,telefono,tipo),pedido_items(cantidad,bonificado,precio_unitario,productos(nombre,codigo,unidad))')
           .eq('id', id).single()
         if (!p) throw new Error('No se encontró el pedido')
         datos = { fecha_entrega: p.fecha_entrega, fecha_entrega_real: p.fecha_entrega_real, estado: p.estado.charAt(0).toUpperCase() + p.estado.slice(1), notas: p.notas, clientes: p.clientes, items: p.pedido_items, remito_numero: remito.numero }
@@ -318,14 +326,14 @@ export function useComprobante() {
       let datos, clienteId, vendedorId, total
       if (tipo === 'venta') {
         const { data: v } = await supabase.from('ventas')
-          .select('id,fecha,fecha_entrega_real,estado_pago,notas,cliente_id,vendedor_id,total,clientes(nombre,nombre_fantasia,direccion,telefono,tipo),venta_items(cantidad,bonificado,precio_unitario,productos(nombre,codigo,unidad))')
+          .select('id,fecha,fecha_entrega_real,estado_pago,notas,cliente_id,vendedor_id,total,clientes(nombre,nombre_fantasia,direccion,localidad,provincia,telefono,tipo),venta_items(cantidad,bonificado,precio_unitario,productos(nombre,codigo,unidad))')
           .eq('id', id).single()
         if (!v) throw new Error('No se encontró la venta')
         datos = { fecha_entrega: v.fecha, fecha_entrega_real: v.fecha_entrega_real, estado: v.estado_pago === 'pagado' ? 'Facturada y pagada' : 'Facturada', notas: v.notas, clientes: v.clientes, items: v.venta_items }
         clienteId = v.cliente_id; vendedorId = v.vendedor_id; total = v.total
       } else {
         const { data: p } = await supabase.from('pedidos')
-          .select('id,fecha_entrega,fecha_entrega_real,estado,notas,cliente_id,vendedor_id,total,clientes(nombre,nombre_fantasia,direccion,telefono,tipo),pedido_items(cantidad,bonificado,precio_unitario,productos(nombre,codigo,unidad))')
+          .select('id,fecha_entrega,fecha_entrega_real,estado,notas,cliente_id,vendedor_id,total,clientes(nombre,nombre_fantasia,direccion,localidad,provincia,telefono,tipo),pedido_items(cantidad,bonificado,precio_unitario,productos(nombre,codigo,unidad))')
           .eq('id', id).single()
         if (!p) throw new Error('No se encontró el pedido')
         datos = { fecha_entrega: p.fecha_entrega, fecha_entrega_real: p.fecha_entrega_real, estado: p.estado.charAt(0).toUpperCase() + p.estado.slice(1), notas: p.notas, clientes: p.clientes, items: p.pedido_items }
