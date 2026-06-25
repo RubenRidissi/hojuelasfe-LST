@@ -46,6 +46,11 @@ export default function VentasPage() {
   const [prodSel, setProdSel] = useState('')
   const [cantidad, setCantidad] = useState(1)
   const [precioEditable, setPrecioEditable] = useState('')
+  const [promoInfo, setPromoInfo] = useState(null)
+  const [aplicarPromo, setAplicarPromo] = useState(false)
+  const [searchCliente, setSearchCliente] = useState('')
+  const [modalPromoCombi, setModalPromoCombi] = useState(null)
+  const [promoCombiElegido, setPromoCombiElegido] = useState(null)
 
   // Modal fecha entrega
   const [modalFecha, setModalFecha] = useState(null)
@@ -100,6 +105,48 @@ export default function VentasPage() {
 
   useEffect(() => { loadVentas() }, [filtroCliente, filtroVendedor])
 
+  function onProdSelChange(pid) {
+    setProdSel(pid)
+    setAplicarPromo(false)
+    if (!pid) { setPromoInfo(null); return }
+    const prod = productos.find(p => p.id === pid)
+    if (prod?.promo) {
+      const [paga, lleva] = prod.promo.split('+').map(Number)
+      setPromoInfo({ texto: `Este producto tiene promo ${prod.promo}: comprando ${paga} llevás ${paga + lleva}.`, paga, lleva })
+    } else { setPromoInfo(null) }
+  }
+
+  function verificarPromoCombi(itemsActuales) {
+    const conPromo = itemsActuales.filter(i => i.promo && i.familia)
+    if (conPromo.length < 2) return
+    const familiaMap = {}
+    conPromo.forEach(item => {
+      if (!familiaMap[item.familia]) familiaMap[item.familia] = []
+      familiaMap[item.familia].push(item)
+    })
+    Object.entries(familiaMap).forEach(([familia, grupo]) => {
+      if (grupo.length < 2) return
+      const promo = grupo[0].promo
+      if (!promo) return
+      const [paga] = promo.split('+').map(Number)
+      const totalCant = grupo.reduce((s, i) => s + i.cantidad, 0)
+      const totalBonif = grupo.reduce((s, i) => s + (i.bonificado || 0), 0)
+      const bonifPosible = Math.floor(totalCant / paga) - totalBonif
+      if (bonifPosible <= 0) return
+      setModalPromoCombi({ familia, grupoItems: grupo, bonifPosible, promo })
+      setPromoCombiElegido(grupo[0].producto_id)
+    })
+  }
+
+  function aplicarPromoCombi() {
+    if (!modalPromoCombi || !promoCombiElegido) return
+    setItems(prev => prev.map(i => i.producto_id === promoCombiElegido
+      ? { ...i, bonificado: (i.bonificado || 0) + modalPromoCombi.bonifPosible }
+      : i))
+    toast('✓ ' + modalPromoCombi.bonifPosible + ' unidad(es) bonificada(s) agregada(s)')
+    setModalPromoCombi(null); setPromoCombiElegido(null)
+  }
+
   // ===== AGREGAR ITEM =====
   function addItem() {
     if (!prodSel) { toast('Elegí un producto', 'error'); return }
@@ -109,24 +156,30 @@ export default function VentasPage() {
     const esEditable = prod.precio_editable
     const precio = esEditable ? (parseFloat(precioEditable) || 0) : (prod.precio || 0)
 
+    // Promo individual: solo si el vendedor tildó "Aplicar promo"
     let bonificado = 0
-    if (prod.promo) {
+    if (prod.promo && aplicarPromo) {
       const [paga] = prod.promo.split('+').map(Number)
       bonificado = Math.floor(cant / paga)
     }
 
-    setItems(prev => {
-      const existing = prev.find(i => i.producto_id === prodSel)
+    const nuevosItems = (() => {
+      const existing = items.find(i => i.producto_id === prodSel)
       if (existing) {
-        return prev.map(i => i.producto_id === prodSel
+        return items.map(i => i.producto_id === prodSel
           ? { ...i, cantidad: i.cantidad + cant, bonificado: (i.bonificado || 0) + bonificado }
           : i)
       }
-      return [...prev, { producto_id: prodSel, nombre: prod.nombre, costo: prod.costo || 0, cantidad: cant, bonificado, precio_unitario: precio, promo: prod.promo || '' }]
-    })
+      return [...items, { producto_id: prodSel, nombre: prod.nombre, costo: prod.costo || 0, familia: prod.familia || '', cantidad: cant, bonificado, precio_unitario: precio, promo: prod.promo || '' }]
+    })()
+
+    setItems(nuevosItems)
     setCantidad(1)
     setProdSel('')
     setPrecioEditable('')
+    setPromoInfo(null)
+    setAplicarPromo(false)
+    verificarPromoCombi(nuevosItems)
   }
 
   function removeItem(idx) { setItems(prev => prev.filter((_, i) => i !== idx)) }
@@ -253,7 +306,7 @@ export default function VentasPage() {
         <h1 className="page-title">Ventas</h1>
         <div className="page-header-actions">
           <button className="btn btn-secondary hide-on-mobile" onClick={() => toast('Excel — próximamente', 'info')}>📥 Excel</button>
-          <button className="btn btn-primary" onClick={() => { setForm(EMPTY_FORM); setItems([]); setModalOpen(true) }}>+ Nueva venta</button>
+          <button className="btn btn-primary" onClick={() => { setForm(EMPTY_FORM); setItems([]); setSearchCliente(''); setPromoInfo(null); setAplicarPromo(false); setModalOpen(true) }}>+ Nueva venta</button>
         </div>
       </div>
 
@@ -396,9 +449,15 @@ export default function VentasPage() {
               <div className="form-row">
                 <div className="form-group">
                   <label>Cliente *</label>
-                  <select value={form.clienteId} onChange={e => setForm(f => ({ ...f, clienteId: e.target.value }))}>
+                  <input type="text" placeholder="Buscar cliente..." value={searchCliente}
+                    onChange={e => setSearchCliente(e.target.value)}
+                    style={{ marginBottom: 4, borderRadius: 'var(--radius) var(--radius) 0 0', borderBottom: 'none' }} />
+                  <select value={form.clienteId} onChange={e => setForm(f => ({ ...f, clienteId: e.target.value }))}
+                    style={{ borderRadius: '0 0 var(--radius) var(--radius)' }}>
                     <option value="">— Elegí un cliente —</option>
-                    {misClientes.map(c => <option key={c.id} value={c.id}>{nombreCliente(c)}{c.tipo ? ` — ${c.tipo}` : ''}</option>)}
+                    {misClientes
+                      .filter(c => !searchCliente || nombreCliente(c).toLowerCase().includes(searchCliente.toLowerCase()))
+                      .map(c => <option key={c.id} value={c.id}>{nombreCliente(c)}{c.tipo ? ` — ${c.tipo}` : ''}</option>)}
                   </select>
                 </div>
                 <div className="form-group">
@@ -424,7 +483,7 @@ export default function VentasPage() {
               <div style={{ background: 'var(--bg)', borderRadius: 8, padding: 12, marginBottom: 12 }}>
                 <div style={{ fontWeight: 600, fontSize: 12, color: 'var(--muted)', marginBottom: 8, textTransform: 'uppercase' }}>Agregar producto</div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  <select value={prodSel} onChange={e => setProdSel(e.target.value)} style={{ flex: 3, minWidth: 180 }}>
+                  <select value={prodSel} onChange={e => onProdSelChange(e.target.value)} style={{ flex: 3, minWidth: 180 }}>
                     <option value="">— Elegí un producto —</option>
                     {productos.map(p => <option key={p.id} value={p.id}>{p.codigo ? `${p.codigo} — ` : ''}{p.nombre} — ${parseFloat(p.precio || 0).toLocaleString('es-AR')}{p.promo ? ` 🎁${p.promo}` : ''}</option>)}
                   </select>
@@ -434,6 +493,15 @@ export default function VentasPage() {
                   )}
                   <button className="btn btn-primary" onClick={addItem}>+ Agregar</button>
                 </div>
+                {promoInfo && (
+                  <div style={{ marginTop: 8, padding: '8px 10px', background: '#FEF9C3', borderRadius: 8, fontSize: 12, color: '#92400E', display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <span>{promoInfo.texto}</span>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', whiteSpace: 'nowrap', fontWeight: 600 }}>
+                      <input type="checkbox" checked={aplicarPromo} onChange={e => setAplicarPromo(e.target.checked)} />
+                      Aplicar promo
+                    </label>
+                  </div>
+                )}
               </div>
 
               {/* Lista de items */}
@@ -504,6 +572,36 @@ export default function VentasPage() {
       )}
 
       <ComprobanteModal comp={comp} onClose={cerrarComp} onPrint={imprimir} onDownload={descargar} />
+
+      {modalPromoCombi && (
+        <div className="modal-backdrop">
+          <div className="modal" style={{ maxWidth: 420 }}>
+            <div className="modal-header">
+              <h2>¡Promo combinada en familia "{modalPromoCombi.familia}"!</h2>
+            </div>
+            <div className="modal-body">
+              <p style={{ marginBottom: 12, fontSize: 13, color: 'var(--muted)' }}>
+                Entre todos los productos de esta familia sumás la promo {modalPromoCombi.promo}.
+                Podés agregar <strong>{modalPromoCombi.bonifPosible} unidad(es) bonificada(s)</strong>.
+              </p>
+              <p style={{ marginBottom: 12, fontWeight: 600, fontSize: 13 }}>¿A qué producto agregamos el bonificado?</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {modalPromoCombi.grupoItems.map(item => (
+                  <label key={item.producto_id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: promoCombiElegido === item.producto_id ? 'var(--primary-light)' : 'var(--bg)', borderRadius: 8, cursor: 'pointer', border: `1px solid ${promoCombiElegido === item.producto_id ? 'var(--primary)' : 'var(--border)'}` }}>
+                    <input type="radio" name="promoCombiV" checked={promoCombiElegido === item.producto_id} onChange={() => setPromoCombiElegido(item.producto_id)} />
+                    <span style={{ fontSize: 14 }}>{item.nombre} <span style={{ color: 'var(--muted)', fontSize: 12 }}>({item.cantidad} u. cargadas)</span></span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => { setModalPromoCombi(null); setPromoCombiElegido(null) }}>No, gracias</button>
+              <button className="btn btn-primary" onClick={aplicarPromoCombi}>✓ Agregar bonificado</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <ToastContainer toasts={toasts} />
     </div>
   )

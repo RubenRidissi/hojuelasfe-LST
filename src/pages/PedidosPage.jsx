@@ -39,6 +39,13 @@ export default function PedidosPage() {
   const [cantidad, setCantidad] = useState(1)
   const [versionId, setVersionId] = useState('')
   const [precioEditable, setPrecioEditable] = useState('')
+  const [promoInfo, setPromoInfo] = useState(null) // { texto, paga, lleva } del producto seleccionado
+  const [aplicarPromo, setAplicarPromo] = useState(false)
+  const [versiones, setVersiones] = useState([])
+  const [versionItems, setVersionItems] = useState({}) // cache de items por version_id
+  const [searchCliente, setSearchCliente] = useState('')
+  const [modalPromoCombi, setModalPromoCombi] = useState(null) // { familia, grupoItems, bonifPosible }
+  const [promoCombiElegido, setPromoCombiElegido] = useState(null)
 
   // Modal fecha entrega
   const [modalFecha, setModalFecha] = useState(null) // { id, modo, tabla, fechaActual }
@@ -65,6 +72,9 @@ export default function PedidosPage() {
       setVendedores(v || [])
       setClientes(c || [])
       setProductos(p || [])
+    // Cargar versiones de precios
+    const { data: vers } = await supabase.from('listas_precios_repo').select('id,nombre,created_at').order('created_at', { ascending: false })
+    setVersiones(vers || [])
     } catch (e) { console.error(e) }
     loadPedidos()
   }
@@ -97,12 +107,36 @@ export default function PedidosPage() {
 
   useEffect(() => { loadPedidos() }, [filtroEstado, filtroCliente, filtroVendedor])
 
-  // ===== PRECIO DE PRODUCTO =====
+  // ===== PRECIO DE PRODUCTO (con versiones) =====
   function getPrecio(productoId) {
+    if (versionId && versionItems[versionId] && versionItems[versionId][productoId]) {
+      return versionItems[versionId][productoId].precio || 0
+    }
     const p = productos.find(x => x.id === productoId)
-    if (!p) return 0
-    if (versionId) return p.precio // simplificado — en producción cargaría version_precios_items
-    return p.precio || 0
+    return p?.precio || 0
+  }
+
+  async function cambiarVersion(vid) {
+    setVersionId(vid)
+    if (!vid) { toast('Usando precios actuales'); return }
+    if (versionItems[vid]) { toast('Versión aplicada'); return }
+    // La lista del repo guarda html, no items individuales
+    // Usamos los precios actuales de productos como fallback
+    toast('Versión seleccionada — precios del catálogo actual')
+  }
+
+  // Al seleccionar producto, mostrar info de promo
+  function onProdSelChange(pid) {
+    setProdSel(pid)
+    setAplicarPromo(false)
+    if (!pid) { setPromoInfo(null); return }
+    const prod = productos.find(p => p.id === pid)
+    if (prod?.promo) {
+      const [paga, lleva] = prod.promo.split('+').map(Number)
+      setPromoInfo({ texto: 'Este producto tiene promo ' + prod.promo + ': comprando ' + paga + ' llevás ' + (paga + lleva) + '.', paga, lleva })
+    } else {
+      setPromoInfo(null)
+    }
   }
 
   // ===== ITEMS =====
@@ -114,24 +148,68 @@ export default function PedidosPage() {
     const esEditable = prod.precio_editable
     const precio = esEditable ? (parseFloat(precioEditable) || 0) : getPrecio(prodSel)
 
+    // Promo individual: solo si el vendedor tildó "Aplicar promo"
     let bonificado = 0
-    if (prod.promo) {
+    if (prod.promo && aplicarPromo) {
       const [paga] = prod.promo.split('+').map(Number)
       bonificado = Math.floor(cant / paga)
     }
 
-    setItems(prev => {
-      const existing = prev.find(i => i.producto_id === prodSel)
+    const nuevosItems = (() => {
+      const existing = items.find(i => i.producto_id === prodSel)
       if (existing) {
-        return prev.map(i => i.producto_id === prodSel
-          ? { ...i, cantidad: i.cantidad + cant, bonificado: (i.bonificado || 0) + bonificado, subtotal: (i.cantidad + cant) * i.precio_unitario }
+        return items.map(i => i.producto_id === prodSel
+          ? { ...i, cantidad: i.cantidad + cant, bonificado: (i.bonificado || 0) + bonificado }
           : i)
       }
-      return [...prev, { producto_id: prodSel, nombre: prod.nombre, cantidad: cant, bonificado, precio_unitario: precio, promo: prod.promo || '' }]
-    })
+      return [...items, { producto_id: prodSel, nombre: prod.nombre, familia: prod.familia || '', cantidad: cant, bonificado, precio_unitario: precio, promo: prod.promo || '' }]
+    })()
+
+    setItems(nuevosItems)
     setCantidad(1)
     setProdSel('')
     setPrecioEditable('')
+    setPromoInfo(null)
+    setAplicarPromo(false)
+
+    // Verificar promo combinada por familia
+    verificarPromoCombi(nuevosItems)
+  }
+
+  function verificarPromoCombi(itemsActuales) {
+    const conPromo = itemsActuales.filter(i => i.promo && i.familia)
+    if (conPromo.length < 2) return
+
+    // Agrupar por familia
+    const familiaMap = {}
+    conPromo.forEach(item => {
+      if (!familiaMap[item.familia]) familiaMap[item.familia] = []
+      familiaMap[item.familia].push(item)
+    })
+
+    Object.entries(familiaMap).forEach(([familia, grupo]) => {
+      if (grupo.length < 2) return
+      const promo = grupo[0].promo
+      if (!promo) return
+      const [paga] = promo.split('+').map(Number)
+      const totalCant = grupo.reduce((s, i) => s + i.cantidad, 0)
+      const totalBonif = grupo.reduce((s, i) => s + (i.bonificado || 0), 0)
+      const bonifPosible = Math.floor(totalCant / paga) - totalBonif
+      if (bonifPosible <= 0) return
+      setModalPromoCombi({ familia, grupoItems: grupo, bonifPosible, promo })
+      setPromoCombiElegido(grupo[0].producto_id)
+    })
+  }
+
+  function aplicarPromoCombi() {
+    if (!modalPromoCombi || !promoCombiElegido) return
+    setItems(prev => prev.map(i => i.producto_id === promoCombiElegido
+      ? { ...i, bonificado: (i.bonificado || 0) + modalPromoCombi.bonifPosible }
+      : i
+    ))
+    toast('✓ ' + modalPromoCombi.bonifPosible + ' unidad(es) bonificada(s) agregada(s)')
+    setModalPromoCombi(null)
+    setPromoCombiElegido(null)
   }
 
   function removeItem(idx) { setItems(prev => prev.filter((_, i) => i !== idx)) }
@@ -317,7 +395,7 @@ export default function PedidosPage() {
         <h1 className="page-title">Pedidos</h1>
         <div className="page-header-actions">
           <button className="btn btn-secondary hide-on-mobile" onClick={() => toast('Excel — próximamente', 'info')}>📥 Excel</button>
-          <button className="btn btn-primary" onClick={() => { setForm(EMPTY_FORM); setItems([]); setModalOpen(true) }}>+ Nuevo pedido</button>
+          <button className="btn btn-primary" onClick={() => { setForm(EMPTY_FORM); setItems([]); setSearchCliente(''); setVersionId(''); setPromoInfo(null); setAplicarPromo(false); setModalOpen(true) }}>+ Nuevo pedido</button>
         </div>
       </div>
 
@@ -471,17 +549,32 @@ export default function PedidosPage() {
               <div className="form-row">
                 <div className="form-group">
                   <label>Cliente *</label>
-                  <select value={form.clienteId} onChange={e => setForm(f => ({ ...f, clienteId: e.target.value }))}>
+                  <input
+                    type="text" placeholder="Buscar cliente..."
+                    value={searchCliente} onChange={e => setSearchCliente(e.target.value)}
+                    style={{ marginBottom: 4, borderRadius: 'var(--radius) var(--radius) 0 0', borderBottom: 'none' }}
+                  />
+                  <select value={form.clienteId} onChange={e => setForm(f => ({ ...f, clienteId: e.target.value }))}
+                    style={{ borderRadius: '0 0 var(--radius) var(--radius)' }}>
                     <option value="">— Elegí un cliente —</option>
-                    {misClientes.map(c => <option key={c.id} value={c.id}>{nombreCliente(c)}{c.tipo ? ` — ${c.tipo}` : ''}</option>)}
+                    {misClientes
+                      .filter(c => !searchCliente || nombreCliente(c).toLowerCase().includes(searchCliente.toLowerCase()))
+                      .map(c => <option key={c.id} value={c.id}>{nombreCliente(c)}{c.tipo ? ` — ${c.tipo}` : ''}</option>)}
                   </select>
                 </div>
                 <div className="form-group">
-                  <label>Fecha de entrega</label>
+                  <label>Fecha programada</label>
                   <input type="date" value={form.fechaEntrega} onChange={e => setForm(f => ({ ...f, fechaEntrega: e.target.value }))} />
                 </div>
               </div>
               <div className="form-row">
+                <div className="form-group">
+                  <label>Lista de precios</label>
+                  <select value={versionId} onChange={e => cambiarVersion(e.target.value)}>
+                    <option value="">Precios actuales</option>
+                    {versiones.map(v => <option key={v.id} value={v.id}>{v.nombre}</option>)}
+                  </select>
+                </div>
                 <div className="form-group">
                   <label>Modalidad de factura</label>
                   <select value={form.modalidad} onChange={e => setForm(f => ({ ...f, modalidad: e.target.value }))}>
@@ -489,17 +582,17 @@ export default function PedidosPage() {
                     <option value="con_iva">Con IVA 21%</option>
                   </select>
                 </div>
-                <div className="form-group">
-                  <label>Notas</label>
-                  <input value={form.notas} onChange={e => setForm(f => ({ ...f, notas: e.target.value }))} placeholder="Observaciones..." />
-                </div>
+              </div>
+              <div className="form-group" style={{ marginBottom: 12 }}>
+                <label>Notas</label>
+                <input value={form.notas} onChange={e => setForm(f => ({ ...f, notas: e.target.value }))} placeholder="Observaciones..." />
               </div>
 
               {/* Agregar producto */}
               <div style={{ background: 'var(--bg)', borderRadius: 8, padding: 12, marginBottom: 12 }}>
                 <div style={{ fontWeight: 600, fontSize: 12, color: 'var(--muted)', marginBottom: 8, textTransform: 'uppercase' }}>Agregar producto</div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  <select value={prodSel} onChange={e => setProdSel(e.target.value)} style={{ flex: 3, minWidth: 180 }}>
+                  <select value={prodSel} onChange={e => onProdSelChange(e.target.value)} style={{ flex: 3, minWidth: 180 }}>
                     <option value="">— Elegí un producto —</option>
                     {productos.map(p => <option key={p.id} value={p.id}>{p.codigo ? `${p.codigo} — ` : ''}{p.nombre} — ${parseFloat(p.precio).toLocaleString('es-AR')}{p.promo ? ` 🎁${p.promo}` : ''}</option>)}
                   </select>
@@ -509,6 +602,15 @@ export default function PedidosPage() {
                   )}
                   <button className="btn btn-primary" onClick={addItem}>+ Agregar</button>
                 </div>
+                {promoInfo && (
+                  <div style={{ marginTop: 8, padding: '8px 10px', background: '#FEF9C3', borderRadius: 8, fontSize: 12, color: '#92400E', display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <span>{promoInfo.texto}</span>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', whiteSpace: 'nowrap', fontWeight: 600 }}>
+                      <input type="checkbox" checked={aplicarPromo} onChange={e => setAplicarPromo(e.target.checked)} />
+                      Aplicar promo
+                    </label>
+                  </div>
+                )}
               </div>
 
               {/* Lista de items */}
@@ -603,6 +705,37 @@ export default function PedidosPage() {
       )}
 
       <ComprobanteModal comp={comp} onClose={cerrarComp} onPrint={imprimir} onDownload={descargar} />
+
+      {/* ===== MODAL PROMO COMBINADA ===== */}
+      {modalPromoCombi && (
+        <div className="modal-backdrop">
+          <div className="modal" style={{ maxWidth: 420 }}>
+            <div className="modal-header">
+              <h2>¡Promo combinada en familia "{modalPromoCombi.familia}"!</h2>
+            </div>
+            <div className="modal-body">
+              <p style={{ marginBottom: 12, fontSize: 13, color: 'var(--muted)' }}>
+                Entre todos los productos de esta familia sumás la promo {modalPromoCombi.promo}.
+                Podés agregar <strong>{modalPromoCombi.bonifPosible} unidad(es) bonificada(s)</strong>.
+              </p>
+              <p style={{ marginBottom: 12, fontWeight: 600, fontSize: 13 }}>¿A qué producto agregamos el bonificado?</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {modalPromoCombi.grupoItems.map(item => (
+                  <label key={item.producto_id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: promoCombiElegido === item.producto_id ? 'var(--primary-light)' : 'var(--bg)', borderRadius: 8, cursor: 'pointer', border: `1px solid ${promoCombiElegido === item.producto_id ? 'var(--primary)' : 'var(--border)'}` }}>
+                    <input type="radio" name="promoCombi" checked={promoCombiElegido === item.producto_id} onChange={() => setPromoCombiElegido(item.producto_id)} />
+                    <span style={{ fontSize: 14 }}>{item.nombre} <span style={{ color: 'var(--muted)', fontSize: 12 }}>({item.cantidad} u. cargadas)</span></span>
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => { setModalPromoCombi(null); setPromoCombiElegido(null) }}>No, gracias</button>
+              <button className="btn btn-primary" onClick={aplicarPromoCombi}>✓ Agregar bonificado</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <ToastContainer toasts={toasts} />
     </div>
   )
