@@ -523,18 +523,20 @@ export default function PedidosPage() {
               </div>
               <div className="op-card-actions">
                 <button className="btn btn-secondary" onClick={() => verComprobante(p.id)}>📋 Ver</button>
-                {!yaConvertido && p.estado !== 'entregado'
-                  ? <select style={{ flex: 1, padding: '8px 6px', border: '1px solid var(--border)', borderRadius: 10, fontSize: 12 }}
-                      value={p.estado} onChange={e => updateEstado(p.id, e.target.value)}>
-                      {ESTADOS.filter(e => {
-                        if (p.estado === 'pendiente') return e !== 'entregado'
-                        if (p.estado === 'confirmado') return e === 'confirmado' || e === 'entregado' || e === 'cancelado'
-                        return false
-                      }).map(e => (
-                        <option key={e} value={e}>{e.charAt(0).toUpperCase() + e.slice(1)}</option>
-                      ))}
-                    </select>
-                  : <span className="badge badge-green" style={{ flex: 1, textAlign: 'center' }}>✓ Facturado</span>
+                {yaConvertido
+                  ? <span className="badge badge-green" style={{ flex: 1, textAlign: 'center' }}>✓ Facturado</span>
+                  : p.estado === 'entregado'
+                    ? <span className="badge badge-green" style={{ flex: 1, textAlign: 'center' }}>Entregado</span>
+                    : <select style={{ flex: 1, padding: '8px 6px', border: '1px solid var(--border)', borderRadius: 10, fontSize: 12 }}
+                        value={p.estado} onChange={e => updateEstado(p.id, e.target.value)}>
+                        {ESTADOS.filter(e => {
+                          if (p.estado === 'pendiente') return e !== 'entregado'
+                          if (p.estado === 'confirmado') return e === 'confirmado' || e === 'entregado' || e === 'cancelado'
+                          return false
+                        }).map(e => (
+                          <option key={e} value={e}>{e.charAt(0).toUpperCase() + e.slice(1)}</option>
+                        ))}
+                      </select>
                 }
                 {tieneRemito
                   ? <button className="btn btn-secondary" onClick={() => handleVerRemito(p.id)}>👁 Remito</button>
