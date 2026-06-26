@@ -27,7 +27,7 @@ function getEstadoCobro(pago) {
     return { key: 'imputado', label: 'Imputado', badge: 'badge-green', icon: '✓', totalImputado }
   }
 
-  return { key: 'parcial', label: 'Parcial', badge: 'badge-blue', icon: '◐', totalImputado }
+  return { key: 'parcial', label: 'Con saldo a cuenta', badge: 'badge-blue', icon: '◐', totalImputado }
 }
 
 const EMPTY_FORM = {
