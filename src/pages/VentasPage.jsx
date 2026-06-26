@@ -304,17 +304,108 @@ export default function VentasPage() {
     } catch (e) { toast('Error: ' + e.message, 'error') } finally { setSaving(false) }
   }
 
-  // ===== ELIMINAR VENTA =====
+  // ===== ANULAR / ELIMINAR VENTA =====
   async function deleteVenta(v) {
-    if (v.estado_pago === 'pagado') { toast('No se puede borrar una venta ya cobrada.', 'error'); return }
-    if (!confirm(`¿Borrar venta de ${nombreCliente(v.clientes)}?`)) return
+    if (!isAdmin) {
+      toast('Solo el administrador puede anular ventas.', 'error')
+      return
+    }
+
+    const nombre = v.clientes ? nombreCliente(v.clientes) : 'este cliente'
+    const ok = confirm(
+      `¿Anular la venta #${String(v.numero || 0).padStart(6, '0')} de ${nombre}?\n\n` +
+      'Esta acción eliminará los ítems de la venta, revertirá movimientos de stock asociados y, si proviene de un pedido, lo dejará nuevamente confirmado.'
+    )
+    if (!ok) return
+
     try {
-      await supabase.from('stock_movimientos').delete().eq('referencia_id', v.id).eq('origen', 'venta')
-      await supabase.from('venta_items').delete().eq('venta_id', v.id)
-      await supabase.from('ventas').delete().eq('id', v.id)
-      toast('Venta eliminada y stock revertido')
+      const { data: imputaciones, error: impReadError } = await supabase
+        .from('pago_ventas')
+        .select('pago_id, venta_id, monto_aplicado')
+        .eq('venta_id', v.id)
+
+      if (impReadError) throw impReadError
+
+      if ((imputaciones || []).length > 0 || v.estado_pago === 'pagado' || v.estado_pago === 'parcial') {
+        toast('No se puede anular esta venta porque tiene cobros asociados. Primero anulá el cobro.', 'error')
+        return
+      }
+
+      const { data: remitosVenta, error: remReadError } = await supabase
+        .from('remitos')
+        .select('id,numero,origen_id')
+        .eq('origen_id', v.id)
+
+      if (remReadError) throw remReadError
+
+      const { data: pedidosOrigen, error: pedReadError } = await supabase
+        .from('pedidos')
+        .select('id,numero')
+        .eq('convertido_venta_id', v.id)
+
+      if (pedReadError) throw pedReadError
+
+      const pedidoOrigen = pedidosOrigen?.[0] || null
+
+      let remitosPedido = []
+      if (pedidoOrigen?.id) {
+        const { data, error } = await supabase
+          .from('remitos')
+          .select('id,numero,origen_id')
+          .eq('origen_id', pedidoOrigen.id)
+
+        if (error) throw error
+        remitosPedido = data || []
+      }
+
+      if ((remitosVenta || []).length > 0 || remitosPedido.length > 0) {
+        toast('No se puede anular automáticamente: la venta/pedido tiene remito. Primero revisá o anulá el remito.', 'error')
+        return
+      }
+
+      const { error: stockError } = await supabase
+        .from('stock_movimientos')
+        .delete()
+        .eq('referencia_id', v.id)
+        .eq('origen', 'venta')
+
+      if (stockError) throw stockError
+
+      const { error: itemsError } = await supabase
+        .from('venta_items')
+        .delete()
+        .eq('venta_id', v.id)
+
+      if (itemsError) throw itemsError
+
+      if (pedidoOrigen?.id) {
+        const { error: pedidoError } = await supabase
+          .from('pedidos')
+          .update({
+            convertido_venta_id: null,
+            estado: 'confirmado',
+            fecha_entrega_real: null
+          })
+          .eq('id', pedidoOrigen.id)
+
+        if (pedidoError) throw pedidoError
+      }
+
+      const { error: ventaError } = await supabase
+        .from('ventas')
+        .delete()
+        .eq('id', v.id)
+
+      if (ventaError) throw ventaError
+
+      toast(pedidoOrigen
+        ? 'Venta anulada. El pedido quedó nuevamente confirmado.'
+        : 'Venta anulada y stock revertido.'
+      )
       loadVentas()
-    } catch (e) { toast('Error al eliminar', 'error') }
+    } catch (e) {
+      toast('Error al anular venta: ' + e.message, 'error')
+    }
   }
 
   // ===== FECHA ENTREGA =====
@@ -428,7 +519,7 @@ export default function VentasPage() {
                             : <button className="btn btn-sm" style={{ background: '#FEF3C7', color: '#92400E' }} onClick={async () => { try { await imprimirRemito('venta', v.id); loadVentas() } catch(e) { toast('Error', 'error') } }}>🚚</button>
                           }
                           {isAdmin && v.estado_pago !== 'pagado' && (
-                            <button className="btn btn-sm btn-danger" onClick={() => deleteVenta(v)}>Borrar</button>
+                            <button className="btn btn-sm btn-danger" onClick={() => deleteVenta(v)}>Anular</button>
                           )}
                         </div>
                       </td>
