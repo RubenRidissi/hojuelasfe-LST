@@ -75,6 +75,29 @@ export default function ListasPage() {
 
   const familias = useMemo(() => [...new Set(productos.map(p => p.familia).filter(Boolean))].sort(), [productos])
   const clienteSeleccionado = useMemo(() => clientes.find(c => c.id === clienteId), [clientes, clienteId])
+  const subtituloSugerido = useMemo(() => {
+    if (tipo === 'cliente') return clienteSeleccionado?.tipo || 'Cliente específico'
+    return tipo
+  }, [tipo, clienteSeleccionado])
+
+  function normalizarTipoLista(valor) {
+    const limpio = String(valor || '').trim()
+    const map = {
+      Representante: 'representante',
+      Distribuidor: 'distribuidor',
+      Mayorista: 'mayorista',
+      Supermercado: 'supermercado',
+      'Almacén': 'almacen',
+      Almacen: 'almacen',
+      cliente: 'cliente',
+      Cliente: 'cliente',
+    }
+
+    return map[limpio] || limpio
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+  }
 
   async function generarLista() {
     if (tipo === 'cliente' && !clienteId) { toast('Seleccioná un cliente', 'error'); return }
@@ -158,10 +181,7 @@ export default function ListasPage() {
           ? 'Los valores se encuentran expresados en pesos argentinos, con IVA 21% incluido.'
           : 'Los valores se encuentran expresados en pesos argentinos, con referencia sin IVA y con IVA 21%.'
 
-      const tituloFinal = tituloEditable || tituloLista
-      const subtituloLista = tipo === 'cliente'
-        ? (clienteSeleccionado?.tipo || 'Cliente específico')
-        : tipo
+      const subtituloLista = (tituloEditable || '').trim() || subtituloSugerido
 
       const clienteLinea = tipo === 'cliente' && clienteSeleccionado
         ? `<p style="font-size:13px;color:#57534E;margin:6px 0 0"><strong>Cliente:</strong> ${nombreCliente(clienteSeleccionado)}</p>`
@@ -250,9 +270,8 @@ export default function ListasPage() {
         </div>
       </div>`
 
-      setPreview({ html, titulo: tituloEditable || tituloLista, tipo, prods: prods.length })
-      setTituloEditable(prev => prev || tituloLista)
-      setNombreLista(tituloLista + ' — ' + vigencia)
+      setPreview({ html, titulo: `Lista de Precios ${subtituloLista}`, tipo, prods: prods.length })
+      setNombreLista(`Lista de Precios ${subtituloLista} — ${vigencia}`)
     } catch (e) { toast('Error: ' + e.message, 'error') } finally { setGenerando(false) }
   }
 
@@ -361,7 +380,9 @@ export default function ListasPage() {
     if (!nombreLista.trim()) { toast('Ingresá un nombre para la lista', 'error'); return }
     setGuardando(true)
     try {
-      const tipoRepo = String(preview.tipo || '').toLowerCase()
+      const tipoRepo = normalizarTipoLista(preview.tipo)
+      console.log('TIPO ORIGINAL:', preview.tipo)
+      console.log('TIPO NORMALIZADO:', tipoRepo)
 
       const { data, error } = await supabase
         .from('listas_precios_repo')
@@ -397,8 +418,8 @@ export default function ListasPage() {
     } catch (e) { toast('Error al eliminar', 'error') }
   }
 
-  const tipoBadge = { Representante: 'badge-gray', Distribuidor: 'badge-yellow', Mayorista: 'badge-blue', Supermercado: 'badge-green', Almacén: 'badge-blue', cliente: 'badge-green' }
-  const tipoLabel = { Representante: 'Representante', Distribuidor: 'Distribuidor', Mayorista: 'Mayorista', Supermercado: 'Supermercado', Almacén: 'Almacén', cliente: 'Cliente específico' }
+  const tipoBadge = { representante: 'badge-gray', distribuidor: 'badge-yellow', mayorista: 'badge-blue', supermercado: 'badge-green', almacen: 'badge-blue', cliente: 'badge-green' }
+  const tipoLabel = { representante: 'Representante', distribuidor: 'Distribuidor', mayorista: 'Mayorista', supermercado: 'Supermercado', almacen: 'Almacén', cliente: 'Cliente específico' }
   const baseUrl = typeof window !== 'undefined' ? window.location.origin + '/lista.html' : ''
 
   return (
@@ -415,7 +436,7 @@ export default function ListasPage() {
         <div className="form-row">
           <div className="form-group">
             <label>Tipo de lista</label>
-            <select value={tipo} onChange={e => setTipo(e.target.value)}>
+            <select value={tipo} onChange={e => { setTipo(e.target.value); setTituloEditable('') }}>
               <option value="Representante">Representante</option>
               <option value="Distribuidor">Distribuidor</option>
               <option value="Mayorista">Mayorista</option>
@@ -427,7 +448,7 @@ export default function ListasPage() {
           {tipo === 'cliente' && (
             <div className="form-group">
               <label>Cliente *</label>
-              <select value={clienteId} onChange={e => setClienteId(e.target.value)}>
+              <select value={clienteId} onChange={e => { setClienteId(e.target.value); setTituloEditable('') }}>
                 <option value="">Seleccioná un cliente</option>
                 {clientes.map(c => <option key={c.id} value={c.id}>{nombreCliente(c)}</option>)}
               </select>
@@ -455,8 +476,8 @@ export default function ListasPage() {
             <input value={vigencia} onChange={e => setVigencia(e.target.value)} placeholder="Ej: Junio 2026" />
                 </div>
                 <div className="form-group" style={{ flex: 2 }}>
-                  <label>Título de la lista impresa</label>
-                  <input value={tituloEditable} onChange={e => setTituloEditable(e.target.value)} placeholder="Ej: Lista de Precios Mayorista" />
+                  <label>Texto debajo de LISTA DE PRECIOS</label>
+                  <input value={tituloEditable} onChange={e => setTituloEditable(e.target.value)} placeholder={`Ej: ${subtituloSugerido}`} />
           </div>
         </div>
         <div style={{ display: 'flex', gap: 16, marginBottom: 12, flexWrap: 'wrap' }}>
@@ -499,13 +520,6 @@ export default function ListasPage() {
         </div>
       )}
 
-      {!isAdmin && (
-        <div className="card" style={{ padding: 14, marginBottom: 16, fontSize: 13, color: 'var(--muted)' }}>
-          Solo podés consultar listas generadas por administración.
-        </div>
-      )}
-
-
       </>}
 
       {!isAdmin && (
@@ -526,13 +540,14 @@ export default function ListasPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {listas.map(l => {
                 const fecha = new Date(l.created_at).toLocaleDateString('es-AR')
+                const tipoListaRepo = normalizarTipoLista(l.tipo)
                 const url = `${baseUrl}?id=${l.id}`
                 const waMsg = encodeURIComponent(`Lista de Precios Hojuelas — ${l.nombre}\n${url}`)
                 return (
                   <div key={l.id} style={{ padding: 12, background: 'var(--bg)', borderRadius: 10, border: '1px solid var(--border)' }}>
                     <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>{l.nombre}</div>
                     <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 10 }}>
-                      <span className={`badge ${tipoBadge[l.tipo] || 'badge-gray'}`}>{tipoLabel[l.tipo] || l.tipo}</span>
+                      <span className={`badge ${tipoBadge[tipoListaRepo] || 'badge-gray'}`}>{tipoLabel[tipoListaRepo] || l.tipo}</span>
                       {' · '}Guardada el {fecha}
                     </div>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
