@@ -7,17 +7,16 @@ import { ToastContainer } from '../components/Toast'
 
 const EMPRESA = {
   razon: 'Hojuelas con Miel',
-  sociedad: 'HOJUELAS S.R.L.',
   lema: 'Descubrí el sabor del maná',
-  rubro: 'Panificados congelados',
-  zona: 'Santa Fe - Argentina',
   web: 'https://hojuelassrl.com/',
   logoUrl: 'https://hojuelassrl.com/wp-content/uploads/2024/09/Logo-Hojuelas-A.webp',
+  // Reemplazar por la URL pública del logo institucional de 3 espigas en círculo.
+  logoEmblemaUrl: 'https://hojuelassrl.com/wp-content/uploads/2024/09/Logo-Hojuelas-A.webp',
   representante: 'LST Distribuidora',
   responsable: 'Esteban Gaitán',
   telefono: '342 630-0603'
 }
-const COMP_CSS = `body{font-family:Arial,sans-serif;color:#1C1917;margin:0;padding:0}.comp-wrap{padding:20px}.comp-table{width:100%;border-collapse:collapse;margin:16px 0;font-size:13px}.comp-table th{background:#D4860A;color:white;padding:7px 8px;text-align:left}.comp-table td{padding:7px 8px;border-bottom:1px solid #E8E2D8}@media print{*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}}`
+const COMP_CSS = `body{font-family:Arial,sans-serif;color:#1C1917;margin:0;padding:0}.comp-wrap{padding:20px}.comp-table{width:100%;border-collapse:collapse;margin:16px 0;font-size:13px}.comp-table th{background:#D4860A;color:white;padding:7px 8px;text-align:left;font-size:12px}.comp-table td{padding:7px 8px;border-bottom:1px solid #E8E2D8}.comp-table tbody tr:nth-child(even){background:#FFFDF8}@media print{*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}}`
 
 export default function ListasPage() {
   const { isAdmin } = useAuth()
@@ -124,10 +123,10 @@ export default function ListasPage() {
           const precioIVA = precioFinal * 1.21
           const promoStr = p.promo && mostrarPromo ? `<span style="background:#DCFCE7;color:#15803D;font-size:10px;padding:2px 6px;border-radius:10px;margin-left:6px">${p.promo}</span>` : ''
           tablaRows += `<tr>
-            ${mostrarCodigo ? `<td style="color:#78716C;font-size:11px;font-family:monospace">${p.codigo || '—'}</td>` : ''}
-            <td>${p.nombre}${promoStr}</td>
+            ${mostrarCodigo ? `<td style="color:#78716C;font-size:11px;font-family:monospace;text-align:center">${p.codigo || '—'}</td>` : ''}
+            <td style="font-weight:600;color:#292524">${p.nombre}${promoStr}</td>
             <td style="text-align:center;color:#78716C;font-size:12px">${p.unidad || ''}</td>
-            <td style="text-align:right;font-weight:600">
+            <td style="text-align:right;font-weight:700;color:#9A5F00">
               ${descPct > 0 ? `<span style="text-decoration:line-through;color:#A8A29E;font-size:11px;font-weight:400">$${(ivaOpcion === 'coniva' ? precioBase * 1.21 : precioBase).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</span><br>` : ''}
               ${ivaOpcion === 'ambos'
                 ? `$${precioFinal.toLocaleString('es-AR', { maximumFractionDigits: 2 })} <span style="color:#1D4ED8;font-size:11px">($${precioIVA.toLocaleString('es-AR', { maximumFractionDigits: 2 })})</span>`
@@ -165,71 +164,90 @@ export default function ListasPage() {
         ? `Cliente específico${clienteSeleccionado ? ' · ' + nombreCliente(clienteSeleccionado) : ''}`
         : tipo
 
+      const promocionTexto = mostrarPromo
+        ? 'Las promociones de lanzamiento para Zona Santa Fe son por tiempo limitado y podrán ser modificadas sin previo aviso.'
+        : ''
+
+      const precioLabelCondiciones = ivaOpcion === 'siniva'
+        ? 'Los valores se encuentran expresados en pesos argentinos, sin IVA incluido.'
+        : ivaOpcion === 'coniva'
+          ? 'Los valores se encuentran expresados en pesos argentinos, con IVA 21% incluido.'
+          : 'Los valores se encuentran expresados en pesos argentinos, con referencia sin IVA y con IVA 21%.'
+
+      const tituloFinal = tituloEditable || tituloLista
+      const subtituloLista = tipo === 'cliente'
+        ? (clienteSeleccionado?.tipo || 'Cliente específico')
+        : tipo
+
+      const clienteLinea = tipo === 'cliente' && clienteSeleccionado
+        ? `<p style="font-size:13px;color:#57534E;margin:6px 0 0"><strong>Cliente:</strong> ${nombreCliente(clienteSeleccionado)}</p>`
+        : ''
+
       const html = `<div class="comp-wrap">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:24px;padding-bottom:14px;border-bottom:3px solid #DC2626">
-          <div style="display:flex;align-items:flex-start;gap:14px">
-            <img src="${EMPRESA.logoUrl}" style="height:72px;object-fit:contain" alt="Hojuelas" onerror="this.style.display='none'">
-            <div>
-              <h2 style="font-size:24px;font-weight:700;color:#1C1917;margin:0 0 4px">${EMPRESA.razon}</h2>
-              <p style="font-size:13px;color:#78716C;margin:0">${EMPRESA.lema}</p>
+          <div style="display:flex;align-items:flex-start;gap:14px;max-width:58%">
+            <img src="${EMPRESA.logoUrl}" style="height:82px;object-fit:contain" alt="Hojuelas con Miel" onerror="this.style.display='none'">
+            <div style="padding-top:6px">
+              <div style="font-size:13px;color:#78716C;margin-top:2px">${EMPRESA.lema}</div>
             </div>
           </div>
-          <div style="text-align:right;font-size:12px;color:#57534E;line-height:1.45;min-width:180px">
-            <div style="font-weight:700;color:#1C1917;font-size:13px">${EMPRESA.sociedad}</div>
-            <div>${EMPRESA.rubro}</div>
-            <div>${EMPRESA.zona}</div>
-            <div>${EMPRESA.web}</div>
+
+          <div style="text-align:right;min-width:160px">
+            <img src="${EMPRESA.logoEmblemaUrl}" style="height:58px;object-fit:contain;margin-bottom:6px" alt="Hojuelas" onerror="this.style.display='none'">
+            <div style="font-size:12px;color:#57534E;line-height:1.35">${EMPRESA.web}</div>
           </div>
         </div>
 
         <div style="text-align:center;margin:18px 0 16px">
-          <h3 style="font-size:20px;font-weight:800;margin:0;color:#1C1917;text-transform:uppercase">${tituloFinal}</h3>
-          <p style="font-size:13px;color:#78716C;margin:5px 0 0">Vigencia: ${vigencia}</p>
-          <p style="font-size:12px;color:#78716C;margin:2px 0 0">${ivaLabel}</p>
-          <p style="font-size:12px;color:#78716C;margin:2px 0 0">Tipo de lista: ${tipoListaLabel}</p>
-          ${descPct > 0 ? `<p style="font-size:12px;color:#15803D;margin:4px 0 0;font-weight:600">Descuento aplicado: ${descPct}%</p>` : ''}
+          <h3 style="font-size:20px;font-weight:800;margin:0;color:#1C1917;text-transform:uppercase">LISTA DE PRECIOS</h3>
+          <p style="font-size:16px;color:#57534E;margin:4px 0 0;font-weight:600">${subtituloLista}</p>
+          <p style="font-size:13px;color:#57534E;margin:8px 0 0"><strong>Vigencia:</strong> ${vigencia}</p>
+          ${clienteLinea}
         </div>
 
         <table class="comp-table">
           <thead><tr>
-            ${mostrarCodigo ? '<th>Cód.</th>' : ''}
+            ${mostrarCodigo ? '<th style="text-align:center">Cód.</th>' : ''}
             <th>Producto</th><th style="text-align:center">Unidad</th><th style="text-align:right">Precio</th>
           </tr></thead>
           <tbody>${tablaRows}</tbody>
         </table>
 
         ${promocionTexto ? `
-          <div style="margin-top:14px;background:#FEF3C7;color:#92400E;border-radius:8px;padding:10px 12px;font-size:12px;line-height:1.45">
-            <strong>Promociones:</strong> ${promocionTexto}
+          <div style="margin-top:14px;background:#FEF3C7;color:#92400E;border-radius:8px;padding:10px 12px;font-size:12px;line-height:1.45;border-left:4px solid #D4860A">
+            <div style="font-weight:700;margin-bottom:2px">PROMOCIONES VIGENTES</div>
+            <div>${promocionTexto}</div>
           </div>
         ` : ''}
 
         <div style="margin-top:18px;border-top:1px solid #E8E2D8;padding-top:14px">
           <h4 style="font-size:14px;margin:0 0 10px;color:#1C1917;letter-spacing:.04em">CONDICIONES COMERCIALES</h4>
-          <table style="width:100%;border-collapse:collapse;font-size:12px;color:#44403C">
-            <tbody>
-              <tr>
-                <td style="padding:4px 0;width:34%;font-weight:700;color:#1C1917">Precios</td>
-                <td style="padding:4px 0">${precioLabelCondiciones}</td>
-              </tr>
-              <tr>
-                <td style="padding:4px 0;font-weight:700;color:#1C1917">Forma de pago</td>
-                <td style="padding:4px 0">Efectivo.</td>
-              </tr>
-              <tr>
-                <td style="padding:4px 0;font-weight:700;color:#1C1917">Vigencia</td>
-                <td style="padding:4px 0">Desde ${vigencia} y hasta nueva actualización.</td>
-              </tr>
-              <tr>
-                <td style="padding:4px 0;font-weight:700;color:#1C1917">Zona de entrega</td>
-                <td style="padding:4px 0">Santa Fe.</td>
-              </tr>
-            </tbody>
-          </table>
+
+          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 18px;font-size:12px;color:#44403C;line-height:1.45">
+            <div>
+              <div style="font-weight:700;color:#1C1917;margin-bottom:2px">Precios</div>
+              <div>${precioLabelCondiciones}</div>
+            </div>
+
+            <div>
+              <div style="font-weight:700;color:#1C1917;margin-bottom:2px">Forma de pago</div>
+              <div>Efectivo.</div>
+            </div>
+
+            <div>
+              <div style="font-weight:700;color:#1C1917;margin-bottom:2px">Plazo de pago</div>
+              <div>Contado.</div>
+            </div>
+
+            <div>
+              <div style="font-weight:700;color:#1C1917;margin-bottom:2px">Entrega</div>
+              <div>Consultar alcance y cronograma de reparto para su zona.</div>
+            </div>
+          </div>
         </div>
 
         <div style="margin-top:16px;border-top:1px solid #E8E2D8;padding-top:14px">
-          <h4 style="font-size:14px;margin:0 0 8px;color:#1C1917;letter-spacing:.04em">REPRESENTANTE EN ZONA SANTA FE</h4>
+          <h4 style="font-size:14px;margin:0 0 8px;color:#1C1917;letter-spacing:.04em">REPRESENTANTE COMERCIAL ZONA SANTA FE</h4>
           <div style="font-size:12px;color:#44403C;line-height:1.5">
             <div style="font-weight:700;color:#1C1917">${EMPRESA.representante}</div>
             <div>${EMPRESA.responsable} — Responsable Comercial</div>
@@ -238,7 +256,7 @@ export default function ListasPage() {
         </div>
 
         <div style="margin-top:16px;border-top:1px solid #E8E2D8;padding-top:10px;font-size:11px;color:#78716C;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">
-          <span>${EMPRESA.sociedad} · ${EMPRESA.web}</span>
+          <span>${EMPRESA.web}</span>
           <span>Generado el ${new Date().toLocaleDateString('es-AR')} · ${EMPRESA.representante}</span>
         </div>
       </div>`
