@@ -1,0 +1,532 @@
+import { useState, useEffect, useMemo } from 'react'
+import { supabase } from '../services/supabase'
+import { useAuth } from '../context/AuthContext'
+import { nombreCliente } from '../utils/helpers'
+import { useToast } from '../hooks/useToast'
+import { ToastContainer } from '../components/Toast'
+
+const EMPRESA = {
+  razon: 'Hojuelas con Miel',
+  lema: 'Descubrí el sabor del maná',
+  web: 'https://hojuelassrl.com/',
+  logoUrl: '/branding/logo-principal.png',
+  logoEmblemaUrl: '/branding/logo-espigas.png',
+  representante: 'LST Distribuidora',
+  responsable: 'Esteban Gaitán',
+  telefono: '342 630-0603'
+}
+const COMP_CSS = `body{font-family:Arial,sans-serif;color:#1C1917;margin:0;padding:0}.comp-wrap{padding:20px}.comp-table{width:100%;border-collapse:collapse;margin:16px 0;font-size:13px}.comp-table th{background:#D4860A;color:white;padding:7px 8px;text-align:left;font-size:12px}.comp-table td{padding:7px 8px;border-bottom:1px solid #E8E2D8}.comp-table tbody tr:nth-child(even){background:#FFFDF8}@media print{*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}}`
+
+export default function ListasPage() {
+  const { isAdmin } = useAuth()
+  const { toasts, toast } = useToast()
+
+  const [productos, setProductos] = useState([])
+  const [clientes, setClientes] = useState([])
+  const [listas, setListas] = useState([])
+  const [loadingListas, setLoadingListas] = useState(true)
+
+  // Config lista
+  const [tipo, setTipo] = useState('Distribuidor')
+  const [clienteId, setClienteId] = useState('')
+  const [familia, setFamilia] = useState('')
+  const [ivaOpcion, setIvaOpcion] = useState('siniva')
+  const [mostrarPromo, setMostrarPromo] = useState(true)
+  const [mostrarCodigo, setMostrarCodigo] = useState(true)
+  const [soloConStock, setSoloConStock] = useState(false)
+  const [vigencia, setVigencia] = useState(new Date().toLocaleDateString('es-AR'))
+  const [nombreLista, setNombreLista] = useState('')
+  const [tituloEditable, setTituloEditable] = useState('')
+
+  // Vista previa
+  const [preview, setPreview] = useState(null)
+  const [generando, setGenerando] = useState(false)
+  const [guardando, setGuardando] = useState(false)
+
+  useEffect(() => {
+    Promise.all([
+      supabase.from('productos').select('*').eq('activo', true).order('familia').order('nombre'),
+      supabase.from('clientes').select('id,nombre,nombre_fantasia,tipo,descuento_pct,modalidad_factura').order('nombre'),
+    ]).then(([{ data: p }, { data: c }]) => {
+      setProductos(p || [])
+      setClientes(c || [])
+    })
+    loadListas()
+  }, [])
+
+  async function loadListas() {
+    setLoadingListas(true)
+    try {
+      const { data, error } = await supabase
+        .from('listas_precios_repo')
+        .select('id,nombre,tipo,html,created_at')
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+
+      setListas(data || [])
+    } catch (e) {
+      console.error('Error cargando listas:', e)
+      toast('Error al cargar listas: ' + e.message, 'error')
+    } finally {
+      setLoadingListas(false)
+    }
+  }
+
+  const familias = useMemo(() => [...new Set(productos.map(p => p.familia).filter(Boolean))].sort(), [productos])
+  const clienteSeleccionado = useMemo(() => clientes.find(c => c.id === clienteId), [clientes, clienteId])
+
+  async function generarLista() {
+    if (tipo === 'cliente' && !clienteId) { toast('Seleccioná un cliente', 'error'); return }
+    setGenerando(true)
+    try {
+      let prods = productos.filter(p => p.activo !== false)
+      if (familia) prods = prods.filter(p => p.familia === familia)
+
+      if (soloConStock) {
+        const { data: stockData } = await supabase.from('stock_actual').select('id,stock')
+        const stockMap = {}
+        ;(stockData || []).forEach(s => { stockMap[s.id] = parseFloat(s.stock || 0) })
+        prods = prods.filter(p => (stockMap[p.id] || 0) > 0)
+      }
+
+      const PRECIO_POR_TIPO = {
+        'Representante': 'precio_representante',
+        'Distribuidor':  'precio_distribuidor',
+        'Mayorista':     'precio_mayorista',
+        'Supermercado':  'precio_supermercado',
+        'Almacén':       'precio_almacen',
+      }
+      const colPrecio = tipo === 'cliente'
+        ? (PRECIO_POR_TIPO[clienteSeleccionado?.tipo] || 'precio_distribuidor')
+        : (PRECIO_POR_TIPO[tipo] || 'precio_distribuidor')
+
+      const descPct = tipo === 'cliente'
+        ? parseFloat(clienteSeleccionado?.descuento_pct || 0)
+        : 0
+
+      const grupos = {}
+      prods.forEach(p => {
+        const fam = p.familia || 'Otros'
+        if (!grupos[fam]) grupos[fam] = []
+        grupos[fam].push(p)
+      })
+
+      const colSpan = mostrarCodigo ? 4 : 3
+      let tablaRows = ''
+      Object.entries(grupos).forEach(([fam, ps]) => {
+        tablaRows += `<tr><td colspan="${colSpan}" style="background:#FEF3DC;font-weight:700;font-size:13px;color:#9A5F00;padding:8px 10px">${fam}</td></tr>`
+        ps.forEach(p => {
+          const precioBase = parseFloat(p[colPrecio] || 0)
+          const precioFinal = descPct > 0 ? precioBase * (1 - descPct / 100) : precioBase
+          const precioIVA = precioFinal * 1.21
+          const promoStr = p.promo && mostrarPromo ? `<span style="background:#DCFCE7;color:#15803D;font-size:10px;padding:2px 6px;border-radius:10px;margin-left:6px">${p.promo}</span>` : ''
+          tablaRows += `<tr>
+            ${mostrarCodigo ? `<td style="color:#78716C;font-size:11px;font-family:monospace;text-align:center">${p.codigo || '—'}</td>` : ''}
+            <td style="font-weight:600;color:#292524">${p.nombre}${promoStr}</td>
+            <td style="text-align:center;color:#78716C;font-size:12px">${p.unidad || ''}</td>
+            <td style="text-align:right;font-weight:700;color:#9A5F00">
+              ${descPct > 0 ? `<span style="text-decoration:line-through;color:#A8A29E;font-size:11px;font-weight:400">$${(ivaOpcion === 'coniva' ? precioBase * 1.21 : precioBase).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</span><br>` : ''}
+              ${ivaOpcion === 'ambos'
+                ? `$${precioFinal.toLocaleString('es-AR', { maximumFractionDigits: 2 })} <span style="color:#1D4ED8;font-size:11px">($${precioIVA.toLocaleString('es-AR', { maximumFractionDigits: 2 })})</span>`
+                : ivaOpcion === 'coniva'
+                  ? `$${precioIVA.toLocaleString('es-AR', { maximumFractionDigits: 2 })}`
+                  : `$${precioFinal.toLocaleString('es-AR', { maximumFractionDigits: 2 })}`
+              }
+            </td>
+          </tr>`
+        })
+      })
+
+      const tituloLista = tipo === 'cliente'
+        ? `Lista de Precios — ${clienteSeleccionado?.nombre_fantasia || clienteSeleccionado?.nombre || ''}`
+        : `Lista de Precios ${tipo}`
+
+      const subtitulo = ''
+
+      const ivaLabel = ivaOpcion === 'siniva' ? 'Precios sin IVA'
+        : ivaOpcion === 'coniva' ? 'Precios con IVA 21%'
+        : 'Precios sin IVA y con IVA 21%'
+
+      const promocionTexto = mostrarPromo
+        ? 'Las promociones de lanzamiento para Zona Santa Fe son por tiempo limitado y podrán ser modificadas sin previo aviso.'
+        : ''
+
+      const precioLabelCondiciones = ivaOpcion === 'siniva'
+        ? 'Los valores se encuentran expresados en pesos argentinos, sin IVA incluido.'
+        : ivaOpcion === 'coniva'
+          ? 'Los valores se encuentran expresados en pesos argentinos, con IVA 21% incluido.'
+          : 'Los valores se encuentran expresados en pesos argentinos, con referencia sin IVA y con IVA 21%.'
+
+      const tituloFinal = tituloEditable || tituloLista
+      const subtituloLista = tipo === 'cliente'
+        ? (clienteSeleccionado?.tipo || 'Cliente específico')
+        : tipo
+
+      const clienteLinea = tipo === 'cliente' && clienteSeleccionado
+        ? `<p style="font-size:13px;color:#57534E;margin:6px 0 0"><strong>Cliente:</strong> ${nombreCliente(clienteSeleccionado)}</p>`
+        : ''
+
+      const html = `<div class="comp-wrap">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:24px;padding-bottom:14px;border-bottom:3px solid #DC2626">
+          <div style="display:flex;align-items:flex-start;gap:14px;max-width:58%">
+            <img src="${EMPRESA.logoUrl}" style="height:82px;object-fit:contain" alt="Hojuelas con Miel" onerror="this.style.display='none'">
+            <div style="padding-top:6px">
+              <div style="font-size:13px;color:#78716C;margin-top:2px">${EMPRESA.lema}</div>
+            </div>
+          </div>
+
+          <div style="text-align:right;min-width:160px">
+            <img src="${EMPRESA.logoEmblemaUrl}" style="height:58px;object-fit:contain;margin-bottom:6px" alt="Hojuelas" onerror="this.style.display='none'">
+            <div style="font-size:12px;color:#57534E;line-height:1.35">${EMPRESA.web}</div>
+          </div>
+        </div>
+
+        <div style="text-align:center;margin:18px 0 16px">
+          <h3 style="font-size:20px;font-weight:800;margin:0;color:#1C1917;text-transform:uppercase">LISTA DE PRECIOS</h3>
+          <p style="font-size:16px;color:#57534E;margin:4px 0 0;font-weight:600">${subtituloLista}</p>
+          <p style="font-size:13px;color:#57534E;margin:8px 0 0"><strong>Vigencia:</strong> ${vigencia}</p>
+          ${clienteLinea}
+        </div>
+
+        <table class="comp-table">
+          <thead><tr>
+            ${mostrarCodigo ? '<th style="text-align:center">Cód.</th>' : ''}
+            <th>Producto</th><th style="text-align:center">Unidad</th><th style="text-align:right">Precio</th>
+          </tr></thead>
+          <tbody>${tablaRows}</tbody>
+        </table>
+
+        ${promocionTexto ? `
+          <div style="margin-top:14px;background:#FEF3C7;color:#92400E;border-radius:8px;padding:10px 12px;font-size:12px;line-height:1.45;border-left:4px solid #D4860A">
+            <div style="font-weight:700;margin-bottom:2px">PROMOCIONES VIGENTES</div>
+            <div>${promocionTexto}</div>
+          </div>
+        ` : ''}
+
+        <div style="margin-top:18px;border-top:1px solid #E8E2D8;padding-top:14px">
+          <h4 style="font-size:14px;margin:0 0 10px;color:#1C1917;letter-spacing:.04em">CONDICIONES COMERCIALES</h4>
+
+          <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 18px;font-size:12px;color:#44403C;line-height:1.45">
+            <div>
+              <div style="font-weight:700;color:#1C1917;margin-bottom:2px">Precios</div>
+              <div>${precioLabelCondiciones}</div>
+            </div>
+
+            <div>
+              <div style="font-weight:700;color:#1C1917;margin-bottom:2px">Forma de pago</div>
+              <div>Efectivo.</div>
+            </div>
+
+            <div>
+              <div style="font-weight:700;color:#1C1917;margin-bottom:2px">Plazo de pago</div>
+              <div>Contado.</div>
+            </div>
+
+            <div>
+              <div style="font-weight:700;color:#1C1917;margin-bottom:2px">Entrega</div>
+              <div>Consultar alcance y cronograma de reparto para su zona.</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top:16px;border-top:1px solid #E8E2D8;padding-top:14px">
+          <h4 style="font-size:14px;margin:0 0 8px;color:#1C1917;letter-spacing:.04em">REPRESENTANTE COMERCIAL ZONA SANTA FE</h4>
+          <div style="font-size:12px;color:#44403C;line-height:1.5">
+            <div style="font-weight:700;color:#1C1917">${EMPRESA.representante}</div>
+            <div>${EMPRESA.responsable} — Responsable Comercial</div>
+            <div>Cel.: ${EMPRESA.telefono}</div>
+          </div>
+        </div>
+
+        <div style="margin-top:16px;border-top:1px solid #E8E2D8;padding-top:10px;font-size:11px;color:#78716C;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">
+          <span>${EMPRESA.web}</span>
+          <span>Generado el ${new Date().toLocaleDateString('es-AR')} · ${EMPRESA.representante}</span>
+        </div>
+      </div>`
+
+      setPreview({ html, titulo: tituloEditable || tituloLista, tipo, prods: prods.length })
+      setTituloEditable(prev => prev || tituloLista)
+      setNombreLista(tituloLista + ' — ' + vigencia)
+    } catch (e) { toast('Error: ' + e.message, 'error') } finally { setGenerando(false) }
+  }
+
+  function verListaRepo(lista) {
+    if (!lista?.html) {
+      toast('La lista no tiene contenido HTML guardado.', 'error')
+      return
+    }
+
+    const win = window.open('', '_blank')
+    if (!win) {
+      toast('Permití ventanas emergentes para ver la lista.', 'error')
+      return
+    }
+
+    const toolbarCss = `
+      .print-toolbar{
+        display:flex;
+        gap:12px;
+        padding:12px 16px;
+        background:#f8f7f4;
+        border-bottom:2px solid #D4860A;
+        position:sticky;
+        top:0;
+        z-index:9999;
+        box-sizing:border-box;
+      }
+      .print-toolbar button{
+        border:none;
+        padding:10px 16px;
+        border-radius:8px;
+        font-size:14px;
+        cursor:pointer;
+        font-weight:600;
+      }
+      .print-toolbar .print-btn{
+        background:#D4860A;
+        color:white;
+        flex:1;
+      }
+      .print-toolbar .close-btn{
+        background:#78716C;
+        color:white;
+      }
+      @media print{
+        .print-toolbar{display:none!important;}
+      }
+      @media(max-width:768px){
+        .print-toolbar button{
+          font-size:15px;
+          padding:11px 14px;
+        }
+      }
+    `
+
+    win.document.write(`<!DOCTYPE html>
+      <html>
+        <head>
+          <title>${lista.nombre || 'Lista de precios'}</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1">
+          <style>${COMP_CSS}</style>
+          <style>${toolbarCss}</style>
+        </head>
+        <body>
+          <div class="print-toolbar">
+            <button class="print-btn" onclick="window.print()">🖨 Imprimir / Guardar PDF</button>
+            <button class="close-btn" onclick="window.close()">✕</button>
+          </div>
+          ${lista.html}
+        </body>
+      </html>`)
+    win.document.close()
+    win.focus()
+  }
+
+  function imprimirLista() {
+    if (!preview) return
+    const isMobile = window.innerWidth < 768
+    if (isMobile) {
+      const css = document.createElement('style'); css.id = 'printOverlayCss'
+      css.textContent = `@media print{#printOverlayBar{display:none!important;} #printOverlay{position:static!important;} body>*:not(#printOverlay){display:none!important;} *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}}`
+      document.head.appendChild(css)
+      const overlay = document.createElement('div'); overlay.id = 'printOverlay'
+      overlay.style.cssText = 'position:fixed;inset:0;background:white;z-index:99999;overflow-y:auto;'
+      overlay.innerHTML = `<div id="printOverlayBar" style="display:flex;gap:12px;padding:12px 16px;background:#f8f7f4;border-bottom:2px solid #D4860A;position:sticky;top:0">
+        <button onclick="window.print()" style="background:#D4860A;color:white;border:none;padding:10px 24px;border-radius:8px;font-size:15px;cursor:pointer;font-weight:600;flex:1">🖨 Imprimir / Guardar PDF</button>
+        <button onclick="document.getElementById('printOverlay').remove();document.getElementById('printOverlayCss').remove();" style="background:#78716C;color:white;border:none;padding:10px 16px;border-radius:8px;font-size:15px;cursor:pointer">✕</button>
+      </div><style>${COMP_CSS}</style>${preview.html}`
+      document.body.appendChild(overlay)
+    } else {
+      const win = window.open('', '_blank')
+      if (!win) { toast('Permitir ventanas emergentes', 'error'); return }
+      win.document.write(`<!DOCTYPE html><html><head><title>${preview.titulo}</title><style>${COMP_CSS}</style></head><body>${preview.html}</body></html>`)
+      win.document.close(); win.focus()
+      setTimeout(() => { win.print(); win.close() }, 500)
+    }
+  }
+
+  function compartirWhatsApp() {
+    if (!preview) return
+    toast('Para compartir por WhatsApp primero guardá la lista en el repositorio', 'info')
+  }
+
+  async function guardarEnRepo() {
+    if (!preview) return
+    if (!nombreLista.trim()) { toast('Ingresá un nombre para la lista', 'error'); return }
+    setGuardando(true)
+    try {
+      const tipoRepo = String(preview.tipo || '').toLowerCase()
+
+      const { data, error } = await supabase
+        .from('listas_precios_repo')
+        .insert({
+          nombre: nombreLista.trim(),
+          tipo: tipoRepo,
+          html: preview.html
+        })
+        .select('id,nombre,tipo,html,created_at')
+
+      if (error) throw error
+
+      if (!data?.length) {
+        throw new Error('Supabase no devolvió la lista guardada.')
+      }
+
+      toast('Lista guardada en el repositorio ✓')
+      await loadListas()
+    } catch (e) {
+      console.error('Error guardando lista:', e)
+      toast('Error al guardar lista: ' + e.message, 'error')
+    } finally {
+      setGuardando(false)
+    }
+  }
+
+  async function deleteListaRepo(id) {
+    if (!confirm('¿Eliminar esta lista del repositorio?')) return
+    try {
+      await supabase.from('listas_precios_repo').delete().eq('id', id)
+      toast('Lista eliminada')
+      loadListas()
+    } catch (e) { toast('Error al eliminar', 'error') }
+  }
+
+  const tipoBadge = { Representante: 'badge-gray', Distribuidor: 'badge-yellow', Mayorista: 'badge-blue', Supermercado: 'badge-green', Almacén: 'badge-blue', cliente: 'badge-green' }
+  const tipoLabel = { Representante: 'Representante', Distribuidor: 'Distribuidor', Mayorista: 'Mayorista', Supermercado: 'Supermercado', Almacén: 'Almacén', cliente: 'Cliente específico' }
+  const baseUrl = typeof window !== 'undefined' ? window.location.origin + '/lista.html' : ''
+
+  return (
+    <div>
+      <div className="page-header">
+        <h1 className="page-title">Listas de Precios Vigentes</h1>
+      </div>
+
+      {/* Config */}
+      <div className="card" style={{ padding: 16, marginBottom: 16 }}>
+        <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12 }}>Generar nueva lista</div>
+        <div className="form-row">
+          <div className="form-group">
+            <label>Tipo de lista</label>
+            <select value={tipo} onChange={e => setTipo(e.target.value)}>
+              <option value="Representante">Representante</option>
+              <option value="Distribuidor">Distribuidor</option>
+              <option value="Mayorista">Mayorista</option>
+              <option value="Supermercado">Supermercado</option>
+              <option value="Almacén">Almacén</option>
+              <option value="cliente">Cliente específico</option>
+            </select>
+          </div>
+          {tipo === 'cliente' && (
+            <div className="form-group">
+              <label>Cliente *</label>
+              <select value={clienteId} onChange={e => setClienteId(e.target.value)}>
+                <option value="">Seleccioná un cliente</option>
+                {clientes.map(c => <option key={c.id} value={c.id}>{nombreCliente(c)}</option>)}
+              </select>
+            </div>
+          )}
+          <div className="form-group">
+            <label>Familia</label>
+            <select value={familia} onChange={e => setFamilia(e.target.value)}>
+              <option value="">Todas las familias</option>
+              {familias.map(f => <option key={f} value={f}>{f}</option>)}
+            </select>
+          </div>
+          <div className="form-group">
+            <label>IVA</label>
+            <select value={ivaOpcion} onChange={e => setIvaOpcion(e.target.value)}>
+              <option value="siniva">Sin IVA</option>
+              <option value="coniva">Con IVA 21%</option>
+              <option value="ambos">Ambos</option>
+            </select>
+          </div>
+        </div>
+        <div className="form-row">
+          <div className="form-group">
+            <label>Vigencia</label>
+            <input value={vigencia} onChange={e => setVigencia(e.target.value)} placeholder="Ej: Junio 2026" />
+                </div>
+                <div className="form-group" style={{ flex: 2 }}>
+                  <label>Título de la lista impresa</label>
+                  <input value={tituloEditable} onChange={e => setTituloEditable(e.target.value)} placeholder="Ej: Lista de Precios Mayorista" />
+          </div>
+        </div>
+        <div style={{ display: 'flex', gap: 16, marginBottom: 12, flexWrap: 'wrap' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontWeight: 'normal' }}>
+            <input type="checkbox" checked={mostrarPromo} onChange={e => setMostrarPromo(e.target.checked)} />Mostrar promos
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontWeight: 'normal' }}>
+            <input type="checkbox" checked={mostrarCodigo} onChange={e => setMostrarCodigo(e.target.checked)} />Mostrar código
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', fontWeight: 'normal' }}>
+            <input type="checkbox" checked={soloConStock} onChange={e => setSoloConStock(e.target.checked)} />Solo con stock
+          </label>
+        </div>
+        <button className="btn btn-primary" onClick={generarLista} disabled={generando}>{generando ? 'Generando...' : '👁 Generar vista previa'}</button>
+      </div>
+
+      {/* Vista previa */}
+      {preview && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+            <div>
+              <strong>{preview.titulo}</strong>
+              <span style={{ fontSize: 12, color: 'var(--muted)', marginLeft: 8 }}>{preview.prods} productos</span>
+            </div>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button className="btn btn-primary btn-sm" onClick={imprimirLista}>🖨 Imprimir</button>
+              {isAdmin && <button className="btn btn-secondary btn-sm" onClick={compartirWhatsApp}>💬 WhatsApp</button>}
+            </div>
+          </div>
+          {isAdmin && (
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 8, alignItems: 'center' }}>
+              <input value={nombreLista} onChange={e => setNombreLista(e.target.value)} placeholder="Nombre para guardar..." style={{ flex: 1 }} />
+              <button className="btn btn-secondary btn-sm" onClick={guardarEnRepo} disabled={guardando}>{guardando ? 'Guardando...' : '💾 Guardar en repositorio'}</button>
+            </div>
+          )}
+          <div style={{ padding: 0, overflow: 'auto', maxHeight: 500 }}>
+            <style>{COMP_CSS}</style>
+            <div dangerouslySetInnerHTML={{ __html: preview.html }} />
+          </div>
+        </div>
+      )}
+
+      {/* Repositorio */}
+      <div className="card">
+        <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 13 }}>Listas de Precios Vigentes</div>
+        <div style={{ padding: 16 }}>
+          {loadingListas ? (
+            <div style={{ color: 'var(--muted)', fontSize: 13 }}>Cargando...</div>
+          ) : listas.length === 0 ? (
+            <p style={{ color: 'var(--muted)', fontSize: 13 }}>No hay listas guardadas todavía. Generá una y guardala en el repositorio.</p>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {listas.map(l => {
+                const fecha = new Date(l.created_at).toLocaleDateString('es-AR')
+                const url = `${baseUrl}?id=${l.id}`
+                const waMsg = encodeURIComponent(`Lista de Precios Hojuelas — ${l.nombre}\n${url}`)
+                return (
+                  <div key={l.id} style={{ padding: 12, background: 'var(--bg)', borderRadius: 10, border: '1px solid var(--border)' }}>
+                    <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 4 }}>{l.nombre}</div>
+                    <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 10 }}>
+                      <span className={`badge ${tipoBadge[l.tipo] || 'badge-gray'}`}>{tipoLabel[l.tipo] || l.tipo}</span>
+                      {' · '}Guardada el {fecha}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <button className="btn btn-sm btn-secondary" style={{ flex: 1, textAlign: 'center' }} onClick={() => verListaRepo(l)}>👁 Ver</button>
+                      <a href={`https://wa.me/?text=${waMsg}`} target="_blank" rel="noreferrer" className="btn btn-sm" style={{ flex: 1, textAlign: 'center', background: '#25D366', color: '#fff', textDecoration: 'none' }}>💬 WhatsApp</a>
+                      {isAdmin && <button className="btn btn-sm btn-danger" style={{ flex: 1 }} onClick={() => deleteListaRepo(l.id)}>🗑 Borrar</button>}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <ToastContainer toasts={toasts} />
+    </div>
+  )
+}
