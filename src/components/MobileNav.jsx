@@ -46,14 +46,14 @@ export default function MobileNav() {
       {/* Overlay */}
       {openDrawer && (
         <div onClick={() => setOpenDrawer(null)}
-          style={{ position: 'fixed', inset: 0, zIndex: 48 }} />
+          style={{ position: 'fixed', inset: 0, zIndex: 44 }} />
       )}
 
       {/* CLIENTES DRAWER */}
       <div style={{
         position: 'fixed', bottom: 64, left: 0, right: 0,
         background: 'var(--surface)', borderTop: '1px solid var(--border)',
-        zIndex: 49, boxShadow: '0 -4px 20px rgba(0,0,0,0.1)',
+        zIndex: 45, boxShadow: '0 -4px 20px rgba(0,0,0,0.1)',
         display: openDrawer === 'clientes' ? 'block' : 'none'
       }}>
         <div style={drawerLabelStyle}>Clientes</div>
@@ -66,7 +66,7 @@ export default function MobileNav() {
       <div style={{
         position: 'fixed', bottom: 64, left: 0, right: 0,
         background: 'var(--surface)', borderTop: '1px solid var(--border)',
-        zIndex: 49, boxShadow: '0 -4px 20px rgba(0,0,0,0.1)',
+        zIndex: 45, boxShadow: '0 -4px 20px rgba(0,0,0,0.1)',
         display: openDrawer === 'productos' ? 'block' : 'none'
       }}>
         <div style={drawerLabelStyle}>Productos</div>
@@ -79,7 +79,7 @@ export default function MobileNav() {
       <div style={{
         position: 'fixed', bottom: 64, left: 0, right: 0,
         background: 'var(--surface)', borderTop: '1px solid var(--border)',
-        zIndex: 49, boxShadow: '0 -4px 20px rgba(0,0,0,0.1)',
+        zIndex: 45, boxShadow: '0 -4px 20px rgba(0,0,0,0.1)',
         display: openDrawer === 'logistica' ? 'block' : 'none'
       }}>
         <div style={drawerLabelStyle}>Logística</div>
@@ -90,7 +90,7 @@ export default function MobileNav() {
       <div style={{
         position: 'fixed', bottom: 64, left: 0, right: 0,
         background: 'var(--surface)', borderTop: '1px solid var(--border)',
-        zIndex: 49, boxShadow: '0 -4px 20px rgba(0,0,0,0.1)',
+        zIndex: 45, boxShadow: '0 -4px 20px rgba(0,0,0,0.1)',
         display: openDrawer === 'more' ? 'block' : 'none'
       }}>
         {isAdmin ? (
