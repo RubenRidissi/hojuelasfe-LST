@@ -7,7 +7,7 @@ export default function MobileNav() {
   const navigate = useNavigate()
   const location = useLocation()
 
-  const [openDrawer, setOpenDrawer] = useState(null) // 'clientes' | 'productos' | 'more' | null
+  const [openDrawer, setOpenDrawer] = useState(null) // 'clientes' | 'productos' | 'logistica' | 'more' | null
 
   function go(path) {
     setOpenDrawer(null)
@@ -59,10 +59,6 @@ export default function MobileNav() {
         <div style={drawerLabelStyle}>Clientes</div>
         <div style={drawerItemStyle} onClick={() => go('/clientes')}><span style={iconStyle}>👥</span>Listado</div>
         <div style={drawerItemStyle} onClick={() => go('/mapa')}><span style={iconStyle}>🗺️</span>Mapa</div>
-        <div style={drawerItemStyle} onClick={() => go('/pedidos')}><span style={iconStyle}>📋</span>Pedidos</div>
-        <div style={drawerItemStyle} onClick={() => go('/ventas')}><span style={iconStyle}>🧾</span>Ventas</div>
-        <div style={drawerItemStyle} onClick={() => go('/remitos')}><span style={iconStyle}>🚚</span>Remitos</div>
-        <div style={drawerItemStyle} onClick={() => go('/pagos')}><span style={iconStyle}>💰</span>Pagos</div>
         <div style={drawerItemStyle} onClick={() => go('/ctacte')}><span style={iconStyle}>💳</span>Cta. Corriente</div>
       </div>
 
@@ -74,9 +70,20 @@ export default function MobileNav() {
         display: openDrawer === 'productos' ? 'block' : 'none'
       }}>
         <div style={drawerLabelStyle}>Productos</div>
-        <div style={drawerItemStyle} onClick={() => go('/productos')}><span style={iconStyle}>📦</span>Catálogo</div>
+        <div style={drawerItemStyle} onClick={() => go('/productos')}><span style={iconStyle}>📦</span>Productos</div>
         <div style={drawerItemStyle} onClick={() => go('/stock')}><span style={iconStyle}>🏪</span>Stock</div>
-        <div style={drawerItemStyle} onClick={() => go('/listas')}><span style={iconStyle}>📋</span>Listas de Precios Vigentes</div>
+        <div style={drawerItemStyle} onClick={() => go('/listas')}><span style={iconStyle}>📋</span>Listas de precios</div>
+      </div>
+
+      {/* LOGÍSTICA DRAWER */}
+      <div style={{
+        position: 'fixed', bottom: 64, left: 0, right: 0,
+        background: 'var(--surface)', borderTop: '1px solid var(--border)',
+        zIndex: 49, boxShadow: '0 -4px 20px rgba(0,0,0,0.1)',
+        display: openDrawer === 'logistica' ? 'block' : 'none'
+      }}>
+        <div style={drawerLabelStyle}>Logística</div>
+        <div style={drawerItemStyle} onClick={() => go('/remitos')}><span style={iconStyle}>🚚</span>Remitos</div>
       </div>
 
       {/* MÁS DRAWER */}
@@ -86,17 +93,39 @@ export default function MobileNav() {
         zIndex: 49, boxShadow: '0 -4px 20px rgba(0,0,0,0.1)',
         display: openDrawer === 'more' ? 'block' : 'none'
       }}>
-        {isAdmin && <>
-          <div style={drawerItemStyle} onClick={() => go('/proveedor')}><span style={iconStyle}>📋</span>Pedidos Proveedor</div>
-          <div style={drawerItemStyle} onClick={() => go('/recepciones')}><span style={iconStyle}>📥</span>Recepciones</div>
-          <div style={drawerItemStyle} onClick={() => go('/finanzas')}><span style={iconStyle}>💵</span>Finanzas</div>
-          <div style={{ borderTop: '1px solid var(--border)', margin: '8px 0' }} />
-        </>}
-        {!isAdmin && <>
-          <div style={drawerItemStyle} onClick={() => go('/perfil')}><span style={iconStyle}>👤</span>Mi Perfil</div>
-          <div style={drawerItemStyle} onClick={() => go('/ayuda')}><span style={iconStyle}>❓</span>Ayuda</div>
-        </>}
-        {isAdmin && <div style={drawerItemStyle} onClick={() => go('/config')}><span style={iconStyle}>⚙️</span>Configuración</div>}
+        {isAdmin ? (
+          <>
+            <div style={drawerLabelStyle}>Proveedores</div>
+            <div style={drawerItemStyle} onClick={() => go('/proveedor')}><span style={iconStyle}>📋</span>Pedidos proveedor</div>
+            <div style={drawerItemStyle} onClick={() => go('/recepciones')}><span style={iconStyle}>📥</span>Recepciones</div>
+            <div style={drawerItemStyle} onClick={() => go('/ctacte-proveedores')}><span style={iconStyle}>💳</span>Ctas. Ctes. Proveedores</div>
+            <div style={drawerItemStyle} onClick={() => go('/pagos-proveedores')}><span style={iconStyle}>💸</span>Pagos</div>
+
+            <div style={{ borderTop: '1px solid var(--border)', margin: '8px 0' }} />
+            <div style={drawerLabelStyle}>Administración</div>
+            <div style={drawerItemStyle} onClick={() => go('/reportes')}><span style={iconStyle}>📊</span>Reportes</div>
+            <div style={drawerItemStyle} onClick={() => go('/finanzas')}><span style={iconStyle}>💵</span>Finanzas</div>
+
+            <div style={{ borderTop: '1px solid var(--border)', margin: '8px 0' }} />
+            <div style={drawerLabelStyle}>Sistema</div>
+            <div style={drawerItemStyle} onClick={() => go('/config')}><span style={iconStyle}>⚙️</span>Configuración</div>
+          </>
+        ) : (
+          <>
+            <div style={drawerLabelStyle}>Información</div>
+            <div style={drawerItemStyle} onClick={() => go('/reportes')}><span style={iconStyle}>📊</span>Reportes</div>
+            <div style={drawerItemStyle} onClick={() => go('/ayuda')}><span style={iconStyle}>❓</span>Ayuda</div>
+
+            <div style={{ borderTop: '1px solid var(--border)', margin: '8px 0' }} />
+            <div style={drawerLabelStyle}>Mi cuenta</div>
+            <div style={drawerItemStyle} onClick={() => go('/perfil')}><span style={iconStyle}>👤</span>Mi Perfil</div>
+
+            <div style={{ borderTop: '1px solid var(--border)', margin: '8px 0' }} />
+            <div style={drawerLabelStyle}>Sistema</div>
+            <div style={drawerItemStyle} onClick={() => go('/config')}><span style={iconStyle}>⚙️</span>Configuración</div>
+          </>
+        )}
+
         <div style={{ borderTop: '1px solid var(--border)', margin: '8px 0' }} />
         <div style={{ padding: '10px 20px 4px', display: 'flex', alignItems: 'center', gap: 10 }}>
           <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--primary-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>👤</div>
@@ -121,9 +150,7 @@ export default function MobileNav() {
           <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 56 }}>Inicio</span>
         </button>
         <button style={navItemStyle(
-          isActive('/clientes') || isActive('/pedidos') || isActive('/ventas') ||
-          isActive('/remitos') || isActive('/pagos') || isActive('/ctacte') || isActive('/mapa') ||
-          openDrawer === 'clientes'
+          isActive('/clientes') || isActive('/ctacte') || isActive('/mapa') || openDrawer === 'clientes'
         )} onClick={() => toggleDrawer('clientes')}>
           <span style={{ fontSize: 20 }}>👥</span>
           <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 56 }}>Clientes</span>
@@ -134,9 +161,9 @@ export default function MobileNav() {
           <span style={{ fontSize: 20 }}>📦</span>
           <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 56 }}>Productos</span>
         </button>
-        <button style={navItemStyle(isActive('/reportes'))} onClick={() => go('/reportes')}>
-          <span style={{ fontSize: 20 }}>📊</span>
-          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 56 }}>Reportes</span>
+        <button style={navItemStyle(isActive('/remitos') || openDrawer === 'logistica')} onClick={() => toggleDrawer('logistica')}>
+          <span style={{ fontSize: 20 }}>🚚</span>
+          <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 56 }}>Logística</span>
         </button>
         <button style={navItemStyle(openDrawer === 'more')} onClick={() => toggleDrawer('more')}>
           <span style={{ fontSize: 20 }}>☰</span>
