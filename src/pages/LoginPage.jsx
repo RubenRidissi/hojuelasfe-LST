@@ -14,6 +14,7 @@ export default function LoginPage() {
     e.preventDefault()
     setError('')
     setLoading(true)
+
     try {
       await login(email, pass)
     } catch (err) {
@@ -24,56 +25,66 @@ export default function LoginPage() {
   }
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: 'var(--bg)',
-      padding: '16px'
-    }}>
-      <div style={{
-        background: 'white',
-        borderRadius: 'var(--radius)',
-        padding: '40px 32px',
-        width: '100%',
-        maxWidth: '380px',
-        boxShadow: '0 4px 24px rgba(0,0,0,0.10)',
-        textAlign: 'center'
-      }}>
-        <img src={LOGO_URL} alt="Hojuelas" style={{ height: 72, marginBottom: 16 }}
-          onError={e => e.target.style.display = 'none'} />
-        <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Hojuelas SFE</h1>
-        <p style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 28 }}>Panel de gestión</p>
+    <div className="login-rc-page">
+      <section className="login-rc-brand">
+        <div className="login-rc-brand-inner">
+          <img
+            src={LOGO_URL}
+            alt="Hojuelas"
+            className="login-rc-brand-logo"
+            onError={e => e.target.style.display = 'none'}
+          />
+          <h1>Descubrí el Sabor del Maná</h1>
+          <p>Llevamos calidad, todos los días.</p>
+          <span>Dios es Amor</span>
+        </div>
+      </section>
 
-        <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            required
-            autoComplete="email"
+      <section className="login-rc-form-panel">
+        <div className="login-rc-card">
+          <img
+            src={LOGO_URL}
+            alt="Hojuelas"
+            className="login-rc-card-logo"
+            onError={e => e.target.style.display = 'none'}
           />
-          <input
-            type="password"
-            placeholder="Contraseña"
-            value={pass}
-            onChange={e => setPass(e.target.value)}
-            required
-            autoComplete="current-password"
-          />
-          {error && (
-            <div style={{ color: 'var(--danger)', fontSize: 13, textAlign: 'center' }}>
-              {error}
-            </div>
-          )}
-          <button type="submit" className="btn btn-primary" disabled={loading}
-            style={{ width: '100%', justifyContent: 'center', marginTop: 4 }}>
-            {loading ? 'Ingresando...' : 'Ingresar'}
-          </button>
-        </form>
-      </div>
+
+          <h2>Bienvenido</h2>
+          <p className="login-rc-subtitle">Iniciá sesión para continuar</p>
+
+          <form onSubmit={handleLogin} className="login-rc-form">
+            <input
+              type="email"
+              placeholder="Usuario o email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              required
+              autoComplete="email"
+              className="login-rc-input"
+            />
+
+            <input
+              type="password"
+              placeholder="Contraseña"
+              value={pass}
+              onChange={e => setPass(e.target.value)}
+              required
+              autoComplete="current-password"
+              className="login-rc-input"
+            />
+
+            {error && <div className="login-rc-error">{error}</div>}
+
+            <button type="submit" className="login-rc-submit" disabled={loading}>
+              {loading ? 'Ingresando...' : 'Ingresar'}
+            </button>
+          </form>
+
+          <div className="login-rc-secure">
+            Accedé de forma segura a tu cuenta
+          </div>
+        </div>
+      </section>
     </div>
   )
 }
