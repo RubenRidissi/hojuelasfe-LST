@@ -177,8 +177,8 @@ export default function ListasPage() {
           </div>
 
           <div style="text-align:right;min-width:160px;padding-top:2px">
-            <img src="${EMPRESA.logoEmblemaUrl}" style="height:58px;object-fit:contain;margin-bottom:2px" alt="Hojuelas" onerror="this.style.display='none'">
-            <div style="font-size:12px;color:#57534E;line-height:1.2">${EMPRESA.web}</div>
+            <img src="${EMPRESA.logoEmblemaUrl}" style="height:48px;object-fit:contain;margin-bottom:0" alt="Hojuelas" onerror="this.style.display='none'">
+            <div style="font-size:12px;color:#57534E;line-height:1;margin-top:0">${EMPRESA.web}</div>
           </div>
         </div>
 
