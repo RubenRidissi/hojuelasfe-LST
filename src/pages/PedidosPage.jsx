@@ -315,14 +315,38 @@ export default function PedidosPage() {
 
   // ===== ELIMINAR PEDIDO =====
   async function deletePedido(p) {
-    if (p.convertido_venta_id) { toast('Este pedido ya fue facturado. Anulá la venta desde Ventas.', 'error'); return }
-    if (!confirm(`¿Borrar pedido de ${nombreCliente(p.clientes)}?`)) return
     try {
+      if (p.convertido_venta_id) {
+        toast('Este pedido ya fue facturado. Anulá la venta desde Ventas.', 'error')
+        return
+      }
+
+      // Protección RC1: no permitir borrar pedidos que ya tengan remito asociado.
+      // Evita dejar remitos huérfanos si el pedido ya inició el circuito logístico.
+      const { data: remitos, error: remitosError } = await supabase
+        .from('remitos')
+        .select('id,numero')
+        .eq('origen_tipo', 'pedido')
+        .eq('origen_id', p.id)
+
+      if (remitosError) throw remitosError
+
+      if (remitos?.length > 0) {
+        const nroRemito = remitos[0]?.numero ? ` Nº ${remitos[0].numero}` : ''
+        toast(`Este pedido ya posee un remito${nroRemito}. No puede eliminarse.`, 'error')
+        return
+      }
+
+      if (!confirm(`¿Borrar pedido de ${nombreCliente(p.clientes)}?`)) return
+
       await supabase.from('pedido_items').delete().eq('pedido_id', p.id)
       await supabase.from('pedidos').delete().eq('id', p.id)
       toast('Pedido eliminado')
       loadPedidos()
-    } catch (e) { toast('Error al eliminar', 'error') }
+    } catch (e) {
+      console.error('Error al eliminar pedido:', e)
+      toast('Error al eliminar: ' + e.message, 'error')
+    }
   }
 
   // ===== ESTADO =====
