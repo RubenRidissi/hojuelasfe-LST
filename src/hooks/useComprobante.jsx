@@ -39,17 +39,19 @@ body{font-family:Arial,sans-serif;color:#1C1917;font-size:14px;}
 .comp-badge.remito{background:#DBEAFE;color:#1D4ED8;}
 .comp-badge.venta{background:#DCFCE7;color:#15803D;}
 .comp-badge.pedido{background:#FEF9C3;color:#92400E;}
+.comp-badge.recibo{background:#F0FDF4;color:#15803D;}
 @media print{.no-print{display:none!important;}}
 `
 
 // ===== BUILD HELPERS =====
 
 function buildHeader(tipo, num, fecha) {
-  const tipoBadgeClass = tipo === 'REMITO' ? 'remito' : tipo === 'PEDIDO' ? 'pedido' : 'venta'
+  const tipoBadgeClass = tipo === 'REMITO' ? 'remito' : tipo === 'PEDIDO' ? 'pedido' : tipo === 'RECIBO' ? 'recibo' : 'venta'
   const tipoLabel = {
     REMITO: 'Remito de Entrega',
     PEDIDO: 'Comprobante de Pedido',
     VENTA: 'Comprobante de Venta',
+    RECIBO: 'Recibo de Pago',
     'PEDIDO PROV.': 'Pedido a Proveedor',
     RECEPCION: 'Recepción de Mercadería'
   }[tipo] || tipo
@@ -211,6 +213,69 @@ function buildRemitoEntrega(datos) {
   return html
 }
 
+
+function buildReciboPago(pago) {
+  const imputaciones = pago.pago_ventas || []
+  const monto = parseFloat(pago.monto || 0)
+  const totalImputado = imputaciones.reduce((s, x) => s + parseFloat(x.monto_aplicado || 0), 0)
+  const saldoCuenta = Math.max(0, monto - totalImputado)
+  const medio = {
+    efectivo: 'Efectivo',
+    transferencia: 'Transferencia',
+    tarjeta: 'Tarjeta',
+    otro: 'Otro'
+  }[pago.medio] || pago.medio || '—'
+
+  const centroCosto = pago.centro_costo === 'CC1'
+    ? 'Con factura'
+    : pago.centro_costo === 'CC2'
+      ? 'Sin factura / efectivo'
+      : (pago.centro_costo || '—')
+
+  let html = buildHeader('RECIBO', pago.numero || 0, pago.fecha || new Date().toISOString().split('T')[0])
+  html += buildClienteInfo(
+    pago.clientes,
+    'Medio de pago',
+    medio,
+    'Centro de costo',
+    centroCosto
+  )
+
+  html += `<div class="comp-datos" style="grid-template-columns:1fr 1fr 1fr;margin-top:-8px">
+    <div><span>Monto recibido</span><strong style="font-size:16px;color:#15803D">$${monto.toLocaleString('es-AR', { maximumFractionDigits: 2 })}</strong></div>
+    <div><span>Total imputado</span><strong>$${totalImputado.toLocaleString('es-AR', { maximumFractionDigits: 2 })}</strong></div>
+    <div><span>Saldo a cuenta</span><strong>$${saldoCuenta.toLocaleString('es-AR', { maximumFractionDigits: 2 })}</strong></div>
+  </div>`
+
+  html += `<table class="comp-table"><thead><tr><th>Concepto</th><th>Fecha</th><th style="text-align:right">Total venta</th><th style="text-align:right">Importe aplicado</th></tr></thead><tbody>`
+
+  if (!imputaciones.length) {
+    html += `<tr><td colspan="4" style="color:#78716C;text-align:center;padding:14px">Pago registrado a cuenta del cliente, sin imputación a ventas.</td></tr>`
+  } else {
+    imputaciones.forEach(imp => {
+      const venta = imp.ventas || {}
+      const fechaVenta = venta.fecha ? new Date(venta.fecha + 'T00:00:00').toLocaleDateString('es-AR') : '—'
+      html += `<tr>
+        <td><strong>Venta N° ${String(venta.numero || 0).padStart(6, '0')}</strong></td>
+        <td>${fechaVenta}</td>
+        <td style="text-align:right">$${parseFloat(venta.total || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</td>
+        <td style="text-align:right;font-weight:700">$${parseFloat(imp.monto_aplicado || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</td>
+      </tr>`
+    })
+  }
+
+  html += `</tbody><tfoot><tr><td colspan="3" style="text-align:right">TOTAL RECIBIDO</td><td style="text-align:right">$${monto.toLocaleString('es-AR', { maximumFractionDigits: 2 })}</td></tr></tfoot></table>`
+
+  html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-top:32px;font-size:12px;color:#78716C">
+    <div style="text-align:center"><div style="border-top:1px solid #1C1917;padding-top:6px;margin-top:40px">Firma receptor</div></div>
+    <div style="text-align:center"><div style="border-top:1px solid #1C1917;padding-top:6px;margin-top:40px">Firma cliente</div></div>
+  </div>`
+
+  html += `<div style="margin-top:18px;padding:10px 12px;background:#F0FDF4;color:#15803D;border-radius:8px;font-size:12px;text-align:center;font-weight:600">Gracias por su pago.</div>`
+  html += buildFooter(pago.notas)
+  return html
+}
+
 // ===== BUSCAR REMITO EXISTENTE =====
 async function buscarRemitoExistente(tipo, id) {
   let origenIds = [id]
@@ -350,6 +415,20 @@ export function useComprobante() {
     } catch (e) { throw e }
   }
 
+
+  async function verReciboPago(id) {
+    try {
+      const { data: pago } = await supabase.from('pagos')
+        .select('id,numero,fecha,monto,medio,notas,centro_costo,clientes(nombre,nombre_fantasia,direccion,localidad,provincia,telefono,tipo),pago_ventas(monto_aplicado,ventas(numero,fecha,total))')
+        .eq('id', id)
+        .single()
+      if (!pago) throw new Error('No se encontró el cobro')
+      const num = pago.numero || 1
+      const nomCli = (pago.clientes?.nombre_fantasia || pago.clientes?.nombre || 'cliente').replace(/[^a-zA-Z0-9\sáéíóúÁÉÍÓÚñÑ]/g, '').trim().replace(/\s+/g, '_')
+      setComp({ titulo: 'Recibo de Pago', html: buildReciboPago(pago), filename: `Recibo_${String(num).padStart(6, '0')}_${nomCli}` })
+    } catch (e) { throw e }
+  }
+
   function cerrarComp() { setComp(null) }
 
   function imprimir() {
@@ -371,6 +450,7 @@ export function useComprobante() {
     verComprobantePedido,
     verRemito: verRemitoFunc,
     imprimirRemito: imprimirRemitoFunc,
+    verReciboPago,
   }
 }
 
