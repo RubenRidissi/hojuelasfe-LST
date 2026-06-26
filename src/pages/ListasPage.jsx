@@ -9,9 +9,8 @@ const EMPRESA = {
   razon: 'Hojuelas con Miel',
   lema: 'Descubrí el sabor del maná',
   web: 'https://hojuelassrl.com/',
-  logoUrl: 'https://hojuelassrl.com/wp-content/uploads/2024/09/Logo-Hojuelas-A.webp',
-  // Reemplazar por la URL pública del logo institucional de 3 espigas en círculo.
-  logoEmblemaUrl: 'https://hojuelassrl.com/wp-content/uploads/2024/09/Logo-Hojuelas-A.webp',
+  logoUrl: '/branding/logo-principal.png',
+  logoEmblemaUrl: '/branding/logo-espigas.png',
   representante: 'LST Distribuidora',
   responsable: 'Esteban Gaitán',
   telefono: '342 630-0603'
