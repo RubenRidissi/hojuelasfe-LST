@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { nombreCliente } from '../utils/helpers'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
+import { useComprobante, ComprobanteModal } from '../hooks/useComprobante.jsx'
 
 const MEDIOS = [
   { value: 'efectivo', label: 'Efectivo' },
@@ -42,6 +43,7 @@ const EMPTY_EDIT = {
 export default function PagosPage() {
   const { user, isAdmin } = useAuth()
   const { toasts, toast } = useToast()
+  const { comp, cerrarComp, imprimir, descargar, verReciboPago } = useComprobante()
 
   const [pagos, setPagos] = useState([])
   const [clientes, setClientes] = useState([])
@@ -387,6 +389,10 @@ export default function PagosPage() {
     }
   }
 
+  async function handleReciboPago(id) {
+    try { await verReciboPago(id) } catch (e) { toast('Error al generar recibo: ' + e.message, 'error') }
+  }
+
   const misClientes = isAdmin ? clientes : clientes.filter(c => c.vendedor_id === user)
 
   return (
@@ -465,7 +471,7 @@ export default function PagosPage() {
                       {isAdmin && <td style={{ fontSize: 12, color: 'var(--muted)' }}>{vendedorNombre}</td>}
                       <td style={{ whiteSpace: 'nowrap' }}>
                         <div style={{ display: 'flex', gap: 4 }}>
-                          <button className="btn btn-sm btn-secondary" onClick={() => toast('Recibo — próximamente', 'info')}>🧾 Recibo</button>
+                          <button className="btn btn-sm btn-secondary" onClick={() => handleReciboPago(p.id)}>🧾 Recibo</button>
                           {isAdmin && <>
                             <button className="btn btn-sm btn-secondary" onClick={() => abrirEdit(p)}>✏</button>
                             <button className="btn btn-sm btn-danger" onClick={() => deletePago(p.id)}>↩ Anular</button>
@@ -511,7 +517,7 @@ export default function PagosPage() {
               <div className="op-card-total" style={{ color: 'var(--success)' }}>${parseFloat(p.monto || 0).toLocaleString('es-AR', { maximumFractionDigits: 0 })}</div>
               {p.notas && <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>{p.notas}</div>}
               <div className="op-card-actions" style={{ marginTop: 8 }}>
-                <button className="btn btn-secondary" onClick={() => toast('Recibo — próximamente', 'info')}>🧾 Recibo</button>
+                <button className="btn btn-secondary" onClick={() => handleReciboPago(p.id)}>🧾 Recibo</button>
                 {isAdmin && <>
                   <button className="btn btn-secondary" onClick={() => abrirEdit(p)}>✏ Editar</button>
                   <button className="btn btn-danger" onClick={() => deletePago(p.id)}>↩ Anular</button>
@@ -764,6 +770,7 @@ export default function PagosPage() {
         </div>
       )}
 
+      <ComprobanteModal comp={comp} onClose={cerrarComp} onPrint={imprimir} onDownload={descargar} />
       <ToastContainer toasts={toasts} />
     </div>
   )
