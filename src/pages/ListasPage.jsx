@@ -5,7 +5,18 @@ import { nombreCliente } from '../utils/helpers'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
 
-const EMPRESA = { razon: 'Hojuelas con Miel', logoUrl: 'https://hojuelassrl.com/wp-content/uploads/2024/09/Logo-Hojuelas-A.webp' }
+const EMPRESA = {
+  razon: 'Hojuelas con Miel',
+  sociedad: 'HOJUELAS S.R.L.',
+  lema: 'Descubrí el sabor del maná',
+  rubro: 'Panificados congelados',
+  zona: 'Santa Fe - Argentina',
+  web: 'https://hojuelassrl.com/',
+  logoUrl: 'https://hojuelassrl.com/wp-content/uploads/2024/09/Logo-Hojuelas-A.webp',
+  representante: 'LST Distribuidora',
+  responsable: 'Esteban Gaitán',
+  telefono: '342 630-0603'
+}
 const COMP_CSS = `body{font-family:Arial,sans-serif;color:#1C1917;margin:0;padding:0}.comp-wrap{padding:20px}.comp-table{width:100%;border-collapse:collapse;margin:16px 0;font-size:13px}.comp-table th{background:#D4860A;color:white;padding:7px 8px;text-align:left}.comp-table td{padding:7px 8px;border-bottom:1px solid #E8E2D8}@media print{*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}}`
 
 export default function ListasPage() {
@@ -139,22 +150,46 @@ export default function ListasPage() {
         : ivaOpcion === 'coniva' ? 'Precios con IVA 21%'
         : 'Precios sin IVA y con IVA 21%'
 
+      const promocionTexto = mostrarPromo
+        ? 'Promociones de volumen corresponden al período de lanzamiento en Zona Santa Fe y están sujetas a modificación.'
+        : ''
+
+      const precioLabelCondiciones = ivaOpcion === 'siniva'
+        ? 'Precios expresados en pesos argentinos, SIN IVA incluido.'
+        : ivaOpcion === 'coniva'
+          ? 'Precios expresados en pesos argentinos, CON IVA 21% incluido.'
+          : 'Precios expresados en pesos argentinos, con referencia SIN IVA y CON IVA 21%.'
+
+      const tituloFinal = tituloEditable || tituloLista
+      const tipoListaLabel = tipo === 'cliente'
+        ? `Cliente específico${clienteSeleccionado ? ' · ' + nombreCliente(clienteSeleccionado) : ''}`
+        : tipo
+
       const html = `<div class="comp-wrap">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:8px">
-          <div>
-            <h2 style="font-size:28px;font-weight:700;color:#1C1917;margin:0 0 4px">${EMPRESA.razon}</h2>
-            <p style="font-size:13px;color:#78716C;margin:0">Descubrí el sabor del maná</p>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:24px;padding-bottom:14px;border-bottom:3px solid #DC2626">
+          <div style="display:flex;align-items:flex-start;gap:14px">
+            <img src="${EMPRESA.logoUrl}" style="height:72px;object-fit:contain" alt="Hojuelas" onerror="this.style.display='none'">
+            <div>
+              <h2 style="font-size:24px;font-weight:700;color:#1C1917;margin:0 0 4px">${EMPRESA.razon}</h2>
+              <p style="font-size:13px;color:#78716C;margin:0">${EMPRESA.lema}</p>
+            </div>
           </div>
-          <img src="${EMPRESA.logoUrl}" style="height:64px;object-fit:contain" alt="Hojuelas" onerror="this.style.display='none'">
+          <div style="text-align:right;font-size:12px;color:#57534E;line-height:1.45;min-width:180px">
+            <div style="font-weight:700;color:#1C1917;font-size:13px">${EMPRESA.sociedad}</div>
+            <div>${EMPRESA.rubro}</div>
+            <div>${EMPRESA.zona}</div>
+            <div>${EMPRESA.web}</div>
+          </div>
         </div>
-        <div style="border-top:3px solid #DC2626;margin-bottom:16px"></div>
-        <div style="text-align:center;margin:16px 0">
-          <h3 style="font-size:18px;font-weight:700;margin:0">${tituloEditable || tituloLista}</h3>
-          <p style="font-size:13px;color:#78716C;margin:4px 0 0">Vigencia: ${vigencia}</p>
+
+        <div style="text-align:center;margin:18px 0 16px">
+          <h3 style="font-size:20px;font-weight:800;margin:0;color:#1C1917;text-transform:uppercase">${tituloFinal}</h3>
+          <p style="font-size:13px;color:#78716C;margin:5px 0 0">Vigencia: ${vigencia}</p>
           <p style="font-size:12px;color:#78716C;margin:2px 0 0">${ivaLabel}</p>
-          ${subtitulo}
-          ${tipo === 'cliente' && clienteSeleccionado ? `<p style="font-size:12px;color:#78716C;margin-top:4px">Tipo: ${clienteSeleccionado.tipo || 'Minorista'}</p>` : ''}
+          <p style="font-size:12px;color:#78716C;margin:2px 0 0">Tipo de lista: ${tipoListaLabel}</p>
+          ${descPct > 0 ? `<p style="font-size:12px;color:#15803D;margin:4px 0 0;font-weight:600">Descuento aplicado: ${descPct}%</p>` : ''}
         </div>
+
         <table class="comp-table">
           <thead><tr>
             ${mostrarCodigo ? '<th>Cód.</th>' : ''}
@@ -162,8 +197,49 @@ export default function ListasPage() {
           </tr></thead>
           <tbody>${tablaRows}</tbody>
         </table>
-        <div style="margin-top:16px;font-size:11px;color:#78716C;text-align:center">
-          ${EMPRESA.razon} · Lista generada el ${new Date().toLocaleDateString('es-AR')}
+
+        ${promocionTexto ? `
+          <div style="margin-top:14px;background:#FEF3C7;color:#92400E;border-radius:8px;padding:10px 12px;font-size:12px;line-height:1.45">
+            <strong>Promociones:</strong> ${promocionTexto}
+          </div>
+        ` : ''}
+
+        <div style="margin-top:18px;border-top:1px solid #E8E2D8;padding-top:14px">
+          <h4 style="font-size:14px;margin:0 0 10px;color:#1C1917;letter-spacing:.04em">CONDICIONES COMERCIALES</h4>
+          <table style="width:100%;border-collapse:collapse;font-size:12px;color:#44403C">
+            <tbody>
+              <tr>
+                <td style="padding:4px 0;width:34%;font-weight:700;color:#1C1917">Precios</td>
+                <td style="padding:4px 0">${precioLabelCondiciones}</td>
+              </tr>
+              <tr>
+                <td style="padding:4px 0;font-weight:700;color:#1C1917">Forma de pago</td>
+                <td style="padding:4px 0">Efectivo.</td>
+              </tr>
+              <tr>
+                <td style="padding:4px 0;font-weight:700;color:#1C1917">Vigencia</td>
+                <td style="padding:4px 0">Desde ${vigencia} y hasta nueva actualización.</td>
+              </tr>
+              <tr>
+                <td style="padding:4px 0;font-weight:700;color:#1C1917">Zona de entrega</td>
+                <td style="padding:4px 0">Santa Fe.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div style="margin-top:16px;border-top:1px solid #E8E2D8;padding-top:14px">
+          <h4 style="font-size:14px;margin:0 0 8px;color:#1C1917;letter-spacing:.04em">REPRESENTANTE EN ZONA SANTA FE</h4>
+          <div style="font-size:12px;color:#44403C;line-height:1.5">
+            <div style="font-weight:700;color:#1C1917">${EMPRESA.representante}</div>
+            <div>${EMPRESA.responsable} — Responsable Comercial</div>
+            <div>Cel.: ${EMPRESA.telefono}</div>
+          </div>
+        </div>
+
+        <div style="margin-top:16px;border-top:1px solid #E8E2D8;padding-top:10px;font-size:11px;color:#78716C;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">
+          <span>${EMPRESA.sociedad} · ${EMPRESA.web}</span>
+          <span>Generado el ${new Date().toLocaleDateString('es-AR')} · ${EMPRESA.representante}</span>
         </div>
       </div>`
 
@@ -185,13 +261,61 @@ export default function ListasPage() {
       return
     }
 
+    const toolbarCss = `
+      .print-toolbar{
+        display:flex;
+        gap:12px;
+        padding:12px 16px;
+        background:#f8f7f4;
+        border-bottom:2px solid #D4860A;
+        position:sticky;
+        top:0;
+        z-index:9999;
+        box-sizing:border-box;
+      }
+      .print-toolbar button{
+        border:none;
+        padding:10px 16px;
+        border-radius:8px;
+        font-size:14px;
+        cursor:pointer;
+        font-weight:600;
+      }
+      .print-toolbar .print-btn{
+        background:#D4860A;
+        color:white;
+        flex:1;
+      }
+      .print-toolbar .close-btn{
+        background:#78716C;
+        color:white;
+      }
+      @media print{
+        .print-toolbar{display:none!important;}
+      }
+      @media(max-width:768px){
+        .print-toolbar button{
+          font-size:15px;
+          padding:11px 14px;
+        }
+      }
+    `
+
     win.document.write(`<!DOCTYPE html>
       <html>
         <head>
           <title>${lista.nombre || 'Lista de precios'}</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1">
           <style>${COMP_CSS}</style>
+          <style>${toolbarCss}</style>
         </head>
-        <body>${lista.html}</body>
+        <body>
+          <div class="print-toolbar">
+            <button class="print-btn" onclick="window.print()">🖨 Imprimir / Guardar PDF</button>
+            <button class="close-btn" onclick="window.close()">✕</button>
+          </div>
+          ${lista.html}
+        </body>
       </html>`)
     win.document.close()
     win.focus()
