@@ -334,3 +334,25 @@ body.font-large th, body.font-large td { padding: 12px 10px !important; }
 body.font-large .page-title { font-size: 22px !important; }
 body.font-large .badge { font-size: 13px !important; }
 body.font-large input, body.font-large select, body.font-large textarea { font-size: 16px !important; }
+
+/* =======================================================
+   RC1 - FAB siempre por encima del mapa Leaflet
+   ======================================================= */
+
+.leaflet-container,
+.leaflet-pane,
+.leaflet-map-pane,
+.leaflet-tile-pane,
+.leaflet-overlay-pane,
+.leaflet-shadow-pane,
+.leaflet-marker-pane,
+.leaflet-tooltip-pane,
+.leaflet-popup-pane {
+  z-index: 1 !important;
+}
+
+.leaflet-top,
+.leaflet-bottom,
+.leaflet-control {
+  z-index: 2 !important;
+}
