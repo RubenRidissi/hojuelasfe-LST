@@ -79,6 +79,11 @@ export default function ListasPage() {
       const colPrecio = tipo === 'cliente'
         ? (PRECIO_POR_TIPO[clienteSeleccionado?.tipo] || 'precio_distribuidor')
         : (PRECIO_POR_TIPO[tipo] || 'precio_distribuidor')
+
+      const descPct = tipo === 'cliente'
+        ? parseFloat(clienteSeleccionado?.descuento_pct || 0)
+        : 0
+
       const grupos = {}
       prods.forEach(p => {
         const fam = p.familia || 'Otros'
@@ -92,7 +97,7 @@ export default function ListasPage() {
         tablaRows += `<tr><td colspan="${colSpan}" style="background:#FEF3DC;font-weight:700;font-size:13px;color:#9A5F00;padding:8px 10px">${fam}</td></tr>`
         ps.forEach(p => {
           const precioBase = parseFloat(p[colPrecio] || 0)
-          const precioFinal = precioBase
+          const precioFinal = descPct > 0 ? precioBase * (1 - descPct / 100) : precioBase
           const precioIVA = precioFinal * 1.21
           const promoStr = p.promo && mostrarPromo ? `<span style="background:#DCFCE7;color:#15803D;font-size:10px;padding:2px 6px;border-radius:10px;margin-left:6px">${p.promo}</span>` : ''
           tablaRows += `<tr>
