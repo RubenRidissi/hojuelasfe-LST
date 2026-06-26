@@ -168,11 +168,21 @@ export default function ListasPage() {
         : ''
 
       const html = `<div class="comp-wrap">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:24px;padding-bottom:14px;border-bottom:3px solid #DC2626">
-          <div style="display:flex;flex-direction:column;align-items:flex-start;justify-content:center;max-width:58%">
-            <img src="${EMPRESA.logoUrl}" style="height:104px;object-fit:contain" alt="Hojuelas con Miel" onerror="this.style.display='none'">
-            <div style="font-size:13px;color:#78716C;margin-top:-6px;line-height:1.15;padding-left:2px">${EMPRESA.lema}</div>
+        <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:24px;padding-bottom:14px;border-bottom:3px solid #DC2626">
+          <div style="display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-end">
+            <img src="${EMPRESA.logoUrl}" style="height:112px;object-fit:contain;margin-top:-10px" alt="Hojuelas con Miel" onerror="this.style.display='none'">
+            <div style="font-size:13px;color:#78716C;line-height:1.1;margin-top:-4px;padding-left:2px">
+              ${EMPRESA.lema}
+            </div>
           </div>
+
+          <div style="display:flex;flex-direction:column;align-items:flex-end;justify-content:flex-end">
+            <img src="${EMPRESA.logoEmblemaUrl}" style="height:50px;object-fit:contain;margin-bottom:2px" alt="Hojuelas" onerror="this.style.display='none'">
+            <div style="font-size:12px;color:#57534E;line-height:1.1">
+              ${EMPRESA.web}
+            </div>
+          </div>
+        </div>
 
           <div style="text-align:right;min-width:160px;display:flex;flex-direction:column;align-items:flex-end;justify-content:center">
             <img src="${EMPRESA.logoEmblemaUrl}" style="height:50px;object-fit:contain;margin-bottom:0" alt="Hojuelas" onerror="this.style.display='none'">
