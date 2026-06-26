@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Lista de Precios — Hojuelas con Miel</title>
+  <style>
+    * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; box-sizing: border-box; }
+    body { font-family: Arial, sans-serif; margin: 0; padding: 0; color: #1C1917; background: #f8f7f4; }
+    .toolbar { display: flex; gap: 10px; padding: 12px 20px; background: #fff; border-bottom: 1px solid #e0d9d0; align-items: center; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+    .toolbar button { padding: 8px 16px; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; background: #9A5F00; color: #fff; }
+    .toolbar .logo { font-size: 16px; font-weight: 700; color: #9A5F00; margin-right: auto; }
+    .contenido { max-width: 900px; margin: 24px auto; padding: 32px 40px; background: #fff; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
+    .comp-wrap { font-family: Arial, sans-serif; max-width: 100% !important; margin: 0; padding: 0 !important; background: white; color: #1C1917; }
+    .comp-table { width: 100%; border-collapse: collapse; margin: 16px 0; font-size: 13px; }
+    .comp-table th { background: #D4860A; color: white; padding: 8px 10px; text-align: left; font-size: 12px; }
+    .comp-table td { padding: 8px 10px; border-bottom: 1px solid #E8E2D8; }
+    .comp-table tr:last-child td { border-bottom: none; }
+    .comp-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid #D4860A; }
+    .comp-tipo { text-align: center; margin: 16px 0; }
+    .comp-tipo h3 { font-size: 20px; font-weight: 700; color: #1C1917; margin: 0; }
+    .comp-num { font-size: 14px; color: #78716C; margin: 4px 0 0; }
+    .comp-footer { display: flex; justify-content: space-between; font-size: 11px; color: #78716C; margin-top: 16px; padding-top: 8px; border-top: 1px solid #E8E2D8; }
+    .loading { text-align: center; padding: 80px 20px; color: #78716C; font-size: 16px; }
+    .error { text-align: center; padding: 80px 20px; color: #DC2626; font-size: 16px; }
+    @media print {
+      .toolbar { display: none !important; }
+      body { background: white; }
+      .contenido { box-shadow: none; margin: 0; padding: 20px; border-radius: 0; }
+    }
+    @media (max-width: 600px) {
+      .contenido { margin: 8px; padding: 16px; border-radius: 8px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="toolbar">
+    <span class="logo">🎯 Hojuelas con Miel</span>
+    <button onclick="window.print()">🖨 Imprimir / Guardar PDF</button>
+  </div>
+  <div class="contenido" id="contenido">
+    <div class="loading">⏳ Cargando lista de precios...</div>
+  </div>
+
+  <script>
+    const SUPABASE_URL = 'https://bvhiekdlfpgxahmjbgfn.supabase.co/rest/v1';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ2aGlla2RsZnBneGFobWpiZ2ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyMDQ3NjIsImV4cCI6MjA5Njc4MDc2Mn0.Y1L718NXrK-AKYMLzdytRwFR5tlaXLSQe2WcQxId1-Y';
+
+    async function cargarLista() {
+      const params = new URLSearchParams(window.location.search);
+      const id = params.get('id');
+      const el = document.getElementById('contenido');
+
+      if (!id) {
+        el.innerHTML = '<div class="error">❌ No se especificó una lista. Verificá el link.</div>';
+        return;
+      }
+
+      try {
+        const res = await fetch(`${SUPABASE_URL}/listas_precios_repo?id=eq.${id}&select=nombre,html`, {
+          headers: {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+          }
+        });
+
+        if (!res.ok) throw new Error('Error al cargar');
+        const data = await res.json();
+
+        if (!data || !data.length) {
+          el.innerHTML = '<div class="error">❌ Lista no encontrada. Es posible que haya sido eliminada.</div>';
+          return;
+        }
+
+        document.title = data[0].nombre + ' — Hojuelas con Miel';
+        el.innerHTML = data[0].html;
+
+      } catch(e) {
+        el.innerHTML = `<div class="error">❌ Error al cargar la lista: ${e.message}</div>`;
+      }
+    }
+
+    cargarLista();
+  </script>
+</body>
+</html>
