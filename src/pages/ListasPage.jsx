@@ -47,9 +47,21 @@ export default function ListasPage() {
 
   async function loadListas() {
     setLoadingListas(true)
-    const { data } = await supabase.from('listas_precios_repo').select('id,nombre,tipo,created_at').order('created_at', { ascending: false })
-    setListas(data || [])
-    setLoadingListas(false)
+    try {
+      const { data, error } = await supabase
+        .from('listas_precios_repo')
+        .select('id,nombre,tipo,created_at')
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+
+      setListas(data || [])
+    } catch (e) {
+      console.error('Error cargando listas:', e)
+      toast('Error al cargar listas: ' + e.message, 'error')
+    } finally {
+      setLoadingListas(false)
+    }
   }
 
   const familias = useMemo(() => [...new Set(productos.map(p => p.familia).filter(Boolean))].sort(), [productos])
@@ -194,14 +206,31 @@ export default function ListasPage() {
     if (!nombreLista.trim()) { toast('Ingresá un nombre para la lista', 'error'); return }
     setGuardando(true)
     try {
-      await supabase.from('listas_precios_repo').insert({
-        nombre: nombreLista.trim(),
-        tipo: preview.tipo,
-        html: preview.html
-      })
+      const tipoRepo = String(preview.tipo || '').toLowerCase()
+
+      const { data, error } = await supabase
+        .from('listas_precios_repo')
+        .insert({
+          nombre: nombreLista.trim(),
+          tipo: tipoRepo,
+          html: preview.html
+        })
+        .select('id,nombre,tipo,created_at')
+
+      if (error) throw error
+
+      if (!data?.length) {
+        throw new Error('Supabase no devolvió la lista guardada.')
+      }
+
       toast('Lista guardada en el repositorio ✓')
-      loadListas()
-    } catch (e) { toast('Error: ' + e.message, 'error') } finally { setGuardando(false) }
+      await loadListas()
+    } catch (e) {
+      console.error('Error guardando lista:', e)
+      toast('Error al guardar lista: ' + e.message, 'error')
+    } finally {
+      setGuardando(false)
+    }
   }
 
   async function deleteListaRepo(id) {
