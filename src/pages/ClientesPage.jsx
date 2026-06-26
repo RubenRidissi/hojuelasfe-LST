@@ -42,6 +42,16 @@ export default function ClientesPage() {
 
   useEffect(() => { load() }, [])
 
+  useEffect(() => {
+    const abrirDesdeFab = () => {
+      setForm(EMPTY_FORM)
+      setModalOpen(true)
+    }
+    window.addEventListener('fab:nuevo-cliente', abrirDesdeFab)
+    return () => window.removeEventListener('fab:nuevo-cliente', abrirDesdeFab)
+  }, [])
+
+
   async function load() {
     setLoading(true)
     try {
@@ -289,6 +299,7 @@ export default function ClientesPage() {
 
   return (
     <div>
+      <style data-rc1-mobile-hide>{`@media (max-width: 768px){ .mobile-hide{ display:none !important; } }`}</style>
       {/* Header */}
       <div className="page-header">
         <h1 className="page-title">Clientes</h1>
@@ -296,7 +307,7 @@ export default function ClientesPage() {
           {clientesFiltrados.length > 0 && (
             <span style={{ fontSize:13, color:'var(--muted)' }}>{clientesFiltrados.length} cliente{clientesFiltrados.length !== 1 ? 's' : ''}</span>
           )}
-          <button className="btn btn-primary" onClick={() => { setForm(EMPTY_FORM); setModalOpen(true) }}>
+          <button className="mobile-hide btn btn-primary" onClick={() => { setForm(EMPTY_FORM); setModalOpen(true) }}>
             + Nuevo cliente
           </button>
         </div>

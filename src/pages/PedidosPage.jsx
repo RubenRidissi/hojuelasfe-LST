@@ -64,6 +64,17 @@ export default function PedidosPage() {
 
   useEffect(() => { loadAll() }, [])
 
+  useEffect(() => {
+    const abrirDesdeFab = () => {
+      setForm(EMPTY_FORM)
+      setItems([])
+      setModalOpen(true)
+    }
+    window.addEventListener('fab:nuevo-pedido', abrirDesdeFab)
+    return () => window.removeEventListener('fab:nuevo-pedido', abrirDesdeFab)
+  }, [])
+
+
   async function loadAll() {
     try {
       const [{ data: v }, { data: c }, { data: p }] = await Promise.all([
@@ -421,11 +432,12 @@ export default function PedidosPage() {
 
   return (
     <div>
+      <style data-rc1-mobile-hide>{`@media (max-width: 768px){ .mobile-hide{ display:none !important; } }`}</style>
       <div className="page-header">
         <h1 className="page-title">Pedidos</h1>
         <div className="page-header-actions">
           <button className="btn btn-secondary hide-on-mobile" onClick={() => toast('Excel — próximamente', 'info')}>📥 Excel</button>
-          <button className="btn btn-primary" onClick={() => { setForm(EMPTY_FORM); setItems([]); setSearchCliente(''); setVersionId(''); setUsarListaHistorica(false); setPromoInfo(null); setAplicarPromo(false); setModalOpen(true) }}>+ Nuevo pedido</button>
+          <button className="mobile-hide btn btn-primary" onClick={() => { setForm(EMPTY_FORM); setItems([]); setSearchCliente(''); setVersionId(''); setUsarListaHistorica(false); setPromoInfo(null); setAplicarPromo(false); setModalOpen(true) }}>+ Nuevo pedido</button>
         </div>
       </div>
 

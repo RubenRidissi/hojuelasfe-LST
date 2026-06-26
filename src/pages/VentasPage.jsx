@@ -65,6 +65,17 @@ export default function VentasPage() {
 
   useEffect(() => { loadAll() }, [])
 
+  useEffect(() => {
+    const abrirDesdeFab = () => {
+      setForm(EMPTY_FORM)
+      setItems([])
+      setModalOpen(true)
+    }
+    window.addEventListener('fab:nueva-venta', abrirDesdeFab)
+    return () => window.removeEventListener('fab:nueva-venta', abrirDesdeFab)
+  }, [])
+
+
   async function loadAll() {
     try {
       const [{ data: v }, { data: c }, { data: p }] = await Promise.all([
@@ -439,11 +450,12 @@ export default function VentasPage() {
 
   return (
     <div>
+      <style data-rc1-mobile-hide>{`@media (max-width: 768px){ .mobile-hide{ display:none !important; } }`}</style>
       <div className="page-header">
         <h1 className="page-title">Ventas</h1>
         <div className="page-header-actions">
           <button className="btn btn-secondary hide-on-mobile" onClick={() => toast('Excel — próximamente', 'info')}>📥 Excel</button>
-          <button className="btn btn-primary" onClick={() => { setForm(EMPTY_FORM); setItems([]); setSearchCliente(''); setPromoInfo(null); setAplicarPromo(false); setUsarListaHistorica(false); setVersionId(''); setModalOpen(true) }}>+ Nueva venta</button>
+          <button className="mobile-hide btn btn-primary" onClick={() => { setForm(EMPTY_FORM); setItems([]); setSearchCliente(''); setPromoInfo(null); setAplicarPromo(false); setUsarListaHistorica(false); setVersionId(''); setModalOpen(true) }}>+ Nueva venta</button>
         </div>
       </div>
 

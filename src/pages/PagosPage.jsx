@@ -69,6 +69,18 @@ export default function PagosPage() {
 
   useEffect(() => { loadAll() }, [])
 
+  useEffect(() => {
+    const abrirDesdeFab = () => {
+      setForm(EMPTY_FORM)
+      setVentasPendientes([])
+      setImputaciones({})
+      setModalOpen(true)
+    }
+    window.addEventListener('fab:nuevo-cobro', abrirDesdeFab)
+    return () => window.removeEventListener('fab:nuevo-cobro', abrirDesdeFab)
+  }, [])
+
+
   async function loadAll() {
     try {
       const [{ data: v }, { data: c }] = await Promise.all([
@@ -379,10 +391,11 @@ export default function PagosPage() {
 
   return (
     <div>
+      <style data-rc1-mobile-hide>{`@media (max-width: 768px){ .mobile-hide{ display:none !important; } }`}</style>
       <div className="page-header">
         <h1 className="page-title">Cobros</h1>
         <div className="page-header-actions">
-          <button className="btn btn-primary" onClick={() => { setForm(EMPTY_FORM); setVentasPendientes([]); setImputaciones({}); setModalOpen(true) }}>
+          <button className="mobile-hide btn btn-primary" onClick={() => { setForm(EMPTY_FORM); setVentasPendientes([]); setImputaciones({}); setModalOpen(true) }}>
             + Registrar cobro
           </button>
         </div>
