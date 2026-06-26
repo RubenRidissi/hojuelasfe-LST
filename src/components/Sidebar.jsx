@@ -10,30 +10,47 @@ const NAV_ADMIN = [
     group: 'Clientes', icon: '👥', defaultOpen: true, items: [
       { to: '/clientes', icon: '👥', label: 'Listado' },
       { to: '/mapa',     icon: '🗺️', label: 'Mapa' },
-      { to: '/pedidos',  icon: '📋', label: 'Pedidos' },
-      { to: '/ventas',   icon: '🧾', label: 'Ventas' },
-      { to: '/remitos',  icon: '🚚', label: 'Remitos' },
-      { to: '/pagos',    icon: '💰', label: 'Pagos' },
       { to: '/ctacte',   icon: '📒', label: 'Cta. Corriente' },
     ]
   },
   {
-    group: 'Proveedores', icon: '🏭', defaultOpen: false, items: [
-      { to: '/proveedor',   icon: '📋', label: 'Pedidos' },
-      { to: '/recepciones', icon: '📦', label: 'Recepciones' },
-      { to: '/ctacte-prov', icon: '📒', label: 'Cta. Cte.', disabled: true, tag: 'próx.' },
+    group: 'Operación Comercial', icon: '🛒', defaultOpen: true, items: [
+      { to: '/pedidos', icon: '📋', label: 'Pedidos' },
+      { to: '/ventas',  icon: '🧾', label: 'Ventas' },
+      { to: '/pagos',   icon: '💰', label: 'Cobros' },
     ]
   },
   {
-    group: 'Productos', icon: '🏷️', defaultOpen: false, items: [
-      { to: '/productos', icon: '🏷️', label: 'Catálogo' },
-      { to: '/stock',     icon: '📦', label: 'Stock' },
-      { to: '/listas',    icon: '📋', label: 'Listas de Precios Vigentes' },
+    group: 'Productos', icon: '📦', defaultOpen: false, items: [
+      { to: '/productos', icon: '📦', label: 'Productos' },
+      { to: '/stock',     icon: '🏪', label: 'Stock' },
+      { to: '/listas',    icon: '📋', label: 'Listas de precios' },
     ]
   },
-  { to: '/finanzas', icon: '💵', label: 'Finanzas' },
-  { to: '/reportes', icon: '📊', label: 'Reportes' },
-  { to: '/config',   icon: '⚙️', label: 'Configuración' },
+  {
+    group: 'Logística', icon: '🚚', defaultOpen: false, items: [
+      { to: '/remitos', icon: '🚚', label: 'Remitos' },
+    ]
+  },
+  {
+    group: 'Proveedores', icon: '🏭', defaultOpen: false, items: [
+      { to: '/proveedor',          icon: '📋', label: 'Pedidos proveedor' },
+      { to: '/recepciones',        icon: '📥', label: 'Recepciones' },
+      { to: '/ctacte-proveedores', icon: '💳', label: 'Ctas. Ctes.' },
+      { to: '/pagos-proveedores',  icon: '💸', label: 'Pagos' },
+    ]
+  },
+  {
+    group: 'Administración', icon: '📊', defaultOpen: false, items: [
+      { to: '/reportes', icon: '📊', label: 'Reportes' },
+      { to: '/finanzas', icon: '💵', label: 'Finanzas' },
+    ]
+  },
+  {
+    group: 'Sistema', icon: '⚙️', defaultOpen: false, items: [
+      { to: '/config', icon: '⚙️', label: 'Configuración' },
+    ]
+  },
 ]
 
 const NAV_VENDEDOR = [
@@ -42,15 +59,32 @@ const NAV_VENDEDOR = [
     group: 'Clientes', icon: '👥', defaultOpen: true, items: [
       { to: '/clientes', icon: '👥', label: 'Listado' },
       { to: '/mapa',     icon: '🗺️', label: 'Mapa' },
-      { to: '/pedidos',  icon: '📋', label: 'Pedidos' },
-      { to: '/ventas',   icon: '🧾', label: 'Ventas' },
-      { to: '/pagos',    icon: '💰', label: 'Cobros' },
       { to: '/ctacte',   icon: '📒', label: 'Cta. Corriente' },
     ]
   },
   {
-    group: 'Productos', icon: '🏷️', defaultOpen: false, items: [
-      { to: '/listas', icon: '📋', label: 'Listas de Precios' },
+    group: 'Operación Comercial', icon: '🛒', defaultOpen: true, items: [
+      { to: '/pedidos', icon: '📋', label: 'Pedidos' },
+      { to: '/ventas',  icon: '🧾', label: 'Ventas' },
+      { to: '/pagos',   icon: '💰', label: 'Cobros' },
+    ]
+  },
+  {
+    group: 'Productos', icon: '📦', defaultOpen: false, items: [
+      { to: '/productos', icon: '📦', label: 'Productos' },
+      { to: '/stock',     icon: '🏪', label: 'Stock' },
+      { to: '/listas',    icon: '📋', label: 'Listas de precios' },
+    ]
+  },
+  {
+    group: 'Logística', icon: '🚚', defaultOpen: false, items: [
+      { to: '/remitos', icon: '🚚', label: 'Remitos' },
+    ]
+  },
+  {
+    group: 'Información', icon: 'ℹ️', defaultOpen: false, items: [
+      { to: '/reportes', icon: '📊', label: 'Reportes' },
+      { to: '/ayuda',    icon: '❓', label: 'Ayuda' },
     ]
   },
 ]
