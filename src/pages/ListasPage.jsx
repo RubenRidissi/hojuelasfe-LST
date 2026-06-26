@@ -150,21 +150,6 @@ export default function ListasPage() {
         : 'Precios sin IVA y con IVA 21%'
 
       const promocionTexto = mostrarPromo
-        ? 'Promociones de volumen corresponden al período de lanzamiento en Zona Santa Fe y están sujetas a modificación.'
-        : ''
-
-      const precioLabelCondiciones = ivaOpcion === 'siniva'
-        ? 'Precios expresados en pesos argentinos, SIN IVA incluido.'
-        : ivaOpcion === 'coniva'
-          ? 'Precios expresados en pesos argentinos, CON IVA 21% incluido.'
-          : 'Precios expresados en pesos argentinos, con referencia SIN IVA y CON IVA 21%.'
-
-      const tituloFinal = tituloEditable || tituloLista
-      const tipoListaLabel = tipo === 'cliente'
-        ? `Cliente específico${clienteSeleccionado ? ' · ' + nombreCliente(clienteSeleccionado) : ''}`
-        : tipo
-
-      const promocionTexto = mostrarPromo
         ? 'Las promociones de lanzamiento para Zona Santa Fe son por tiempo limitado y podrán ser modificadas sin previo aviso.'
         : ''
 
