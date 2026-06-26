@@ -149,7 +149,7 @@ export default function ListasPage() {
         : 'Precios sin IVA y con IVA 21%'
 
       const promocionTexto = mostrarPromo
-        ? 'Las promociones de lanzamiento para Zona Santa Fe son por tiempo limitado y podrán ser modificadas sin previo aviso.'
+        ? 'Los productos identificados con etiqueta verde corresponden a promociones de volumen. Aplican al período de lanzamiento en Zona Santa Fe y están sujetas a modificación.'
         : ''
 
       const precioLabelCondiciones = ivaOpcion === 'siniva'
@@ -169,16 +169,16 @@ export default function ListasPage() {
 
       const html = `<div class="comp-wrap">
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:24px;padding-bottom:14px;border-bottom:3px solid #DC2626">
-          <div style="display:flex;align-items:flex-start;gap:14px;max-width:58%">
-            <img src="${EMPRESA.logoUrl}" style="height:82px;object-fit:contain" alt="Hojuelas con Miel" onerror="this.style.display='none'">
-            <div style="padding-top:6px">
-              <div style="font-size:13px;color:#78716C;margin-top:2px">${EMPRESA.lema}</div>
+          <div style="display:flex;align-items:center;gap:14px;max-width:58%">
+            <img src="${EMPRESA.logoUrl}" style="height:112px;object-fit:contain" alt="Hojuelas con Miel" onerror="this.style.display='none'">
+            <div style="padding-top:0">
+              <div style="font-size:13px;color:#78716C;margin-top:0;line-height:1.25">${EMPRESA.lema}</div>
             </div>
           </div>
 
-          <div style="text-align:right;min-width:160px">
-            <img src="${EMPRESA.logoEmblemaUrl}" style="height:58px;object-fit:contain;margin-bottom:6px" alt="Hojuelas" onerror="this.style.display='none'">
-            <div style="font-size:12px;color:#57534E;line-height:1.35">${EMPRESA.web}</div>
+          <div style="text-align:right;min-width:160px;padding-top:2px">
+            <img src="${EMPRESA.logoEmblemaUrl}" style="height:58px;object-fit:contain;margin-bottom:2px" alt="Hojuelas" onerror="this.style.display='none'">
+            <div style="font-size:12px;color:#57534E;line-height:1.2">${EMPRESA.web}</div>
           </div>
         </div>
 
@@ -199,7 +199,10 @@ export default function ListasPage() {
 
         ${promocionTexto ? `
           <div style="margin-top:14px;background:#FEF3C7;color:#92400E;border-radius:8px;padding:10px 12px;font-size:12px;line-height:1.45;border-left:4px solid #D4860A">
-            <div style="font-weight:700;margin-bottom:2px">PROMOCIONES VIGENTES</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+              <span style="font-weight:700">PROMOCIONES VIGENTES</span>
+              <span style="background:#DCFCE7;color:#15803D;font-size:10px;padding:2px 7px;border-radius:10px;font-weight:700">10+1</span>
+            </div>
             <div>${promocionTexto}</div>
           </div>
         ` : ''}
