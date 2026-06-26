@@ -5,15 +5,22 @@ import { nombreCliente } from '../utils/helpers'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
 
-const MEDIOS = ['Efectivo', 'Transferencia', 'Cheque', 'Tarjeta', 'Otro']
+const MEDIOS = [
+  { value: 'efectivo', label: 'efectivo' },
+  { value: 'transferencia', label: 'Transferencia' },
+  { value: 'tarjeta', label: 'Tarjeta' },
+  { value: 'otro', label: 'Otro' }
+]
+
+const medioLabel = (value) => MEDIOS.find(m => m.value === value)?.label || value || '—'
 
 const EMPTY_FORM = {
   clienteId: '', fecha: new Date().toISOString().split('T')[0],
-  monto: '', medio: 'Efectivo', notas: '', centroCosto: 'CC2'
+  monto: '', medio: 'efectivo', notas: '', centroCosto: 'CC2'
 }
 
 const EMPTY_EDIT = {
-  id: '', clienteId: '', fecha: '', monto: '', medio: 'Efectivo', notas: ''
+  id: '', clienteId: '', fecha: '', monto: '', medio: 'efectivo', notas: ''
 }
 
 export default function PagosPage() {
@@ -161,13 +168,13 @@ export default function PagosPage() {
 
         if (tieneNegro) {
           centroCosto = 'CC2'
-          medioPago = 'Efectivo'
+          medioPago = 'efectivo'
         } else {
           centroCosto = 'CC1'
         }
       } else if (centroCosto === 'CC2') {
         // Pago a cuenta sin factura: solo efectivo.
-        medioPago = 'Efectivo'
+        medioPago = 'efectivo'
       }
 
       const cliente = clientes.find(c => c.id === form.clienteId)
@@ -340,7 +347,7 @@ export default function PagosPage() {
                       <td>{p.fecha}</td>
                       <td>{p.clientes ? nombreCliente(p.clientes) : '—'}</td>
                       <td><strong>${parseFloat(p.monto || 0).toLocaleString('es-AR')}</strong></td>
-                      <td><span className="badge badge-blue">{p.medio}</span></td>
+                      <td><span className="badge badge-blue">{medioLabel(p.medio)}</span></td>
                       <td>{ccBadge}</td>
                       <td style={{ color: 'var(--muted)', fontSize: 12 }}>{p.notas || '—'}</td>
                       {isAdmin && <td style={{ fontSize: 12, color: 'var(--muted)' }}>{vendedorNombre}</td>}
@@ -377,7 +384,7 @@ export default function PagosPage() {
             <div key={p.id} className="op-card">
               <div className="op-card-header">
                 <span className="op-card-fecha">{fechaCorta}</span>
-                <span className="badge badge-blue">{p.medio}</span>
+                <span className="badge badge-blue">{medioLabel(p.medio)}</span>
                 {ccBadge}
               </div>
               <div className="op-card-cliente">{p.clientes ? nombreCliente(p.clientes) : '—'}</div>
@@ -429,11 +436,13 @@ export default function PagosPage() {
                 <div className="form-group">
                   <label>Medio de pago</label>
                   <select
-                    value={medioPagoForzadoEfectivo ? 'Efectivo' : form.medio}
+                    value={medioPagoForzadoEfectivo ? 'efectivo' : form.medio}
                     disabled={medioPagoForzadoEfectivo}
                     onChange={e => setForm(f => ({ ...f, medio: e.target.value }))}
                   >
-                    {(medioPagoForzadoEfectivo ? ['Efectivo'] : MEDIOS).map(m => <option key={m} value={m}>{m}</option>)}
+                    {(medioPagoForzadoEfectivo ? [{ value: 'efectivo', label: 'Efectivo' }] : MEDIOS).map(m => (
+                      <option key={m.value} value={m.value}>{m.label}</option>
+                    ))}
                   </select>
                   {medioPagoForzadoEfectivo && (
                     <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
@@ -511,7 +520,7 @@ export default function PagosPage() {
                           onChange={() => setForm(f => ({
                             ...f,
                             centroCosto: cc.value,
-                            medio: cc.value === 'CC2' ? 'Efectivo' : f.medio
+                            medio: cc.value === 'CC2' ? 'efectivo' : f.medio
                           }))} />
                         {cc.label}
                       </label>
@@ -561,7 +570,7 @@ export default function PagosPage() {
                 <div className="form-group">
                   <label>Medio</label>
                   <select value={editForm.medio} onChange={e => setEditForm(f => ({ ...f, medio: e.target.value }))}>
-                    {MEDIOS.map(m => <option key={m} value={m}>{m}</option>)}
+                    {MEDIOS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
                   </select>
                 </div>
               </div>
