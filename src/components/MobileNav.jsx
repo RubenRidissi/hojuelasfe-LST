@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
@@ -17,6 +17,13 @@ export default function MobileNav() {
   function toggleDrawer(name) {
     setOpenDrawer(prev => prev === name ? null : name)
   }
+
+  useEffect(() => {
+    const cerrarDrawers = () => setOpenDrawer(null)
+    window.addEventListener('fab:menu-open', cerrarDrawers)
+    return () => window.removeEventListener('fab:menu-open', cerrarDrawers)
+  }, [])
+
 
   const path = location.pathname
   const isActive = (p) => p === '/' ? path === '/' : path.startsWith(p)
@@ -115,19 +122,14 @@ export default function MobileNav() {
             <div style={drawerLabelStyle}>Información</div>
             <div style={drawerItemStyle} onClick={() => go('/reportes')}><span style={iconStyle}>📊</span>Reportes</div>
             <div style={drawerItemStyle} onClick={() => go('/ayuda')}><span style={iconStyle}>❓</span>Ayuda</div>
-
-            <div style={{ borderTop: '1px solid var(--border)', margin: '8px 0' }} />
-            <div style={drawerLabelStyle}>Mi cuenta</div>
-            <div style={drawerItemStyle} onClick={() => go('/perfil')}><span style={iconStyle}>👤</span>Mi Perfil</div>
-
-            <div style={{ borderTop: '1px solid var(--border)', margin: '8px 0' }} />
-            <div style={drawerLabelStyle}>Sistema</div>
-            <div style={drawerItemStyle} onClick={() => go('/config')}><span style={iconStyle}>⚙️</span>Configuración</div>
           </>
         )}
 
         <div style={{ borderTop: '1px solid var(--border)', margin: '8px 0' }} />
-        <div style={{ padding: '10px 20px 4px', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div
+          onClick={() => go('/perfil')}
+          style={{ padding: '10px 20px 4px', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}
+        >
           <div style={{ width: 34, height: 34, borderRadius: '50%', background: 'var(--primary-light)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>👤</div>
           <div>
             <div style={{ fontSize: 13, fontWeight: 600 }}>{nombre}</div>

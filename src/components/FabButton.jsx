@@ -82,7 +82,11 @@ export default function FabButton() {
       )}
 
       {/* FAB Button */}
-      <button onClick={() => setOpen(o => !o)} style={{
+      <button onClick={() => setOpen(o => {
+        const next = !o
+        if (next) window.dispatchEvent(new CustomEvent('fab:menu-open'))
+        return next
+      })} style={{
         position: 'fixed', bottom: 76, right: 16,
         width: 56, height: 56, borderRadius: '50%',
         background: 'var(--primary)', color: '#fff',
