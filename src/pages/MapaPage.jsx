@@ -29,7 +29,6 @@ export default function MapaPage() {
 
   const [filtroVendedor, setFiltroVendedor] = useState('')
   const [filtroCliente, setFiltroCliente] = useState('')
-  const [filtroTipo, setFiltroTipo] = useState('')
   const [conCoords, setConCoords] = useState(0)
   const [sinCoords, setSinCoords] = useState(0)
   const [leafletCargado, setLeafletCargado] = useState(false)
@@ -107,7 +106,7 @@ export default function MapaPage() {
   // Re-renderizar cuando cambian filtros
   useEffect(() => {
     if (mapaInstanceRef.current) renderMapa()
-  }, [filtroVendedor, filtroCliente, filtroTipo])
+  }, [filtroVendedor, filtroCliente])
 
   function renderMapa() {
     const L = window.L
@@ -120,7 +119,6 @@ export default function MapaPage() {
     let filtrados = clientes
     if (filtroVendedor) filtrados = filtrados.filter(c => c.vendedor_id === filtroVendedor)
     if (filtroCliente) filtrados = filtrados.filter(c => c.id === filtroCliente)
-    if (filtroTipo) filtrados = filtrados.filter(c => c.tipo === filtroTipo)
 
     const con = filtrados.filter(c => c.latitud && c.longitud)
     const sin = filtrados.filter(c => !c.latitud || !c.longitud)
@@ -204,10 +202,7 @@ export default function MapaPage() {
             {clientes.map(c => <option key={c.id} value={c.id}>{nombreCliente(c)}</option>)}
           </select>
         )}
-        <select value={filtroTipo} onChange={e => setFiltroTipo(e.target.value)} style={{ flex: 1 }}>
-          <option value="">Todos los tipos</option>
-          {TIPOS.map(t => <option key={t} value={t}>{t}</option>)}
-        </select>
+
       </div>
 
       {/* Leyenda */}

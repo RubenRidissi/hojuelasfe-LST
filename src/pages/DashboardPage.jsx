@@ -55,7 +55,6 @@ export default function DashboardPage() {
   const [pedidosAdmin, setPedidosAdmin] = useState([])
   const [statsVend, setStatsVend] = useState(null)
   const [pedidosVend, setPedidosVend] = useState([])
-  const [stockBajo, setStockBajo] = useState([])
   const [loading, setLoading] = useState(true)
   const [hora, setHora] = useState(horaArgentina())
 
@@ -135,9 +134,6 @@ export default function DashboardPage() {
 
     const {data:ultPed} = await supabase.from('pedidos').select('id,total,estado,fecha,fecha_entrega,clientes(nombre,nombre_fantasia)').eq('vendedor_id',user).gte('fecha',desde7).order('created_at',{ascending:false}).limit(20)
     setPedidosVend(ultPed||[])
-
-    const {data:stockData} = await supabase.from('stock_actual').select('nombre,stock,stock_minimo,unidad,codigo')
-    setStockBajo((stockData||[]).filter(p => parseFloat(p.stock) <= parseFloat(p.stock_minimo||0) && parseFloat(p.stock_minimo||0) > 0))
   }
 
   if (isAdmin) return (
@@ -233,19 +229,6 @@ export default function DashboardPage() {
             <div className="mobile-cards" style={{padding:12}}>{pedidosVend.map(p=><PedidoCard key={p.id} p={p}/>)}</div>
           </>)}
         </div>
-        {stockBajo.length>0 && (
-          <div className="card">
-            <div style={{padding:'12px 16px',borderBottom:'1px solid var(--border)',fontWeight:700,fontSize:13,color:'#D97706'}}>⚠ Productos con stock bajo</div>
-            <div style={{padding:12}}>
-              {stockBajo.map(p=>(
-                <div key={p.nombre} style={{display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:'1px solid var(--border)',fontSize:13}}>
-                  <span>{p.nombre} {p.codigo && <code style={{fontSize:11}}>{p.codigo}</code>}</span>
-                  <span style={{color:parseFloat(p.stock)<=0?'var(--danger)':'#D97706',fontWeight:600}}>{p.stock} {p.unidad||''}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </>)}
       <ToastContainer toasts={toasts}/>
     </div>

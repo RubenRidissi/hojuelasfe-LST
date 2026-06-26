@@ -256,7 +256,7 @@ export default function ProductosPage() {
                 <tr>
                   <th>Código</th><th>Nombre</th><th>Costo</th><th>Costo neto</th>
                   {MARKUP_COLS.map(c => <th key={c.key} style={{ textAlign: 'right' }}>{c.label}</th>)}
-                  <th>Stock</th><th></th>
+                  <th>Stock</th>{isAdmin && <th></th>}
                 </tr>
               </thead>
               <tbody>

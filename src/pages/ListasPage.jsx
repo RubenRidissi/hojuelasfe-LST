@@ -468,7 +468,7 @@ export default function ListasPage() {
             <input type="checkbox" checked={soloConStock} onChange={e => setSoloConStock(e.target.checked)} />Solo con stock
           </label>
         </div>
-        <button className="btn btn-primary" onClick={generarLista} disabled={generando}>{generando ? 'Generando...' : '👁 Generar vista previa'}</button>
+        {isAdmin && <button className="btn btn-primary" onClick={generarLista} disabled={generando}>{generando ? 'Generando...' : '👁 Generar vista previa'}</button>}
       </div>
 
       {/* Vista previa */}
@@ -494,6 +494,12 @@ export default function ListasPage() {
             <style>{COMP_CSS}</style>
             <div dangerouslySetInnerHTML={{ __html: preview.html }} />
           </div>
+        </div>
+      )}
+
+      {!isAdmin && (
+        <div className="card" style={{ padding: 14, marginBottom: 16, fontSize: 13, color: 'var(--muted)' }}>
+          Solo podés consultar listas generadas por administración.
         </div>
       )}
 
