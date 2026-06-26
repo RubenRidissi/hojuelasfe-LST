@@ -50,7 +50,7 @@ export default function ListasPage() {
     try {
       const { data, error } = await supabase
         .from('listas_precios_repo')
-        .select('id,nombre,tipo,created_at')
+        .select('id,nombre,tipo,html,created_at')
         .order('created_at', { ascending: false })
 
       if (error) throw error
@@ -173,6 +173,30 @@ export default function ListasPage() {
     } catch (e) { toast('Error: ' + e.message, 'error') } finally { setGenerando(false) }
   }
 
+  function verListaRepo(lista) {
+    if (!lista?.html) {
+      toast('La lista no tiene contenido HTML guardado.', 'error')
+      return
+    }
+
+    const win = window.open('', '_blank')
+    if (!win) {
+      toast('Permití ventanas emergentes para ver la lista.', 'error')
+      return
+    }
+
+    win.document.write(`<!DOCTYPE html>
+      <html>
+        <head>
+          <title>${lista.nombre || 'Lista de precios'}</title>
+          <style>${COMP_CSS}</style>
+        </head>
+        <body>${lista.html}</body>
+      </html>`)
+    win.document.close()
+    win.focus()
+  }
+
   function imprimirLista() {
     if (!preview) return
     const isMobile = window.innerWidth < 768
@@ -215,7 +239,7 @@ export default function ListasPage() {
           tipo: tipoRepo,
           html: preview.html
         })
-        .select('id,nombre,tipo,created_at')
+        .select('id,nombre,tipo,html,created_at')
 
       if (error) throw error
 
@@ -364,7 +388,7 @@ export default function ListasPage() {
                       {' · '}Guardada el {fecha}
                     </div>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      <a href={url} target="_blank" rel="noreferrer" className="btn btn-sm btn-secondary" style={{ flex: 1, textAlign: 'center', textDecoration: 'none' }}>👁 Ver</a>
+                      <button className="btn btn-sm btn-secondary" style={{ flex: 1, textAlign: 'center' }} onClick={() => verListaRepo(l)}>👁 Ver</button>
                       <a href={`https://wa.me/?text=${waMsg}`} target="_blank" rel="noreferrer" className="btn btn-sm" style={{ flex: 1, textAlign: 'center', background: '#25D366', color: '#fff', textDecoration: 'none' }}>💬 WhatsApp</a>
                       {isAdmin && <button className="btn btn-sm btn-danger" style={{ flex: 1 }} onClick={() => deleteListaRepo(l.id)}>🗑 Borrar</button>}
                     </div>
