@@ -6,13 +6,29 @@ import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
 
 const MEDIOS = [
-  { value: 'efectivo', label: 'efectivo' },
+  { value: 'efectivo', label: 'Efectivo' },
   { value: 'transferencia', label: 'Transferencia' },
   { value: 'tarjeta', label: 'Tarjeta' },
   { value: 'otro', label: 'Otro' }
 ]
 
 const medioLabel = (value) => MEDIOS.find(m => m.value === value)?.label || value || '—'
+
+function getEstadoCobro(pago) {
+  const imputaciones = pago.pago_ventas || []
+  const totalImputado = imputaciones.reduce((s, x) => s + parseFloat(x.monto_aplicado || 0), 0)
+  const monto = parseFloat(pago.monto || 0)
+
+  if (imputaciones.length === 0 || totalImputado <= 0.01) {
+    return { key: 'cuenta', label: 'A cuenta', badge: 'badge-yellow', icon: '○', totalImputado }
+  }
+
+  if (totalImputado >= monto - 0.01) {
+    return { key: 'imputado', label: 'Imputado', badge: 'badge-green', icon: '✓', totalImputado }
+  }
+
+  return { key: 'parcial', label: 'Parcial', badge: 'badge-blue', icon: '◐', totalImputado }
+}
 
 const EMPTY_FORM = {
   clienteId: '', fecha: new Date().toISOString().split('T')[0],
@@ -48,6 +64,9 @@ export default function PagosPage() {
   const [editForm, setEditForm] = useState(EMPTY_EDIT)
   const [savingEdit, setSavingEdit] = useState(false)
 
+  // Modal detalle de imputaciones
+  const [detallePago, setDetallePago] = useState(null)
+
   useEffect(() => { loadAll() }, [])
 
   async function loadAll() {
@@ -66,7 +85,7 @@ export default function PagosPage() {
     setLoading(true)
     try {
       let q = supabase.from('pagos')
-        .select('id,numero,fecha,monto,medio,notas,vendedor_id,centro_costo,clientes(id,nombre,nombre_fantasia)')
+        .select('id,numero,fecha,monto,medio,notas,vendedor_id,centro_costo,clientes(id,nombre,nombre_fantasia),pago_ventas(venta_id,monto_aplicado,ventas(numero,fecha,total))')
         .order('created_at', { ascending: false })
 
       if (!isAdmin) q = q.eq('vendedor_id', user)
@@ -278,14 +297,82 @@ export default function PagosPage() {
     } catch (e) { toast('Error: ' + e.message, 'error') } finally { setSavingEdit(false) }
   }
 
-  // ===== ELIMINAR PAGO =====
+  // ===== ANULAR COBRO =====
   async function deletePago(id) {
-    if (!confirm('¿Borrar este cobro?\n\nEsta acción no se puede deshacer.')) return
+    if (!isAdmin) { toast('Solo un administrador puede anular cobros.', 'error'); return }
+    if (!confirm('¿Anular este cobro?\n\nSe deshará la imputación y se actualizará el estado de pago de la venta asociada.')) return
+
     try {
-      await supabase.from('pagos').delete().eq('id', id)
-      toast('Cobro eliminado')
+      // Buscar imputaciones del cobro
+      const { data: imputacionesPago, error: impReadError } = await supabase
+        .from('pago_ventas')
+        .select('venta_id,monto_aplicado')
+        .eq('pago_id', id)
+
+      if (impReadError) throw impReadError
+
+      // Caso 1: pago imputado a varias ventas. No anulamos en RC1.
+      if ((imputacionesPago || []).length > 1) {
+        toast('Este cobro está imputado a varias ventas. Anulación múltiple pendiente para RC2.', 'error')
+        return
+      }
+
+      const ventaId = imputacionesPago?.[0]?.venta_id || null
+
+      // Caso 2: pago imputado a una venta
+      if (ventaId) {
+        const { error: delImpError } = await supabase
+          .from('pago_ventas')
+          .delete()
+          .eq('pago_id', id)
+
+        if (delImpError) throw delImpError
+
+        const { data: pagosRestantes, error: pagosRestantesError } = await supabase
+          .from('pago_ventas')
+          .select('monto_aplicado')
+          .eq('venta_id', ventaId)
+
+        if (pagosRestantesError) throw pagosRestantesError
+
+        const totalPagado = (pagosRestantes || []).reduce((s, p) => s + parseFloat(p.monto_aplicado || 0), 0)
+
+        const { data: venta, error: ventaError } = await supabase
+          .from('ventas')
+          .select('total')
+          .eq('id', ventaId)
+          .single()
+
+        if (ventaError) throw ventaError
+
+        const totalVenta = parseFloat(venta?.total || 0)
+        const nuevoEstado = totalPagado >= totalVenta - 0.01
+          ? 'pagado'
+          : totalPagado > 0
+            ? 'parcial'
+            : 'pendiente'
+
+        const { error: updVentaError } = await supabase
+          .from('ventas')
+          .update({ monto_pagado: totalPagado, estado_pago: nuevoEstado })
+          .eq('id', ventaId)
+
+        if (updVentaError) throw updVentaError
+      }
+
+      // Caso 3: pago a cuenta sin imputación, o ya desimputado arriba.
+      const { error: delPagoError } = await supabase
+        .from('pagos')
+        .delete()
+        .eq('id', id)
+
+      if (delPagoError) throw delPagoError
+
+      toast(ventaId ? 'Cobro anulado y venta actualizada.' : 'Pago a cuenta anulado.')
       loadPagos()
-    } catch (e) { toast('Error al eliminar', 'error') }
+    } catch (e) {
+      toast('Error al anular cobro: ' + e.message, 'error')
+    }
   }
 
   const misClientes = isAdmin ? clientes : clientes.filter(c => c.vendedor_id === user)
@@ -329,6 +416,7 @@ export default function PagosPage() {
                   <th>Fecha</th>
                   <th>Cliente</th>
                   <th>Monto</th>
+                  <th>Estado</th>
                   <th>Medio</th>
                   <th>CC</th>
                   <th>Notas</th>
@@ -341,12 +429,23 @@ export default function PagosPage() {
                   const ccBadge = p.centro_costo === 'CC1'
                     ? <span className="badge badge-blue">CC1</span>
                     : <span className="badge badge-gray">CC2</span>
+                  const estadoCobro = getEstadoCobro(p)
                   const vendedorNombre = vendedores.find(v => v.user_id === p.vendedor_id)?.nombre || '—'
                   return (
                     <tr key={p.id}>
                       <td>{p.fecha}</td>
                       <td>{p.clientes ? nombreCliente(p.clientes) : '—'}</td>
                       <td><strong>${parseFloat(p.monto || 0).toLocaleString('es-AR')}</strong></td>
+                      <td>
+                        <button
+                          className={`badge ${estadoCobro.badge}`}
+                          onClick={() => setDetallePago(p)}
+                          style={{ border: 0, cursor: 'pointer' }}
+                          title="Ver detalle"
+                        >
+                          {estadoCobro.icon} {estadoCobro.label}
+                        </button>
+                      </td>
                       <td><span className="badge badge-blue">{medioLabel(p.medio)}</span></td>
                       <td>{ccBadge}</td>
                       <td style={{ color: 'var(--muted)', fontSize: 12 }}>{p.notas || '—'}</td>
@@ -356,7 +455,7 @@ export default function PagosPage() {
                           <button className="btn btn-sm btn-secondary" onClick={() => toast('Recibo — próximamente', 'info')}>🧾 Recibo</button>
                           {isAdmin && <>
                             <button className="btn btn-sm btn-secondary" onClick={() => abrirEdit(p)}>✏</button>
-                            <button className="btn btn-sm btn-danger" onClick={() => deletePago(p.id)}>🗑</button>
+                            <button className="btn btn-sm btn-danger" onClick={() => deletePago(p.id)}>↩ Anular</button>
                           </>}
                         </div>
                       </td>
@@ -380,11 +479,19 @@ export default function PagosPage() {
           const ccBadge = p.centro_costo === 'CC1'
             ? <span className="badge badge-blue">CC1</span>
             : <span className="badge badge-gray">CC2</span>
+          const estadoCobro = getEstadoCobro(p)
           return (
             <div key={p.id} className="op-card">
               <div className="op-card-header">
                 <span className="op-card-fecha">{fechaCorta}</span>
                 <span className="badge badge-blue">{medioLabel(p.medio)}</span>
+                <button
+                  className={`badge ${estadoCobro.badge}`}
+                  onClick={() => setDetallePago(p)}
+                  style={{ border: 0, cursor: 'pointer' }}
+                >
+                  {estadoCobro.icon} {estadoCobro.label}
+                </button>
                 {ccBadge}
               </div>
               <div className="op-card-cliente">{p.clientes ? nombreCliente(p.clientes) : '—'}</div>
@@ -394,7 +501,7 @@ export default function PagosPage() {
                 <button className="btn btn-secondary" onClick={() => toast('Recibo — próximamente', 'info')}>🧾 Recibo</button>
                 {isAdmin && <>
                   <button className="btn btn-secondary" onClick={() => abrirEdit(p)}>✏ Editar</button>
-                  <button className="btn btn-danger" onClick={() => deletePago(p.id)}>🗑 Borrar</button>
+                  <button className="btn btn-danger" onClick={() => deletePago(p.id)}>↩ Anular</button>
                 </>}
               </div>
             </div>
@@ -584,6 +691,61 @@ export default function PagosPage() {
               <button className="btn btn-primary" onClick={updatePago} disabled={savingEdit}>
                 {savingEdit ? 'Guardando...' : 'Guardar'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+
+      {/* ===== MODAL DETALLE IMPUTACIONES ===== */}
+      {detallePago && (
+        <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && setDetallePago(null)}>
+          <div className="modal" style={{ maxWidth: 460 }}>
+            <div className="modal-header">
+              <h2>Detalle del cobro</h2>
+              <button className="btn btn-secondary btn-sm" onClick={() => setDetallePago(null)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <div style={{ background: 'var(--bg)', borderRadius: 8, padding: 12, marginBottom: 12 }}>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>Cliente</div>
+                <div style={{ fontWeight: 600 }}>{detallePago.clientes ? nombreCliente(detallePago.clientes) : '—'}</div>
+                <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                  <span>Total cobrado</span>
+                  <strong>${parseFloat(detallePago.monto || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                  <span>Total imputado</span>
+                  <strong>${getEstadoCobro(detallePago).totalImputado.toLocaleString('es-AR', { maximumFractionDigits: 2 })}</strong>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+                  <span>Saldo a cuenta</span>
+                  <strong>${Math.max(0, parseFloat(detallePago.monto || 0) - getEstadoCobro(detallePago).totalImputado).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</strong>
+                </div>
+              </div>
+
+              {(detallePago.pago_ventas || []).length === 0 ? (
+                <div className="empty" style={{ padding: 16 }}>
+                  <p>Este cobro no está imputado a ventas. Queda como pago a cuenta.</p>
+                </div>
+              ) : (
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 12, color: 'var(--muted)', marginBottom: 8, textTransform: 'uppercase' }}>
+                    Imputaciones
+                  </div>
+                  {(detallePago.pago_ventas || []).map((imp, idx) => (
+                    <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '8px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                      <div>
+                        <div style={{ fontWeight: 600 }}>Venta #{String(imp.ventas?.numero || 0).padStart(6, '0')}</div>
+                        <div style={{ color: 'var(--muted)', fontSize: 12 }}>{imp.ventas?.fecha || '—'}</div>
+                      </div>
+                      <strong>${parseFloat(imp.monto_aplicado || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</strong>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => setDetallePago(null)}>Cerrar</button>
             </div>
           </div>
         </div>
