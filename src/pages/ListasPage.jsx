@@ -406,6 +406,8 @@ export default function ListasPage() {
       <div className="page-header">
         <h1 className="page-title">Listas de Precios Vigentes</h1>
       </div>
+      {isAdmin && <>
+
 
       {/* Config */}
       <div className="card" style={{ padding: 16, marginBottom: 16 }}>
@@ -496,6 +498,15 @@ export default function ListasPage() {
           </div>
         </div>
       )}
+
+      {!isAdmin && (
+        <div className="card" style={{ padding: 14, marginBottom: 16, fontSize: 13, color: 'var(--muted)' }}>
+          Solo podés consultar listas generadas por administración.
+        </div>
+      )}
+
+
+      </>}
 
       {!isAdmin && (
         <div className="card" style={{ padding: 14, marginBottom: 16, fontSize: 13, color: 'var(--muted)' }}>
