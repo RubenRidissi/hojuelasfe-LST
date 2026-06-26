@@ -78,7 +78,7 @@ export default function PagosPage() {
     if (!clienteId) { setVentasPendientes([]); setImputaciones({}); return }
     try {
       const { data } = await supabase.from('ventas')
-        .select('id,fecha,total,monto_pagado,estado_pago,notas')
+        .select('id,fecha,total,monto_pagado,estado_pago,notas,modalidad_factura')
         .eq('cliente_id', clienteId)
         .neq('estado_pago', 'pagado')
         .order('fecha', { ascending: true })
@@ -115,6 +115,17 @@ export default function PagosPage() {
   const montoCobrado = parseFloat(form.monto || 0)
   const saldoCuenta = montoCobrado - totalImputado
   const imputacionesActivas = Object.entries(imputaciones).filter(([, v]) => v.checked)
+  const ventasImputadas = imputacionesActivas
+    .map(([id]) => ventasPendientes.find(v => v.id === id))
+    .filter(Boolean)
+
+  const tieneVentasConFactura = ventasImputadas.some(v => v.modalidad_factura === 'con_iva')
+  const tieneVentasSinFactura = ventasImputadas.some(v => v.modalidad_factura === 'sin_iva' || !v.modalidad_factura)
+  const pagoMixto = tieneVentasConFactura && tieneVentasSinFactura
+  const soloSinFactura = ventasImputadas.length > 0 && tieneVentasSinFactura && !tieneVentasConFactura
+  const pagoACuentaSinFactura = imputacionesActivas.length === 0 && form.centroCosto === 'CC2'
+  const medioPagoForzadoEfectivo = soloSinFactura || pagoACuentaSinFactura
+
   const mostrarCC = saldoCuenta > 0.01
 
   // ===== GUARDAR PAGO =====
@@ -125,43 +136,99 @@ export default function PagosPage() {
 
     setSaving(true)
     try {
-      // Determinar centro de costo
+      // Determinar centro de costo y reglas de medio de pago
       let centroCosto = form.centroCosto
+      let medioPago = form.medio
+
       if (imputacionesActivas.length > 0) {
         const ventaIds = imputacionesActivas.map(([id]) => id)
-        const { data: vents } = await supabase.from('ventas').select('modalidad_factura').in('id', ventaIds)
+
+        const { data: vents, error: ventasError } = await supabase
+          .from('ventas')
+          .select('id,modalidad_factura')
+          .in('id', ventaIds)
+
+        if (ventasError) throw ventasError
+
         const tieneBlanco = (vents || []).some(v => v.modalidad_factura === 'con_iva')
         const tieneNegro = (vents || []).some(v => v.modalidad_factura === 'sin_iva' || !v.modalidad_factura)
-        centroCosto = tieneBlanco ? 'CC1' : 'CC2'
-        if (tieneBlanco && tieneNegro) toast('⚠ Pago mixto (blanco y negro) — asignado a CC1', 'info')
+
+        if (tieneBlanco && tieneNegro) {
+          toast('No mezcles ventas con factura y sin factura en el mismo cobro. Registrá dos cobros separados.', 'error')
+          setSaving(false)
+          return
+        }
+
+        if (tieneNegro) {
+          centroCosto = 'CC2'
+          medioPago = 'Efectivo'
+        } else {
+          centroCosto = 'CC1'
+        }
+      } else if (centroCosto === 'CC2') {
+        // Pago a cuenta sin factura: solo efectivo.
+        medioPago = 'Efectivo'
       }
 
       const cliente = clientes.find(c => c.id === form.clienteId)
       const vendedorId = cliente?.vendedor_id || user
 
-      const { data: [pago] } = await supabase.from('pagos').insert({
-        cliente_id: form.clienteId, fecha: form.fecha,
-        monto: parseFloat(form.monto), medio: form.medio,
-        notas: form.notas, vendedor_id: vendedorId, centro_costo: centroCosto
+      const { data, error } = await supabase.from('pagos').insert({
+        cliente_id: form.clienteId,
+        fecha: form.fecha,
+        monto: parseFloat(form.monto),
+        medio: medioPago,
+        notas: form.notas,
+        vendedor_id: vendedorId,
+        centro_costo: centroCosto
       }).select()
+
+      if (error) throw error
+
+      const pago = data?.[0]
+      if (!pago) throw new Error('No se pudo registrar el cobro.')
 
       // Registrar imputaciones y actualizar estado de cada venta
       await Promise.all(imputacionesActivas.map(async ([ventaId, imp]) => {
         const montoAplicado = parseFloat(imp.monto || 0)
         if (montoAplicado <= 0) return
 
-        await supabase.from('pago_ventas').insert({ pago_id: pago.id, venta_id: ventaId, monto_aplicado: montoAplicado })
+        const { error: impError } = await supabase
+          .from('pago_ventas')
+          .insert({ pago_id: pago.id, venta_id: ventaId, monto_aplicado: montoAplicado })
 
-        const { data: pagosVenta } = await supabase.from('pago_ventas').select('monto_aplicado').eq('venta_id', ventaId)
+        if (impError) throw impError
+
+        const { data: pagosVenta, error: pagosVentaError } = await supabase
+          .from('pago_ventas')
+          .select('monto_aplicado')
+          .eq('venta_id', ventaId)
+
+        if (pagosVentaError) throw pagosVentaError
+
         const totalPagado = (pagosVenta || []).reduce((s, p) => s + parseFloat(p.monto_aplicado || 0), 0)
-        const { data: [venta] } = await supabase.from('ventas').select('total').eq('id', ventaId)
+
+        const { data: venta, error: ventaError } = await supabase
+          .from('ventas')
+          .select('total')
+          .eq('id', ventaId)
+          .single()
+
+        if (ventaError) throw ventaError
+
         const totalVenta = parseFloat(venta?.total || 0)
         const nuevoEstado = totalPagado >= totalVenta - 0.01 ? 'pagado' : totalPagado > 0 ? 'parcial' : 'pendiente'
-        await supabase.from('ventas').update({ monto_pagado: totalPagado, estado_pago: nuevoEstado }).eq('id', ventaId)
+
+        const { error: updError } = await supabase
+          .from('ventas')
+          .update({ monto_pagado: totalPagado, estado_pago: nuevoEstado })
+          .eq('id', ventaId)
+
+        if (updError) throw updError
       }))
 
       toast(imputacionesActivas.length
-        ? `Cobro registrado (${centroCosto}) e imputado a ${imputacionesActivas.length} factura(s) ✓`
+        ? `Cobro registrado (${centroCosto}) e imputado a ${imputacionesActivas.length} venta(s) ✓`
         : `Cobro registrado como pago a cuenta (${centroCosto}) ✓`)
 
       setModalOpen(false)
@@ -361,9 +428,18 @@ export default function PagosPage() {
                 </div>
                 <div className="form-group">
                   <label>Medio de pago</label>
-                  <select value={form.medio} onChange={e => setForm(f => ({ ...f, medio: e.target.value }))}>
-                    {MEDIOS.map(m => <option key={m} value={m}>{m}</option>)}
+                  <select
+                    value={medioPagoForzadoEfectivo ? 'Efectivo' : form.medio}
+                    disabled={medioPagoForzadoEfectivo}
+                    onChange={e => setForm(f => ({ ...f, medio: e.target.value }))}
+                  >
+                    {(medioPagoForzadoEfectivo ? ['Efectivo'] : MEDIOS).map(m => <option key={m} value={m}>{m}</option>)}
                   </select>
+                  {medioPagoForzadoEfectivo && (
+                    <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
+                      Sin factura: solo efectivo.
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="form-group" style={{ marginBottom: 12 }}>
@@ -399,6 +475,16 @@ export default function PagosPage() {
                       </div>
                     )
                   })}
+                  {pagoMixto && (
+                    <div style={{ marginTop: 8, padding: '6px 8px', borderRadius: 6, background: '#FEE2E2', color: '#991B1B', fontSize: 12, fontWeight: 600 }}>
+                      No mezcles ventas con factura y sin factura en el mismo cobro. Registrá dos cobros separados.
+                    </div>
+                  )}
+                  {soloSinFactura && (
+                    <div style={{ marginTop: 8, padding: '6px 8px', borderRadius: 6, background: '#FEF3C7', color: '#92400E', fontSize: 12 }}>
+                      Las ventas sin factura se cobran únicamente en efectivo e impactan en CC2.
+                    </div>
+                  )}
                   <div style={{ marginTop: 8, fontSize: 13, display: 'flex', justifyContent: 'space-between' }}>
                     <span>Imputado: <strong>${totalImputado.toLocaleString('es-AR', { maximumFractionDigits: 2 })}</strong></span>
                     <span style={{ color: saldoCuenta < -0.01 ? 'var(--danger)' : 'var(--muted)' }}>
@@ -412,15 +498,22 @@ export default function PagosPage() {
               {(ventasPendientes.length === 0 || mostrarCC) && (
                 <div style={{ background: 'var(--bg)', borderRadius: 8, padding: 12 }}>
                   <div style={{ fontWeight: 600, fontSize: 12, color: 'var(--muted)', marginBottom: 8, textTransform: 'uppercase' }}>
-                    Centro de costo (pago a cuenta)
+                    Destino del pago a cuenta
                   </div>
-                  <div style={{ display: 'flex', gap: 16 }}>
-                    {['CC1', 'CC2'].map(cc => (
-                      <label key={cc} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
-                        <input type="radio" name="centroCosto" value={cc}
-                          checked={form.centroCosto === cc}
-                          onChange={() => setForm(f => ({ ...f, centroCosto: cc }))} />
-                        {cc} {cc === 'CC1' ? '(con IVA / blanco)' : '(sin IVA / negro)'}
+                  <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                    {[
+                      { value: 'CC1', label: 'Con factura' },
+                      { value: 'CC2', label: 'Sin factura / efectivo' }
+                    ].map(cc => (
+                      <label key={cc.value} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
+                        <input type="radio" name="centroCosto" value={cc.value}
+                          checked={form.centroCosto === cc.value}
+                          onChange={() => setForm(f => ({
+                            ...f,
+                            centroCosto: cc.value,
+                            medio: cc.value === 'CC2' ? 'Efectivo' : f.medio
+                          }))} />
+                        {cc.label}
                       </label>
                     ))}
                   </div>
@@ -429,7 +522,7 @@ export default function PagosPage() {
             </div>
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setModalOpen(false)}>Cancelar</button>
-              <button className="btn btn-primary" onClick={savePago} disabled={saving}>
+              <button className="btn btn-primary" onClick={savePago} disabled={saving || pagoMixto}>
                 {saving ? 'Guardando...' : 'Registrar cobro'}
               </button>
             </div>
