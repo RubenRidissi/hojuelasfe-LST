@@ -7,8 +7,10 @@
   <style>
     * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; box-sizing: border-box; }
     body { font-family: Arial, sans-serif; margin: 0; padding: 0; color: #1C1917; background: #f8f7f4; }
-    .toolbar { display: flex; gap: 10px; padding: 12px 20px; background: #fff; border-bottom: 1px solid #e0d9d0; align-items: center; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+    .toolbar { display: flex; gap: 10px; padding: 12px 20px; background: #fff; border-bottom: 1px solid #e0d9d0; align-items: center; box-shadow: 0 1px 4px rgba(0,0,0,0.08); position: sticky; top: 0; z-index: 9999; }
     .toolbar button { padding: 8px 16px; border: none; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; background: #9A5F00; color: #fff; }
+    .toolbar button.secondary { background: #78716C; }
+    .toolbar button.share { background: #25D366; }
     .toolbar .logo { font-size: 16px; font-weight: 700; color: #9A5F00; margin-right: auto; }
     .contenido { max-width: 900px; margin: 24px auto; padding: 32px 40px; background: #fff; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); }
     .comp-wrap { font-family: Arial, sans-serif; max-width: 100% !important; margin: 0; padding: 0 !important; background: white; color: #1C1917; }
@@ -29,6 +31,9 @@
       .contenido { box-shadow: none; margin: 0; padding: 20px; border-radius: 0; }
     }
     @media (max-width: 600px) {
+      .toolbar { padding: 10px 12px; gap: 8px; flex-wrap: wrap; }
+      .toolbar .logo { width: 100%; margin-right: 0; }
+      .toolbar button { flex: 1; padding: 10px 8px; font-size: 13px; }
       .contenido { margin: 8px; padding: 16px; border-radius: 8px; }
     }
   </style>
@@ -37,12 +42,43 @@
   <div class="toolbar">
     <span class="logo">🎯 Hojuelas con Miel</span>
     <button onclick="window.print()">🖨 Imprimir / Guardar PDF</button>
+    <button class="share" onclick="compartirLista()">💬 Compartir</button>
+    <button class="secondary" onclick="cerrarPagina()">✕ Cerrar</button>
   </div>
   <div class="contenido" id="contenido">
     <div class="loading">⏳ Cargando lista de precios...</div>
   </div>
 
   <script>
+    function cerrarPagina() {
+      if (window.history.length > 1) {
+        window.history.back();
+      } else {
+        window.close();
+      }
+    }
+
+    async function compartirLista() {
+      const shareData = {
+        title: document.title || 'Lista de Precios — Hojuelas con Miel',
+        text: 'Lista de Precios Hojuelas con Miel',
+        url: window.location.href
+      };
+
+      try {
+        if (navigator.share) {
+          await navigator.share(shareData);
+        } else if (navigator.clipboard) {
+          await navigator.clipboard.writeText(window.location.href);
+          alert('Link copiado al portapapeles.');
+        } else {
+          prompt('Copiá este link para compartir:', window.location.href);
+        }
+      } catch (e) {
+        // El usuario pudo haber cancelado el compartir. No mostramos error.
+      }
+    }
+
     const SUPABASE_URL = 'https://bvhiekdlfpgxahmjbgfn.supabase.co/rest/v1';
     const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ2aGlla2RsZnBneGFobWpiZ2ZuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyMDQ3NjIsImV4cCI6MjA5Njc4MDc2Mn0.Y1L718NXrK-AKYMLzdytRwFR5tlaXLSQe2WcQxId1-Y';
 
