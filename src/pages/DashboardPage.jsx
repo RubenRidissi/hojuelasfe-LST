@@ -125,9 +125,9 @@ function VerseModal({ verse, onClose }) {
   )
 }
 
-function HeroHeader({ user, hora, weather }) {
+function HeroHeader({ user, nombre, hora, weather }) {
   const navigate = useNavigate()
-  const nombre = userNameFromEmail(user)
+  const nombreMostrar = nombre || userNameFromEmail(user)
   const tone = timeTone()
   const weatherLabel = weather?.temp !== null && weather?.temp !== undefined ? `${weather.temp}°` : 'Clima no disponible'
   const cityLabel = weather?.city || SANTA_FE.city
@@ -164,7 +164,7 @@ function HeroHeader({ user, hora, weather }) {
         </button>
 
         <h1 style={{fontSize:26, lineHeight:1.08, margin:0, fontWeight:900, letterSpacing:'-0.04em'}}>
-          {tone.icono} {tone.saludo}, {nombre}
+          {tone.icono} {tone.saludo}, {nombreMostrar}
         </h1>
         <p style={{fontSize:14, margin:'6px 0 14px', opacity:0.94, fontWeight:500}}>
           {tone.texto}
@@ -208,7 +208,7 @@ function StatCard({ item, onClick }) {
 }
 
 export default function DashboardPage() {
-  const { user, isAdmin } = useAuth()
+ const { user, isAdmin, nombre } = useAuth()
   const { toasts } = useToast()
   const navigate = useNavigate()
 
@@ -260,8 +260,13 @@ export default function DashboardPage() {
 
 
   useEffect(() => {
+  const yaMostrado = sessionStorage.getItem('hojuelas_versiculo_mostrado')
+
+  if (!yaMostrado) {
     setVerse(versiculoDelMomento())
-  }, [])
+    sessionStorage.setItem('hojuelas_versiculo_mostrado', 'true')
+  }
+}, [])
 
   function cerrarVersiculo() {
     setVerse(null)
@@ -342,7 +347,7 @@ export default function DashboardPage() {
 
   if (isAdmin) return (
     <div>
-      <HeroHeader user={user} hora={hora} weather={weather} />
+      <HeroHeader user={user} nombre={nombre} hora={hora} weather={weather} />
       <div style={{marginBottom:16,display:'flex',gap:8,alignItems:'center', flexWrap:'wrap'}}>
         <select value={filtroVendedor} onChange={e=>setFiltroVendedor(e.target.value)}
           style={{padding:'10px 14px',border:'1px solid var(--border)',borderRadius:14,fontSize:13,background:'var(--surface)', minWidth:220}}>
@@ -390,7 +395,7 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <HeroHeader user={user} hora={hora} weather={weather} />
+      <HeroHeader user={user} nombre={nombre} hora={hora} weather={weather} />
       {loading ? <div className="empty"><div className="empty-icon">⏳</div><p>Cargando...</p></div> : statsVend && (<>
         <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:14,marginBottom:22}}>
           {[

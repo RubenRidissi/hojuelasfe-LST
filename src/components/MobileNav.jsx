@@ -41,9 +41,12 @@ export default function MobileNav() {
   ]
 
   async function cerrarSesion() {
-    setFarewell(true)
-    setTimeout(async () => { await logout() }, 1100)
-  }
+  setFarewell(true)
+  setTimeout(async () => {
+    sessionStorage.removeItem('hojuelas_versiculo_mostrado')
+    await logout()
+  }, 2500)
+}
 
   const navItemStyle = (isActive) => ({
     display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
@@ -56,6 +59,34 @@ export default function MobileNav() {
   return (
     <>
       {farewell && <FarewellOverlay />}
+      {location.pathname !== '/' && (
+  <button
+    onClick={() => navigate('/')}
+    aria-label="Volver al inicio"
+    style={{
+      position: 'fixed',
+      top: 12,
+      right: 16,
+      zIndex: 55,
+      width: 40,
+      height: 40,
+      border: 0,
+      borderRadius: 999,
+      background: 'rgba(255,255,255,.92)',
+      boxShadow: '0 10px 24px rgba(28,25,23,.12)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 6
+    }}
+  >
+    <img
+      src="/branding/logo-principal.png"
+      alt="Inicio"
+      style={{ width: 28, height: 28, objectFit: 'contain' }}
+    />
+  </button>
+)}
       <nav style={{
         position: 'fixed', bottom: 0, left: 0, right: 0,
         background: 'var(--surface)', borderTop: '1px solid var(--border)',
