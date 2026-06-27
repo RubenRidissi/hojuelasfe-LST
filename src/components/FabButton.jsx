@@ -15,52 +15,50 @@ function EspigaIcon({ size = 30 }) {
   )
 }
 
-function MiniIcon({ item }) {
-  if (item.kind === 'pedido') return <span style={{ fontSize: 22 }}>📋</span>
-  if (item.kind === 'visita') return <span style={{ fontSize: 22 }}>👤</span>
-  if (item.kind === 'cliente') return <span style={{ fontSize: 22 }}>👤</span>
-  return <span style={{ fontSize: 20 }}>{item.icon}</span>
+const FAB_GROUPS = {
+  operaciones: [
+    { label: 'Nuevo Pedido', icon: '📋', path: '/pedidos', event: 'fab:nuevo-pedido' },
+    { label: 'Nueva Venta', icon: '📈', path: '/ventas', event: 'fab:nueva-venta' },
+    { label: 'Nuevo Cobro', icon: '💰', path: '/pagos', event: 'fab:nuevo-cobro' },
+    { label: 'Nuevo Cliente', icon: '👤', path: '/clientes', event: 'fab:nuevo-cliente' },
+  ],
+  clientes: [
+    { label: 'Listado', icon: '👥', path: '/clientes' },
+    { label: 'Mapa', icon: '🗺️', path: '/mapa' },
+    { label: 'Cuenta Corriente', icon: '💳', path: '/ctacte' },
+    { label: 'Favoritos', icon: '⭐', path: '/clientes' },
+  ],
+  productos: [
+    { label: 'Listado', icon: '📦', path: '/productos' },
+    { label: 'Stock', icon: '🏪', path: '/stock' },
+    { label: 'Listas de Precios', icon: '💲', path: '/listas' },
+    { label: 'Novedades', icon: '🆕', path: '/novedades' },
+  ],
+  mas: [
+    { label: 'Logística', icon: '🚚', path: '/remitos' },
+    { label: 'Mi Día', icon: '📰', path: '/mi-dia' },
+    { label: 'Ayuda', icon: '❓', path: '/ayuda' },
+    { label: 'Comunicados', icon: '📢', path: '/comunicados' },
+  ],
+}
+
+function contextFromPath(path) {
+  if (['/clientes', '/mapa', '/ctacte'].some(p => path.startsWith(p))) return 'clientes'
+  if (['/productos', '/stock', '/listas', '/novedades'].some(p => path.startsWith(p))) return 'productos'
+  if (['/remitos', '/mi-dia', '/ayuda', '/comunicados'].some(p => path.startsWith(p))) return 'mas'
+  return 'operaciones'
 }
 
 export default function FabButton() {
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
   const location = useLocation()
-  const path = location.pathname
+  const items = FAB_GROUPS[contextFromPath(location.pathname)]
 
-  function go(path) {
+  function runAction(item) {
     setOpen(false)
-    navigate(path)
-  }
-
-  function fire(eventName) {
-    setOpen(false)
-    window.dispatchEvent(new CustomEvent(eventName))
-  }
-
-  const MODULOS = [
-    { key: 'pedidos', label: 'Pedidos', icon: '📋', path: '/pedidos', nuevoLabel: 'Nuevo pedido', event: 'fab:nuevo-pedido', kind: 'pedido' },
-    { key: 'ventas', label: 'Visitas', icon: '👤', path: '/ventas', nuevoLabel: 'Nueva visita', event: 'fab:nueva-venta', kind: 'visita' },
-    { key: 'clientes', label: 'Clientes', icon: '👥', path: '/clientes', nuevoLabel: 'Nuevo cliente', event: 'fab:nuevo-cliente', kind: 'cliente' },
-  ]
-
-  const contextual = (() => {
-    if (path.startsWith('/pedidos')) return 'pedidos'
-    if (path.startsWith('/ventas')) return 'ventas'
-    if (path.startsWith('/clientes')) return 'clientes'
-    return null
-  })()
-
-  const items = contextual
-    ? [
-        { ...MODULOS.find(m => m.key === contextual), isAction: true },
-        ...MODULOS.filter(m => m.key !== contextual)
-      ]
-    : MODULOS
-
-  function handleItem(item) {
-    if (item.isAction) fire(item.event)
-    else go(item.path)
+    if (item.path && location.pathname !== item.path) navigate(item.path)
+    if (item.event) setTimeout(() => window.dispatchEvent(new CustomEvent(item.event)), 80)
   }
 
   return (
@@ -68,32 +66,34 @@ export default function FabButton() {
       {open && (
         <div onClick={() => setOpen(false)} style={{
           position: 'fixed', inset: 0, zIndex: 46,
-          background: 'rgba(28,25,23,0.12)', backdropFilter: 'blur(1px)'
+          background: 'rgba(28,25,23,0.22)', backdropFilter: 'blur(2px)'
         }} />
       )}
 
       {open && (
         <div style={{
-          position: 'fixed', bottom: 136, right: 16,
-          display: 'flex', flexDirection: 'column', gap: 12, zIndex: 47
+          position: 'fixed', bottom: 154, right: 16,
+          display: 'flex', flexDirection: 'column-reverse', gap: 18, zIndex: 47
         }}>
-          {items.map(item => (
-            <div key={item.isAction ? item.event : item.path} style={{ display: 'flex', alignItems: 'center', gap: 10, justifyContent: 'flex-end' }}>
+          {items.map((item, index) => (
+            <div key={item.label} style={{
+              display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'flex-end',
+              animation: `fabRise .18s ease both`, animationDelay: `${index * 55}ms`
+            }}>
               <span style={{
-                background: 'rgba(255,255,255,0.96)', color: 'var(--text)',
-                padding: '8px 14px', borderRadius: 14, fontSize: 13,
-                fontWeight: 700, whiteSpace: 'nowrap', border: '1px solid rgba(232,226,216,0.95)',
-                boxShadow: '0 10px 24px rgba(28,25,23,0.16)'
-              }}>{item.isAction ? item.nuevoLabel : item.label}</span>
-              <button onClick={() => handleItem(item)} style={{
-                width: 48, height: 48, borderRadius: '50%', border: '1px solid rgba(154,95,0,0.22)',
+                background: 'rgba(255,255,255,0.97)', color: 'var(--text)',
+                padding: '9px 15px', borderRadius: 16, fontSize: 13,
+                fontWeight: 800, whiteSpace: 'nowrap', border: '1px solid rgba(232,226,216,0.95)',
+                boxShadow: '0 12px 28px rgba(28,25,23,0.18)'
+              }}>{item.label}</span>
+              <button onClick={() => runAction(item)} style={{
+                width: 50, height: 50, borderRadius: '50%', border: '1px solid rgba(154,95,0,0.22)',
                 background: 'linear-gradient(145deg,#FF9F0A 0%,#EC7A00 100%)', color: '#fff',
                 cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
                 boxShadow: '0 10px 22px rgba(212,134,10,0.34), inset 0 1px 0 rgba(255,255,255,0.34)',
-                position: 'relative'
+                fontSize: 22
               }}>
-                <MiniIcon item={item} />
-                {item.kind === 'cliente' && <span style={{ position: 'absolute', right: 8, bottom: 8, fontSize: 13, fontWeight: 900 }}>＋</span>}
+                {item.icon}
               </button>
             </div>
           ))}
@@ -102,13 +102,9 @@ export default function FabButton() {
 
       <button
         aria-label={open ? 'Cerrar acciones rápidas' : 'Abrir acciones rápidas'}
-        onClick={() => setOpen(o => {
-          const next = !o
-          if (next) window.dispatchEvent(new CustomEvent('fab:menu-open'))
-          return next
-        })}
+        onClick={() => setOpen(o => !o)}
         style={{
-          position: 'fixed', bottom: 76, right: 16,
+          position: 'fixed', bottom: 88, right: 16,
           width: 62, height: 62, borderRadius: '50%',
           background: 'linear-gradient(145deg,#FF9F0A 0%,#EC7A00 100%)', color: '#fff',
           fontSize: 28, border: '1px solid rgba(154,95,0,0.22)',

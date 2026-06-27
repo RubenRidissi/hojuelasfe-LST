@@ -125,50 +125,61 @@ function VerseModal({ verse, onClose }) {
   )
 }
 
-function HeroHeader({ user, hora, mode, weather }) {
+function HeroHeader({ user, hora, weather }) {
+  const navigate = useNavigate()
   const nombre = userNameFromEmail(user)
   const tone = timeTone()
   const weatherLabel = weather?.temp !== null && weather?.temp !== undefined ? `${weather.temp}°` : 'Clima no disponible'
   const cityLabel = weather?.city || SANTA_FE.city
   const weatherIcon = weather?.icon || '📍'
 
+  const infoCard = {
+    flex: 1,
+    minWidth: 0,
+    background:'rgba(255,255,255,0.14)',
+    border:'1px solid rgba(255,255,255,0.22)',
+    borderRadius:16,
+    padding:'10px 12px',
+    backdropFilter:'blur(10px)'
+  }
+
   return (
     <div style={{
-      position:'relative', overflow:'hidden', borderRadius:24, padding:'24px 24px 22px', marginBottom:20,
+      position:'relative', overflow:'hidden', borderRadius:22, padding:'18px 18px 16px', marginBottom:18,
       background:'linear-gradient(135deg, #B91C1C 0%, #DC2626 52%, #9F1239 100%)',
-      color:'white', boxShadow:'0 18px 44px rgba(185,28,28,0.22)'
+      color:'white', boxShadow:'0 16px 38px rgba(185,28,28,0.20)'
     }}>
-      <div style={{position:'absolute', right:-70, top:-80, width:230, height:230, borderRadius:'999px', background:'rgba(251,191,36,0.20)', filter:'blur(4px)'}} />
-      <div style={{position:'absolute', right:28, bottom:18, fontSize:74, opacity:0.12, lineHeight:1}}>🥖</div>
-      <div style={{position:'relative', zIndex:1, display:'flex', justifyContent:'space-between', gap:16, alignItems:'flex-start', flexWrap:'wrap'}}>
-        <div>
-          <div style={{fontSize:13, opacity:0.88, fontWeight:700, letterSpacing:'.04em', textTransform:'uppercase', marginBottom:8}}>
-            Hojuelas RC1.2
+      <div style={{position:'absolute', right:-74, top:-96, width:210, height:210, borderRadius:'999px', background:'rgba(251,191,36,0.18)', filter:'blur(4px)'}} />
+      <div style={{position:'absolute', right:20, bottom:16, fontSize:62, opacity:0.10, lineHeight:1}}>🥖</div>
+      <div style={{position:'relative', zIndex:1}}>
+        <button onClick={() => navigate('/')} aria-label="Ir al inicio" style={{
+          border:0, background:'transparent', color:'white', display:'flex', alignItems:'center', gap:10,
+          padding:0, marginBottom:10, cursor:'pointer'
+        }}>
+          <img src="/branding/logo-principal.png" alt="Hojuelas" style={{ width:42, height:42, objectFit:'contain', filter:'drop-shadow(0 5px 12px rgba(0,0,0,.22))' }} />
+          <div style={{textAlign:'left'}}>
+            <div style={{fontSize:12, opacity:0.88, fontWeight:800, letterSpacing:'.06em', textTransform:'uppercase'}}>Hojuelas RC1.3</div>
+            <div style={{fontSize:12, opacity:0.82}}>Tocar logo para inicio</div>
           </div>
-          <h1 style={{fontSize:30, lineHeight:1.12, margin:0, fontWeight:900, letterSpacing:'-0.04em'}}>
-            {tone.icono} {tone.saludo}, {nombre}
-          </h1>
-          <p style={{fontSize:16, margin:'8px 0 0', opacity:0.94, fontWeight:500}}>
-            {tone.texto}
-          </p>
-        </div>
-        <div style={{display:'flex', flexDirection:'column', gap:8, minWidth:205}}>
-          <div style={{
-            background:'rgba(255,255,255,0.14)', border:'1px solid rgba(255,255,255,0.22)',
-            borderRadius:16, padding:'10px 14px', textAlign:'right', backdropFilter:'blur(10px)'
-          }}>
-            <div style={{fontSize:12, opacity:0.82, marginBottom:2}}>{mode}</div>
-            <div style={{fontSize:13, fontWeight:700}}>{hora}</div>
+        </button>
+
+        <h1 style={{fontSize:26, lineHeight:1.08, margin:0, fontWeight:900, letterSpacing:'-0.04em'}}>
+          {tone.icono} {tone.saludo}, {nombre}
+        </h1>
+        <p style={{fontSize:14, margin:'6px 0 14px', opacity:0.94, fontWeight:500}}>
+          {tone.texto}
+        </p>
+
+        <div style={{display:'flex', gap:10}}>
+          <div style={infoCard}>
+            <div style={{fontSize:12, opacity:0.82, marginBottom:2}}>📅 Fecha y hora</div>
+            <div style={{fontSize:13, fontWeight:800, lineHeight:1.25}}>{hora}</div>
           </div>
-          <div style={{
-            background:'rgba(255,255,255,0.14)', border:'1px solid rgba(255,255,255,0.22)',
-            borderRadius:16, padding:'9px 14px', textAlign:'right', backdropFilter:'blur(10px)',
-            display:'flex', justifyContent:'space-between', alignItems:'center', gap:10
-          }}>
+          <div style={{...infoCard, display:'flex', justifyContent:'space-between', alignItems:'center', gap:8}}>
             <div style={{fontSize:22, lineHeight:1}}>{weatherIcon}</div>
-            <div>
-              <div style={{fontSize:12, opacity:0.84}}>📍 {cityLabel}</div>
-              <div style={{fontSize:16, fontWeight:900}}>{weatherLabel}</div>
+            <div style={{textAlign:'right', minWidth:0}}>
+              <div style={{fontSize:12, opacity:0.84, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>📍 {cityLabel}</div>
+              <div style={{fontSize:18, fontWeight:900}}>{weatherLabel}</div>
             </div>
           </div>
         </div>
@@ -249,14 +260,10 @@ export default function DashboardPage() {
 
 
   useEffect(() => {
-    const now = Date.now()
-    const last = Number(localStorage.getItem('hojuelas_last_verse_ts') || 0)
-    const TWO_HOURS = 2 * 60 * 60 * 1000
-    if (!last || now - last > TWO_HOURS) setVerse(versiculoDelMomento())
+    setVerse(versiculoDelMomento())
   }, [])
 
   function cerrarVersiculo() {
-    localStorage.setItem('hojuelas_last_verse_ts', String(Date.now()))
     setVerse(null)
   }
 
@@ -335,7 +342,7 @@ export default function DashboardPage() {
 
   if (isAdmin) return (
     <div>
-      <HeroHeader user={user} hora={hora} mode="Panel general" weather={weather} />
+      <HeroHeader user={user} hora={hora} weather={weather} />
       <div style={{marginBottom:16,display:'flex',gap:8,alignItems:'center', flexWrap:'wrap'}}>
         <select value={filtroVendedor} onChange={e=>setFiltroVendedor(e.target.value)}
           style={{padding:'10px 14px',border:'1px solid var(--border)',borderRadius:14,fontSize:13,background:'var(--surface)', minWidth:220}}>
@@ -383,7 +390,7 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <HeroHeader user={user} hora={hora} mode="Mi jornada" weather={weather} />
+      <HeroHeader user={user} hora={hora} weather={weather} />
       {loading ? <div className="empty"><div className="empty-icon">⏳</div><p>Cargando...</p></div> : statsVend && (<>
         <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:14,marginBottom:22}}>
           {[
@@ -410,6 +417,7 @@ export default function DashboardPage() {
           </>)}
         </div>
       </>)}
+      <VerseModal verse={verse} onClose={cerrarVersiculo} />
       <ToastContainer toasts={toasts}/>
     </div>
   )

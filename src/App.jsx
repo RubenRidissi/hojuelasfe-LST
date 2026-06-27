@@ -17,6 +17,7 @@ import FinanzasPage from './pages/FinanzasPage'
 import ReportesPage from './pages/ReportesPage'
 import ConfigPage from './pages/ConfigPage'
 import MapaPage from './pages/MapaPage'
+import InfoPage from './pages/InfoPage'
 import Sidebar from './components/Sidebar'
 import MobileNav from './components/MobileNav'
 import FabButton from './components/FabButton'
@@ -49,6 +50,10 @@ function AppLayout() {
           <Route path="/finanzas"    element={<FinanzasPage />} />
           <Route path="/reportes"    element={<ReportesPage />} />
           <Route path="/config"      element={<ConfigPage />} />
+          <Route path="/mi-dia"      element={<InfoPage type="/mi-dia" />} />
+          <Route path="/ayuda"       element={<InfoPage type="/ayuda" />} />
+          <Route path="/comunicados" element={<InfoPage type="/comunicados" />} />
+          <Route path="/novedades"   element={<InfoPage type="/novedades" />} />
           <Route path="*"         element={<Navigate to="/" replace />} />
         </Routes>
       </main>

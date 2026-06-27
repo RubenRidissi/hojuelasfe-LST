@@ -588,3 +588,13 @@ body.font-large input, body.font-large select, body.font-large textarea { font-s
     font-size: 24px;
   }
 }
+
+@keyframes fabRise {
+  from { transform: translateY(10px) scale(.96); opacity: 0; }
+  to { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
