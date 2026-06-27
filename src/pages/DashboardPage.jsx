@@ -24,12 +24,14 @@ function hace7diasStr() {
 function horaArgentina() {
   return new Date().toLocaleString('es-AR', { timeZone:'America/Argentina/Buenos_Aires', hour:'2-digit', minute:'2-digit', weekday:'long', day:'2-digit', month:'long' })
 }
-function saludoDelDia() {
+function timeTone() {
   const h = Number(new Date().toLocaleString('es-AR', { timeZone:'America/Argentina/Buenos_Aires', hour:'2-digit', hour12:false }))
-  if (h < 12) return 'Buen día'
-  if (h < 20) return 'Buenas tardes'
-  return 'Buenas noches'
+  if (h < 6) return { saludo:'Buenas noches', icono:'🌙', texto:'Resumen de la jornada' }
+  if (h < 12) return { saludo:'Buen día', icono:'☀️', texto:'Listo para comenzar la jornada' }
+  if (h < 20) return { saludo:'Buenas tardes', icono:'🌤️', texto:'Seguimos con la jornada' }
+  return { saludo:'Buenas noches', icono:'🌙', texto:'Resumen de la jornada' }
 }
+function saludoDelDia() { return timeTone().saludo }
 
 function userNameFromEmail(user) {
   if (!user) return 'Rubén'
@@ -37,6 +39,20 @@ function userNameFromEmail(user) {
   const email = user.email || ''
   if (email.toLowerCase().includes('rridissi')) return 'Rubén'
   return email ? email.split('@')[0] : 'Rubén'
+}
+
+const VERSICULOS = [
+  { ref:'Salmo 118:24', texto:'Este es el día que hizo Jehová; nos gozaremos y alegraremos en él.' },
+  { ref:'Proverbios 16:3', texto:'Encomienda a Jehová tus obras, y tus pensamientos serán afirmados.' },
+  { ref:'Colosenses 3:23', texto:'Todo lo que hagáis, hacedlo de corazón, como para el Señor.' },
+  { ref:'Isaías 41:10', texto:'No temas, porque yo estoy contigo; no desmayes, porque yo soy tu Dios.' },
+  { ref:'Filipenses 4:13', texto:'Todo lo puedo en Cristo que me fortalece.' }
+]
+
+function versiculoDelMomento() {
+  const d = new Date()
+  const idx = (d.getDate() + d.getHours()) % VERSICULOS.length
+  return VERSICULOS[idx]
 }
 
 function PedidoCard({ p }) {
@@ -58,8 +74,28 @@ function PedidoCard({ p }) {
   )
 }
 
+function VerseModal({ verse, onClose }) {
+  if (!verse) return null
+  return (
+    <div style={{position:'fixed', inset:0, background:'rgba(28,25,23,0.42)', zIndex:9998, display:'flex', alignItems:'center', justifyContent:'center', padding:18}}>
+      <div style={{width:'100%', maxWidth:420, background:'rgba(255,255,255,0.96)', borderRadius:24, border:'1px solid rgba(232,226,216,0.95)', boxShadow:'0 24px 80px rgba(28,25,23,0.28)', overflow:'hidden'}}>
+        <div style={{background:'linear-gradient(135deg,#B91C1C,#DC2626)', color:'white', padding:'20px 22px'}}>
+          <div style={{fontSize:12, fontWeight:800, letterSpacing:'.08em', textTransform:'uppercase', opacity:.86}}>Hojuelas · palabra para la jornada</div>
+          <div style={{fontSize:32, marginTop:8}}>📖</div>
+        </div>
+        <div style={{padding:'22px 22px 20px'}}>
+          <div style={{fontSize:19, lineHeight:1.45, color:'var(--text)', fontWeight:700, marginBottom:14}}>“{verse.texto}”</div>
+          <div style={{fontSize:14, color:'var(--primary-dark)', fontWeight:800, marginBottom:20}}>{verse.ref}</div>
+          <button onClick={onClose} className="btn btn-primary" style={{width:'100%', justifyContent:'center', borderRadius:14, padding:'12px 16px'}}>Comenzar</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function HeroHeader({ user, hora, mode }) {
   const nombre = userNameFromEmail(user)
+  const tone = timeTone()
   return (
     <div style={{
       position:'relative', overflow:'hidden', borderRadius:24, padding:'24px 24px 22px', marginBottom:20,
@@ -74,10 +110,10 @@ function HeroHeader({ user, hora, mode }) {
             Hojuelas RC1.1
           </div>
           <h1 style={{fontSize:30, lineHeight:1.12, margin:0, fontWeight:900, letterSpacing:'-0.04em'}}>
-            ☀️ {saludoDelDia()}, {nombre}
+            {tone.icono} {tone.saludo}, {nombre}
           </h1>
           <p style={{fontSize:16, margin:'8px 0 0', opacity:0.94, fontWeight:500}}>
-            Listo para comenzar la jornada
+            {tone.texto}
           </p>
         </div>
         <div style={{
@@ -95,18 +131,18 @@ function HeroHeader({ user, hora, mode }) {
 function StatCard({ item, onClick }) {
   return (
     <div className="card" onClick={onClick} style={{
-      padding:18, cursor:'pointer', borderRadius:20, border:'1px solid rgba(232,226,216,0.95)',
-      boxShadow:'0 12px 30px rgba(28,25,23,0.06)', transition:'transform .16s ease, box-shadow .16s ease',
-      minHeight:118, display:'flex', flexDirection:'column', justifyContent:'space-between'
+      padding:14, cursor:'pointer', borderRadius:18, border:'1px solid rgba(232,226,216,0.95)',
+      boxShadow:'0 10px 24px rgba(28,25,23,0.055)', transition:'transform .16s ease, box-shadow .16s ease',
+      minHeight:92, display:'flex', alignItems:'center', justifyContent:'space-between', flexDirection:'row', gap:14
     }}>
-      <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:8, marginBottom:10}}>
-        <div style={{fontSize:12,fontWeight:800,textTransform:'uppercase',letterSpacing:'.055em',color:'var(--muted)'}}>{item.label}</div>
-        <div style={{fontSize:26, lineHeight:1}}>{item.icon}</div>
+      <div style={{display:'flex', alignItems:'center', gap:12, minWidth:0}}>
+        <div style={{width:46, height:46, borderRadius:999, background:'rgba(212,134,10,0.10)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:24, flexShrink:0}}>{item.icon}</div>
+        <div style={{minWidth:0}}>
+          <div style={{fontSize:12,fontWeight:800,textTransform:'uppercase',letterSpacing:'.055em',color:'var(--muted)', marginBottom:4}}>{item.label}</div>
+          <div style={{fontSize:21,fontWeight:900,color:item.color,letterSpacing:'-0.04em'}}>{item.valor}</div>
+        </div>
       </div>
-      <div>
-        <div style={{fontSize:24,fontWeight:900,color:item.color,letterSpacing:'-0.04em'}}>{item.valor}</div>
-        <div style={{fontSize:12,color:'var(--muted)', marginTop:4}}>Tocar para ver detalle</div>
-      </div>
+      <div style={{fontSize:26, color:item.color, fontWeight:800}}>›</div>
     </div>
   )
 }
@@ -124,11 +160,24 @@ export default function DashboardPage() {
   const [pedidosVend, setPedidosVend] = useState([])
   const [loading, setLoading] = useState(true)
   const [hora, setHora] = useState(horaArgentina())
+  const [verse, setVerse] = useState(null)
 
   useEffect(() => {
     const interval = setInterval(() => setHora(horaArgentina()), 60000)
     return () => clearInterval(interval)
   }, [])
+
+  useEffect(() => {
+    const now = Date.now()
+    const last = Number(localStorage.getItem('hojuelas_last_verse_ts') || 0)
+    const TWO_HOURS = 2 * 60 * 60 * 1000
+    if (!last || now - last > TWO_HOURS) setVerse(versiculoDelMomento())
+  }, [])
+
+  function cerrarVersiculo() {
+    localStorage.setItem('hojuelas_last_verse_ts', String(Date.now()))
+    setVerse(null)
+  }
 
   useEffect(() => {
     if (isAdmin) {
@@ -246,6 +295,8 @@ export default function DashboardPage() {
           </>)}
         </div>
       </>)}
+      <VerseModal verse={verse} onClose={cerrarVersiculo} />
+      <VerseModal verse={verse} onClose={cerrarVersiculo} />
       <ToastContainer toasts={toasts}/>
     </div>
   )
