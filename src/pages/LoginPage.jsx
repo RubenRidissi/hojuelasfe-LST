@@ -6,7 +6,10 @@ const LOGO_URL = '/branding/logo-principal.png'
 // RC1.1 - Bloqueo temporal de acceso por mantenimiento
 // Rubén puede ingresar. Esteban y Adrián ven pantalla de mantenimiento.
 const MAINTENANCE_MODE = true
-const ALLOWED_EMAILS = ['rridissi@gmail.com']
+const ALLOWED_EMAILS = [
+  'rridissi@gmail.com',
+  'vendedor.demo@hojuelas.local'
+]
 const BLOCKED_EMAILS = ['gaitandurol@gmail.com', 'adrianridissi@gmail.com']
 
 function normalizeEmail(value) {
