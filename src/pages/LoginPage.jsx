@@ -8,9 +8,12 @@ const LOGO_URL = '/branding/logo-principal.png'
 const MAINTENANCE_MODE = true
 const ALLOWED_EMAILS = [
   'rridissi@gmail.com',
-  'vendedor.demo@hojuelas.local'
+  'vendedor.demo@hojuelas.local',
+  'gaitandurol@gmail.com',
+  'adrianridissi@gmail.com'
 ]
-const BLOCKED_EMAILS = ['gaitandurol@gmail.com', 'adrianridissi@gmail.com']
+
+const BLOCKED_EMAILS = []
 
 function normalizeEmail(value) {
   return String(value || '').trim().toLowerCase()
