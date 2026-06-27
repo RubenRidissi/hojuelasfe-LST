@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 
-const LOGO_URL = 'https://raw.githubusercontent.com/RubenRidissi/hojuelasfe/main/Distrilst/icon-192.png'
+const LOGO_URL = '/branding/logo-principal.png'
 
 // RC1.1 - Bloqueo temporal de acceso por mantenimiento
 // Rubén puede ingresar. Esteban y Adrián ven pantalla de mantenimiento.
@@ -88,7 +88,7 @@ function MaintenanceView({ onBack }) {
           fontSize: 13,
           marginBottom: 20
         }}>
-          <strong>Hojuelas RC1.1</strong><br />
+          <strong>Hojuelas RC1.2</strong><br />
           Muy pronto volveremos con novedades.
         </div>
 

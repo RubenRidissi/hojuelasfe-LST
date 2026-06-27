@@ -49,6 +49,38 @@ const VERSICULOS = [
   { ref:'Filipenses 4:13', texto:'Todo lo puedo en Cristo que me fortalece.' }
 ]
 
+
+const SANTA_FE = { latitude: -31.6333, longitude: -60.7000, city: 'Santa Fe' }
+const WEATHER_CODE = {
+  0: '☀️', 1: '🌤️', 2: '⛅', 3: '☁️', 45: '🌫️', 48: '🌫️',
+  51: '🌦️', 53: '🌦️', 55: '🌦️', 61: '🌧️', 63: '🌧️', 65: '🌧️',
+  71: '❄️', 73: '❄️', 75: '❄️', 80: '🌦️', 81: '🌦️', 82: '🌧️',
+  95: '⛈️', 96: '⛈️', 99: '⛈️'
+}
+
+async function fetchWeatherByCoords(latitude, longitude) {
+  const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&timezone=auto`
+  const weatherRes = await fetch(weatherUrl)
+  if (!weatherRes.ok) throw new Error('No se pudo obtener el clima')
+  const weatherData = await weatherRes.json()
+
+  let city = SANTA_FE.city
+  try {
+    const geoUrl = `https://geocoding-api.open-meteo.com/v1/reverse?latitude=${latitude}&longitude=${longitude}&language=es&format=json&count=1`
+    const geoRes = await fetch(geoUrl)
+    if (geoRes.ok) {
+      const geoData = await geoRes.json()
+      city = geoData?.results?.[0]?.name || city
+    }
+  } catch (_) {}
+
+  return {
+    city,
+    temp: Math.round(weatherData?.current?.temperature_2m),
+    icon: WEATHER_CODE[weatherData?.current?.weather_code] || '🌤️'
+  }
+}
+
 function versiculoDelMomento() {
   const d = new Date()
   const idx = (d.getDate() + d.getHours()) % VERSICULOS.length
@@ -93,9 +125,13 @@ function VerseModal({ verse, onClose }) {
   )
 }
 
-function HeroHeader({ user, hora, mode }) {
+function HeroHeader({ user, hora, mode, weather }) {
   const nombre = userNameFromEmail(user)
   const tone = timeTone()
+  const weatherLabel = weather?.temp !== null && weather?.temp !== undefined ? `${weather.temp}°` : 'Clima no disponible'
+  const cityLabel = weather?.city || SANTA_FE.city
+  const weatherIcon = weather?.icon || '📍'
+
   return (
     <div style={{
       position:'relative', overflow:'hidden', borderRadius:24, padding:'24px 24px 22px', marginBottom:20,
@@ -107,7 +143,7 @@ function HeroHeader({ user, hora, mode }) {
       <div style={{position:'relative', zIndex:1, display:'flex', justifyContent:'space-between', gap:16, alignItems:'flex-start', flexWrap:'wrap'}}>
         <div>
           <div style={{fontSize:13, opacity:0.88, fontWeight:700, letterSpacing:'.04em', textTransform:'uppercase', marginBottom:8}}>
-            Hojuelas RC1.1
+            Hojuelas RC1.2
           </div>
           <h1 style={{fontSize:30, lineHeight:1.12, margin:0, fontWeight:900, letterSpacing:'-0.04em'}}>
             {tone.icono} {tone.saludo}, {nombre}
@@ -116,12 +152,25 @@ function HeroHeader({ user, hora, mode }) {
             {tone.texto}
           </p>
         </div>
-        <div style={{
-          background:'rgba(255,255,255,0.14)', border:'1px solid rgba(255,255,255,0.22)',
-          borderRadius:16, padding:'10px 14px', minWidth:185, textAlign:'right', backdropFilter:'blur(10px)'
-        }}>
-          <div style={{fontSize:12, opacity:0.82, marginBottom:2}}>{mode}</div>
-          <div style={{fontSize:13, fontWeight:700}}>{hora}</div>
+        <div style={{display:'flex', flexDirection:'column', gap:8, minWidth:205}}>
+          <div style={{
+            background:'rgba(255,255,255,0.14)', border:'1px solid rgba(255,255,255,0.22)',
+            borderRadius:16, padding:'10px 14px', textAlign:'right', backdropFilter:'blur(10px)'
+          }}>
+            <div style={{fontSize:12, opacity:0.82, marginBottom:2}}>{mode}</div>
+            <div style={{fontSize:13, fontWeight:700}}>{hora}</div>
+          </div>
+          <div style={{
+            background:'rgba(255,255,255,0.14)', border:'1px solid rgba(255,255,255,0.22)',
+            borderRadius:16, padding:'9px 14px', textAlign:'right', backdropFilter:'blur(10px)',
+            display:'flex', justifyContent:'space-between', alignItems:'center', gap:10
+          }}>
+            <div style={{fontSize:22, lineHeight:1}}>{weatherIcon}</div>
+            <div>
+              <div style={{fontSize:12, opacity:0.84}}>📍 {cityLabel}</div>
+              <div style={{fontSize:16, fontWeight:900}}>{weatherLabel}</div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -161,11 +210,43 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [hora, setHora] = useState(horaArgentina())
   const [verse, setVerse] = useState(null)
+  const [weather, setWeather] = useState({ city: SANTA_FE.city, temp: null, icon: '📍' })
 
   useEffect(() => {
     const interval = setInterval(() => setHora(horaArgentina()), 60000)
     return () => clearInterval(interval)
   }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    async function loadWeather(position) {
+      try {
+        const coords = position?.coords || SANTA_FE
+        const data = await fetchWeatherByCoords(coords.latitude, coords.longitude)
+        if (!cancelled) setWeather(data)
+      } catch (e) {
+        try {
+          const data = await fetchWeatherByCoords(SANTA_FE.latitude, SANTA_FE.longitude)
+          if (!cancelled) setWeather({ ...data, city: data.city || SANTA_FE.city })
+        } catch (_) {
+          if (!cancelled) setWeather({ city: SANTA_FE.city, temp: null, icon: '📍' })
+        }
+      }
+    }
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(loadWeather, () => loadWeather({ coords: SANTA_FE }), {
+        enableHighAccuracy: false,
+        timeout: 5000,
+        maximumAge: 30 * 60 * 1000
+      })
+    } else {
+      loadWeather({ coords: SANTA_FE })
+    }
+
+    return () => { cancelled = true }
+  }, [])
+
 
   useEffect(() => {
     const now = Date.now()
@@ -254,7 +335,7 @@ export default function DashboardPage() {
 
   if (isAdmin) return (
     <div>
-      <HeroHeader user={user} hora={hora} mode="Panel general" />
+      <HeroHeader user={user} hora={hora} mode="Panel general" weather={weather} />
       <div style={{marginBottom:16,display:'flex',gap:8,alignItems:'center', flexWrap:'wrap'}}>
         <select value={filtroVendedor} onChange={e=>setFiltroVendedor(e.target.value)}
           style={{padding:'10px 14px',border:'1px solid var(--border)',borderRadius:14,fontSize:13,background:'var(--surface)', minWidth:220}}>
@@ -296,14 +377,13 @@ export default function DashboardPage() {
         </div>
       </>)}
       <VerseModal verse={verse} onClose={cerrarVersiculo} />
-      <VerseModal verse={verse} onClose={cerrarVersiculo} />
       <ToastContainer toasts={toasts}/>
     </div>
   )
 
   return (
     <div>
-      <HeroHeader user={user} hora={hora} mode="Mi jornada" />
+      <HeroHeader user={user} hora={hora} mode="Mi jornada" weather={weather} />
       {loading ? <div className="empty"><div className="empty-icon">⏳</div><p>Cargando...</p></div> : statsVend && (<>
         <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:14,marginBottom:22}}>
           {[
