@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
@@ -26,6 +26,9 @@ import { useToast } from './hooks/useToast'
 
 function AppLayout() {
   const { toasts } = useToast()
+  const location = useLocation()
+  const hideFab = location.pathname === '/'
+
   return (
     <div className="app-layout">
       {/* Sidebar solo en PC */}
@@ -60,7 +63,7 @@ function AppLayout() {
       {/* Mobile nav solo en mobile */}
       <div className="hide-on-desktop">
         <MobileNav />
-        <FabButton />
+        {!hideFab && <FabButton />}
       </div>
       <ToastContainer toasts={toasts} />
     </div>
