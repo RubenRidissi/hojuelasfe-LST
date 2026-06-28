@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext'
 function contextFromPath(path) {
   if (['/clientes', '/mapa', '/ctacte'].some(p => path.startsWith(p))) return 'clientes'
   if (['/productos', '/stock', '/listas', '/novedades'].some(p => path.startsWith(p))) return 'productos'
-  if (['/remitos', '/mi-dia', '/ayuda', '/comunicados'].some(p => path.startsWith(p))) return 'mas'
+  if (['/remitos', '/mi-dia', '/reportes', '/ayuda', '/comunicados'].some(p => path.startsWith(p))) return 'mas'
   return 'operaciones'
 }
 

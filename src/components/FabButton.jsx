@@ -35,17 +35,17 @@ const FAB_GROUPS = {
     { label: 'Novedades', icon: '🆕', path: '/novedades' },
   ],
   mas: [
-    { label: 'Logística', icon: '🚚', path: '/remitos' },
-    { label: 'Mi Día', icon: '📰', path: '/mi-dia' },
-    { label: 'Ayuda', icon: '❓', path: '/ayuda' },
-    { label: 'Comunicados', icon: '📢', path: '/comunicados' },
+{ label: 'Mi Día', icon: '📅', path: '/mi-dia' },
+{ label: 'Reportes', icon: '📊', path: '/reportes' },
+{ label: 'Comunicados Internos', icon: '📢', path: '/comunicados' },
+{ label: 'Ayuda', icon: '❓', path: '/ayuda' },
   ],
 }
 
 function contextFromPath(path) {
   if (['/clientes', '/mapa', '/ctacte'].some(p => path.startsWith(p))) return 'clientes'
-  if (['/productos', '/stock', '/listas', '/novedades'].some(p => path.startsWith(p))) return 'productos'
-  if (['/remitos', '/mi-dia', '/ayuda', '/comunicados'].some(p => path.startsWith(p))) return 'mas'
+  if (['/productos', '/stock', '/listas'].some(p => path.startsWith(p))) return 'productos'
+  if (['/remitos', '/mi-dia', '/reportes', '/ayuda', '/comunicados'].some(p => path.startsWith(p))) return 'mas'
   return 'operaciones'
 }
 
