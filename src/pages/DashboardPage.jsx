@@ -143,49 +143,72 @@ function HeroHeader({ user, nombre, hora, weather }) {
     backdropFilter:'blur(10px)'
   }
 
-  return (
-    <div style={{
-      position:'relative', overflow:'hidden', borderRadius:22, padding:'18px 18px 16px', marginBottom:18,
-      background:'linear-gradient(135deg, #B91C1C 0%, #DC2626 52%, #9F1239 100%)',
-      color:'white', boxShadow:'0 16px 38px rgba(185,28,28,0.20)'
-    }}>
-      <div style={{position:'absolute', right:-74, top:-96, width:210, height:210, borderRadius:'999px', background:'rgba(251,191,36,0.18)', filter:'blur(4px)'}} />
-      <div style={{position:'absolute', right:20, bottom:16, fontSize:62, opacity:0.10, lineHeight:1}}>🥖</div>
-      <div style={{position:'relative', zIndex:1}}>
-        <button onClick={() => navigate('/')} aria-label="Ir al inicio" style={{
-          border:0, background:'transparent', color:'white', display:'flex', alignItems:'center', gap:10,
-          padding:0, marginBottom:10, cursor:'pointer'
-        }}>
-          <img src="/branding/logo-principal.png" alt="Hojuelas" style={{ width:42, height:42, objectFit:'contain', filter:'drop-shadow(0 5px 12px rgba(0,0,0,.22))' }} />
-          <div style={{textAlign:'left'}}>
-            <div style={{fontSize:12, opacity:0.88, fontWeight:800, letterSpacing:'.06em', textTransform:'uppercase'}}>Hojuelas RC1.3</div>
-            <div style={{fontSize:12, opacity:0.82}}>Tocar logo para inicio</div>
-          </div>
-        </button>
+ return (
+  <div style={{
+    position:'relative', overflow:'hidden', borderRadius:22, padding:'14px 18px 14px', marginBottom:18,
+    background:'linear-gradient(135deg, #B91C1C 0%, #DC2626 52%, #9F1239 100%)',
+    color:'white', boxShadow:'0 16px 38px rgba(185,28,28,0.20)'
+  }}>
+    <div style={{position:'absolute', right:-74, top:-96, width:210, height:210, borderRadius:'999px', background:'rgba(251,191,36,0.18)', filter:'blur(4px)'}} />
+    <div style={{position:'absolute', right:20, bottom:16, fontSize:62, opacity:0.10, lineHeight:1}}>🥖</div>
 
-        <h1 style={{fontSize:26, lineHeight:1.08, margin:0, fontWeight:900, letterSpacing:'-0.04em'}}>
+    <div style={{position:'relative', zIndex:1}}>
+      <button onClick={() => navigate('/')} aria-label="Ir al inicio" style={{
+        border:0, background:'transparent', color:'white', display:'flex', alignItems:'center', gap:14,
+        padding:0, marginBottom:14, cursor:'pointer', width:'100%', textAlign:'left'
+      }}>
+        <img
+          src="/branding/logo-principal.png"
+          alt="Hojuelas"
+          style={{
+            width:58,
+            height:58,
+            objectFit:'contain',
+            background:'white',
+            borderRadius:4,
+            padding:4,
+            flexShrink:0,
+            filter:'drop-shadow(0 5px 12px rgba(0,0,0,.22))'
+          }}
+        />
+
+        <h1 style={{fontSize:25, lineHeight:1.08, margin:0, fontWeight:900, letterSpacing:'-0.04em'}}>
           {tone.icono} {tone.saludo}, {nombreMostrar}
         </h1>
-        <p style={{fontSize:14, margin:'6px 0 14px', opacity:0.94, fontWeight:500}}>
-          {tone.texto}
-        </p>
+      </button>
 
-        <div style={{display:'flex', gap:10}}>
-          <div style={infoCard}>
-            <div style={{fontSize:12, opacity:0.82, marginBottom:2}}>📅 Fecha y hora</div>
-            <div style={{fontSize:13, fontWeight:800, lineHeight:1.25}}>{hora}</div>
+      <div style={{
+        display:'grid',
+        gridTemplateColumns:'1fr 1fr',
+        gap:0,
+        borderTop:'1px solid rgba(255,255,255,0.22)',
+        paddingTop:12
+      }}>
+        <div style={{display:'flex', alignItems:'center', gap:10, paddingRight:12}}>
+          <div style={{fontSize:26, lineHeight:1}}>📅</div>
+          <div>
+            <div style={{fontSize:13, fontWeight:700, lineHeight:1.25}}>{hora}</div>
           </div>
-          <div style={{...infoCard, display:'flex', justifyContent:'space-between', alignItems:'center', gap:8}}>
-            <div style={{fontSize:22, lineHeight:1}}>{weatherIcon}</div>
-            <div style={{textAlign:'right', minWidth:0}}>
-              <div style={{fontSize:12, opacity:0.84, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>📍 {cityLabel}</div>
-              <div style={{fontSize:18, fontWeight:900}}>{weatherLabel}</div>
-            </div>
+        </div>
+
+        <div style={{
+          display:'flex',
+          alignItems:'center',
+          justifyContent:'space-between',
+          gap:10,
+          borderLeft:'1px solid rgba(255,255,255,0.24)',
+          paddingLeft:14
+        }}>
+          <div style={{fontSize:25, lineHeight:1}}>{weatherIcon}</div>
+          <div style={{textAlign:'right', minWidth:0}}>
+            <div style={{fontSize:13, opacity:0.92, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis'}}>📍 {cityLabel}</div>
+            <div style={{fontSize:24, fontWeight:900, lineHeight:1.05}}>{weatherLabel}</div>
           </div>
         </div>
       </div>
     </div>
-  )
+  </div>
+)
 }
 
 function StatCard({ item, onClick }) {
@@ -397,7 +420,7 @@ export default function DashboardPage() {
     <div>
       <HeroHeader user={user} nombre={nombre} hora={hora} weather={weather} />
       {loading ? <div className="empty"><div className="empty-icon">⏳</div><p>Cargando...</p></div> : statsVend && (<>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:14,marginBottom:22}}>
+        <div style={{display:'grid',gridTemplateColumns:'1fr',gap:14,marginBottom:22}}>
           {[
             {label:'Pedidos',valor:`${statsVend.pedidosPend} pendientes`,color:'#D97706',icon:'📋',route:'/pedidos'},
             {label:'Entregas hoy',valor:statsVend.entregasHoy,color:'#1D4ED8',icon:'🚚',route:'/pedidos'},
