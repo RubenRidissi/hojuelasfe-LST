@@ -492,7 +492,7 @@ export default function DashboardPage() {
       style={{
         cursor:'pointer',
         marginBottom:14,
-        padding:18,
+        padding:16,
         borderRadius:18,
         borderLeft:`6px solid ${item.color}`,
         transition:'all .18s ease'
@@ -512,14 +512,14 @@ export default function DashboardPage() {
           gap:10
         }}>
           <div style={{
-            width:46,
-            height:46,
+            width:40,
+            height:40,
             borderRadius:'999px',
             background:item.color,
             display:'flex',
             alignItems:'center',
             justifyContent:'center',
-            fontSize:24,
+            fontSize:22,
             flexShrink:0,
           }}>
             {item.icon}
