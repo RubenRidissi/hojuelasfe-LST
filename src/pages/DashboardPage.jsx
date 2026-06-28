@@ -459,15 +459,15 @@ export default function DashboardPage() {
     {
       color:'#D97706',
       icon:'📋',
-      titulo:'Tenemos oportunidades para concretar.',
-      texto:'Comencemos confirmando pedidos y ventas pendientes.',
+      titulo:'Concretemos oportunidades.',
+      texto:'Comencemos con pedidos y ventas pendientes.',
       valor:`${statsVend.pedidosPend} pendientes →`,
       route:'/pedidos'
     },
     {
       color:'#2563EB',
       icon:'🚚',
-      titulo:'Hojuelas honra cada compromiso asumido.',
+      titulo:'Honremos cada compromiso.',
       texto:'Revisemos las entregas programadas para hoy.',
       valor:`${statsVend.entregasHoy} programadas →`,
       route:'/pedidos'
@@ -475,7 +475,7 @@ export default function DashboardPage() {
     {
       color:'#DC2626',
       icon:'💰',
-      titulo:'Toda venta merece completar su ciclo.',
+      titulo:'Completemos el ciclo.',
       texto:'Revisemos las cobranzas pendientes.',
       valor:`${fmt(statsVend.cobranzasPend)} →`,
       route:'/pagos'
@@ -508,7 +508,17 @@ export default function DashboardPage() {
           alignItems:'center',
           gap:10
         }}>
-          <div style={{fontSize:22}}>
+          <div style={{
+            width:46,
+            height:46,
+            borderRadius:'999px',
+            background:'rgba(212,134,10,1.10)',
+            display:'flex',
+            alignItems:'center',
+            justifyContent:'center',
+            fontSize:24,
+            flexShrink:0,
+          }}>
             {item.icon}
           </div>
 
