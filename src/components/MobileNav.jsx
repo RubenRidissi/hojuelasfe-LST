@@ -83,7 +83,7 @@ export default function MobileNav() {
     <img
       src="/branding/logo-principal.png"
       alt="Inicio"
-      style={{ width: 28, height: 28, objectFit: 'contain' }}
+      style={{ width: 36, height: 36, objectFit: 'contain' }}
     />
   </button>
 )}

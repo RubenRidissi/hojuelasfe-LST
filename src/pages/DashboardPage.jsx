@@ -462,7 +462,7 @@ export default function DashboardPage() {
       icon:'📋',
       titulo:'Concretemos oportunidades',
       texto:'Confirmemos pedidos y ventas pendientes',
-      valor:`${statsVend.pedidosPend} pendientes →`,
+      valor:`${statsVend.pedidosPend} pendientes`,
       route:'/pedidos'
     },
     {
@@ -470,8 +470,8 @@ export default function DashboardPage() {
       bg:'rgba(37,99,235,0.12)',
       icon:'🚚',
       titulo:'Honremos compromisos',
-      texto:'Cumplamos con entregas programadas para hoy',
-      valor:`${statsVend.entregasHoy} programadas →`,
+      texto:'Cumplamos entregas programadas para hoy',
+      valor:`${statsVend.entregasHoy} programadas`,
       route:'/pedidos'
     },
     {
@@ -480,7 +480,7 @@ export default function DashboardPage() {
       icon:'💰',
       titulo:'Completemos ciclos',
       texto:'Revisemos las cobranzas pendientes',
-      valor:`${fmt(statsVend.cobranzasPend)} →`,
+      valor:`${fmt(statsVend.cobranzasPend)}`,
       route:'/pagos'
     }
   ].map((item,i)=>
