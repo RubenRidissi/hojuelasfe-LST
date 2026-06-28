@@ -361,15 +361,25 @@ export default function DashboardPage() {
     const today = hoyStr()
     const desde7 = hace7diasStr()
 
-    const [{count:cntPed},{count:cntEnt},{data:ventasPend},{count:cntCli}] = await Promise.all([
-      supabase.from('pedidos').select('id',{count:'exact',head:true}).eq('vendedor_id',user).eq('estado','pendiente'),
-      supabase.from('pedidos').select('id',{count:'exact',head:true}).eq('vendedor_id',user).eq('fecha_entrega',today).eq('estado','pendiente'),
-      supabase.from('ventas').select('total,monto_pagado').eq('vendedor_id',user).neq('estado_pago','pagado'),
+    const [{data:pedidosPend},{data:entregasHoy},{data:ventasPend},{count:cntCli}] = await Promise.all([
+      supabase.from('pedidos').select('id,total').eq('vendedor_id',user).eq('estado','pendiente'),
+      supabase.from('pedidos').select('id,total').eq('vendedor_id',user).eq('fecha_entrega',today).eq('estado','pendiente'),
+      supabase.from('ventas').select('id,total,monto_pagado').eq('vendedor_id',user).neq('estado_pago','pagado'),
       supabase.from('clientes').select('id',{count:'exact',head:true}).eq('estado_cliente','Activo').eq('vendedor_id',user)
     ])
 
+    const totalPedidosPend = (pedidosPend||[]).reduce((s,p)=>s+parseFloat(p.total||0),0)
+    const totalEntregasHoy = (entregasHoy||[]).reduce((s,p)=>s+parseFloat(p.total||0),0)
     const cobranzasPend = (ventasPend||[]).reduce((s,v)=>s+parseFloat(v.total||0)-parseFloat(v.monto_pagado||0),0)
-    setStatsVend({ pedidosPend:cntPed||0, entregasHoy:cntEnt||0, cobranzasPend, clientesActivos:cntCli||0 })
+    setStatsVend({
+      pedidosPend:(pedidosPend||[]).length,
+      totalPedidosPend,
+      entregasHoy:(entregasHoy||[]).length,
+      totalEntregasHoy,
+      cobranzasPend,
+      cobranzasCount:(ventasPend||[]).length,
+      clientesActivos:cntCli||0
+    })
 
     const {data:ultPed} = await supabase.from('pedidos').select('id,total,estado,fecha,fecha_entrega,clientes(nombre,nombre_fantasia)').eq('vendedor_id',user).gte('fecha',desde7).order('created_at',{ascending:false}).limit(20)
     setPedidosVend(ultPed||[])
@@ -461,8 +471,12 @@ export default function DashboardPage() {
       bg:'rgba(217,119,6,0.12)',
       icon:'📋',
       titulo:'Concretemos oportunidades',
-      texto:'Confirmemos pedidos y ventas pendientes',
-      valor:`${statsVend.pedidosPend} pendientes`,
+      valor: statsVend.pedidosPend === 0
+        ? 'Sin pedidos pendientes. ¡A vender!'
+        : statsVend.pedidosPend === 1
+          ? '1 pendiente'
+          : `${statsVend.pedidosPend} pendientes`,
+      meta: statsVend.pedidosPend === 0 ? '' : `≈ $${fmt(statsVend.totalPedidosPend).replace('$','')}`,
       route:'/pedidos'
     },
     {
@@ -470,8 +484,12 @@ export default function DashboardPage() {
       bg:'rgba(37,99,235,0.12)',
       icon:'🚚',
       titulo:'Honremos compromisos',
-      texto:'Cumplamos entregas programadas para hoy',
-      valor:`${statsVend.entregasHoy} programadas`,
+      valor: statsVend.entregasHoy === 0
+        ? 'Todo entregado. ¡Buen trabajo!'
+        : statsVend.entregasHoy === 1
+          ? '1 programada'
+          : `${statsVend.entregasHoy} programadas`,
+      meta: statsVend.entregasHoy === 0 ? '' : `≈ ${fmt(statsVend.totalEntregasHoy)}`,
       route:'/pedidos'
     },
     {
@@ -479,8 +497,12 @@ export default function DashboardPage() {
       bg:'rgba(220,38,38,0.12)',
       icon:'💰',
       titulo:'Completemos ciclos',
-      texto:'Revisemos las cobranzas pendientes',
-      valor:`${fmt(statsVend.cobranzasPend)}`,
+      valor: statsVend.cobranzasPend === 0
+        ? '¡Excelente gestión de Cobranza'
+        : fmt(statsVend.cobranzasPend),
+      meta: statsVend.cobranzasPend === 0
+        ? ''
+        : `${statsVend.cobranzasCount} ${statsVend.cobranzasCount === 1 ? 'venta' : 'ventas'}`,
       route:'/pagos'
     }
   ].map((item,i)=>
@@ -539,25 +561,48 @@ export default function DashboardPage() {
 
       </div>
 
-      <div style={{
-        color:'rgba(0,0,0,.62)',
-        fontSize:15,
-        lineHeight:1.45,
-        marginTop:8
-      }}>
-        {item.texto}
-      </div>
-      <div style={{
-          color:item.color,
-          fontSize:20,
+      {item.valor === 'Todo en orden' ? (
+        <div style={{
+          color:'var(--success)',
+          fontSize:18,
           fontWeight:900,
-          whiteSpace:'nowrap',
-          marginLeft:8,
           width:'100%',
-          textAlign:'right'
+          textAlign:'right',
+          marginTop:10
         }}>
           {item.valor}
         </div>
+      ) : (
+        <div style={{
+          display:'flex',
+          justifyContent:'space-between',
+          alignItems:'center',
+          gap:12,
+          width:'100%',
+          marginTop:10
+        }}>
+          <div style={{
+            color:item.color,
+            fontSize:20,
+            fontWeight:900,
+            whiteSpace:'nowrap'
+          }}>
+            {item.valor}
+          </div>
+
+          <div style={{
+            color:'var(--muted)',
+            fontSize:13,
+            fontWeight:700,
+            whiteSpace:'nowrap',
+            overflow:'hidden',
+            textOverflow:'ellipsis',
+            textAlign:'right'
+          }}>
+            {item.meta}
+          </div>
+        </div>
+      )}
 
     </div>
 
