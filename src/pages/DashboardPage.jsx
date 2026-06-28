@@ -226,7 +226,7 @@ function StatCard({ item, onClick }) {
       minHeight:92, display:'flex', alignItems:'center', justifyContent:'space-between', flexDirection:'row', gap:14
     }}>
       <div style={{display:'flex', alignItems:'center', gap:12, minWidth:0}}>
-        <div style={{width:46, height:46, borderRadius:999, background:'rgba(212,134,10,0.10)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:24, flexShrink:0}}>{item.icon}</div>
+        <div style={{width:46, height:46, borderRadius:999, background:item.color, display:'flex', alignItems:'center', justifyContent:'center', fontSize:24, flexShrink:0}}>{item.icon}</div>
         <div style={{minWidth:0}}>
           <div style={{fontSize:12,fontWeight:800,textTransform:'uppercase',letterSpacing:'.055em',color:'var(--muted)', marginBottom:4}}>{item.label}</div>
           <div style={{fontSize:21,fontWeight:900,color:item.color,letterSpacing:'-0.04em'}}>{item.valor}</div>
@@ -458,25 +458,28 @@ export default function DashboardPage() {
   {[
     {
       color:'#D97706',
+      bg:'rgba(217,119,6,0.12)',
       icon:'📋',
-      titulo:'Concretemos oportunidades.',
-      texto:'Comencemos con pedidos y ventas pendientes.',
+      titulo:'Concretemos oportunidades',
+      texto:'Confirmemos pedidos y ventas pendientes',
       valor:`${statsVend.pedidosPend} pendientes →`,
       route:'/pedidos'
     },
     {
       color:'#2563EB',
+      bg:'rgba(37,99,235,0.12)',
       icon:'🚚',
-      titulo:'Honremos cada compromiso.',
-      texto:'Revisemos las entregas programadas para hoy.',
+      titulo:'Honremos compromisos',
+      texto:'Cumplamos con entregas programadas para hoy',
       valor:`${statsVend.entregasHoy} programadas →`,
       route:'/pedidos'
     },
     {
       color:'#DC2626',
+      bg:'rgba(220,38,38,0.12)',
       icon:'💰',
-      titulo:'Completemos el ciclo.',
-      texto:'Revisemos las cobranzas pendientes.',
+      titulo:'Completemos ciclos',
+      texto:'Revisemos las cobranzas pendientes',
       valor:`${fmt(statsVend.cobranzasPend)} →`,
       route:'/pagos'
     }
@@ -512,7 +515,7 @@ export default function DashboardPage() {
             width:46,
             height:46,
             borderRadius:'999px',
-            background:'rgba(212,134,10,1.10)',
+            background:item.color,
             display:'flex',
             alignItems:'center',
             justifyContent:'center',
