@@ -427,30 +427,127 @@ export default function DashboardPage() {
     <div>
       <HeroHeader user={user} nombre={nombre} hora={hora} weather={weather} />
       {loading ? <div className="empty"><div className="empty-icon">⏳</div><p>Cargando...</p></div> : statsVend && (<>
-        <div style={{display:'grid',gridTemplateColumns:'1fr',gap:14,marginBottom:22}}>
-          {[
-            {label:'Pedidos',valor:`${statsVend.pedidosPend} pendientes`,color:'#D97706',icon:'📋',route:'/pedidos'},
-            {label:'Entregas hoy',valor:statsVend.entregasHoy,color:'#1D4ED8',icon:'🚚',route:'/pedidos'},
-            {label:'Cobranzas',valor:fmt(statsVend.cobranzasPend),color:'var(--danger)',icon:'💰',route:'/pagos'},
-            {label:'Clientes',valor:`${statsVend.clientesActivos} activos`,color:'var(--success)',icon:'👥',route:'/clientes'},
-          ].map((item,i)=><StatCard key={i} item={item} onClick={()=>navigate(item.route)} />)}
-        </div>
-        <div className="card" style={{marginBottom:16, borderRadius:20, overflow:'hidden', boxShadow:'0 12px 30px rgba(28,25,23,0.06)'}}>
-          <div style={{padding:'14px 18px',borderBottom:'1px solid var(--border)',fontWeight:800,fontSize:14,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-            <span>Mis pedidos · últimos 7 días</span>
-            <button className="btn btn-sm btn-secondary" onClick={()=>navigate('/pedidos')}>Ver todos →</button>
+        <div style={{marginBottom:22}}>
+
+  <div style={{marginBottom:22}}>
+  <div style={{
+    display:'flex',
+    alignItems:'center',
+    gap:10,
+    marginBottom:4
+  }}>
+    <div style={{fontSize:28}}>🚀</div>
+    <div style={{
+      fontSize:24,
+      fontWeight:900,
+      color:'var(--text)'
+    }}>
+      ¡Avancemos juntos!
+    </div>
+  </div>
+
+  <div style={{
+    color:'var(--muted)',
+    fontSize:14,
+    lineHeight:1.4
+  }}>
+    Aquí están las prioridades para organizar tu jornada.
+  </div>
+</div>
+
+  {[
+    {
+      color:'#D97706',
+      icon:'📋',
+      titulo:'Tenemos oportunidades para concretar.',
+      texto:'Comencemos confirmando pedidos y ventas pendientes.',
+      valor:`${statsVend.pedidosPend} pendientes →`,
+      route:'/pedidos'
+    },
+    {
+      color:'#2563EB',
+      icon:'🚚',
+      titulo:'Hojuelas honra cada compromiso asumido.',
+      texto:'Revisemos las entregas programadas para hoy.',
+      valor:`${statsVend.entregasHoy} programadas →`,
+      route:'/pedidos'
+    },
+    {
+      color:'#DC2626',
+      icon:'💰',
+      titulo:'Toda venta merece completar su ciclo.',
+      texto:'Revisemos las cobranzas pendientes.',
+      valor:`${fmt(statsVend.cobranzasPend)} →`,
+      route:'/pagos'
+    }
+  ].map((item,i)=>
+
+    <div
+      key={i}
+      onClick={()=>navigate(item.route)}
+      className="card"
+      style={{
+        cursor:'pointer',
+        marginBottom:14,
+        padding:18,
+        borderRadius:18,
+        borderLeft:`6px solid ${item.color}`,
+        transition:'all .18s ease'
+      }}
+    >
+
+      <div style={{
+        display:'flex',
+        justifyContent:'space-between',
+        alignItems:'center',
+        marginBottom:10
+      }}>
+
+        <div style={{
+          display:'flex',
+          alignItems:'center',
+          gap:10
+        }}>
+          <div style={{fontSize:22}}>
+            {item.icon}
           </div>
-          {pedidosVend.length===0 ? <div className="empty"><p>Sin pedidos en los últimos 7 días</p></div> : (<>
-            <div className="desktop-table"><div className="table-wrap"><table>
-              <thead><tr><th>Cliente</th><th>Fecha</th><th>Estado</th><th>Total</th></tr></thead>
-              <tbody>{pedidosVend.map(p=>{
-                const fechaCorta = p.fecha ? new Date(p.fecha+'T00:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'}) : '—'
-                return <tr key={p.id}><td style={{fontSize:12}}>{p.clientes ? nombreCliente(p.clientes) : '—'}</td><td style={{fontSize:12,color:'var(--muted)'}}>{fechaCorta}</td><td><span className={`badge ${ESTADO_BADGE[p.estado]||'badge-gray'}`}>{p.estado}</span></td><td style={{fontSize:12}}>{fmt(p.total)}</td></tr>
-              })}</tbody>
-            </table></div></div>
-            <div className="mobile-cards" style={{padding:12}}>{pedidosVend.map(p=><PedidoCard key={p.id} p={p}/>)}</div>
-          </>)}
+
+          <div style={{
+            fontWeight:900,
+            fontSize:21,
+             lineHeight:1.2,
+            letterSpacing:'-0.02em'
+          }}>
+            {item.titulo}
+          </div>
         </div>
+
+        <div style={{
+          color:item.color,
+          fontSize:18,
+          fontWeight:900,
+          whiteSpace:'nowrap',
+          marginLeft:8
+        }}>
+          {item.valor}
+        </div>
+
+      </div>
+
+      <div style={{
+        color:'var(--muted)',
+        fontSize:14,
+        lineHeight:1.45
+      }}>
+        {item.texto}
+      </div>
+
+    </div>
+
+  )}
+
+</div>
+        
       </>)}
       <VerseModal verse={verse} onClose={cerrarVersiculo} />
       <ToastContainer toasts={toasts}/>
