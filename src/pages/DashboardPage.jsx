@@ -535,25 +535,29 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div style={{
-          color:item.color,
-          fontSize:18,
-          fontWeight:900,
-          whiteSpace:'nowrap',
-          marginLeft:8
-        }}>
-          {item.valor}
-        </div>
+        
 
       </div>
 
       <div style={{
-        color:'var(--muted)',
-        fontSize:14,
-        lineHeight:1.45
+        color:'rgba(0,0,0,.62)',
+        fontSize:15,
+        lineHeight:1.45,
+        marginTop:8
       }}>
         {item.texto}
       </div>
+      <div style={{
+          color:item.color,
+          fontSize:20,
+          fontWeight:900,
+          whiteSpace:'nowrap',
+          marginLeft:8,
+          width:'100%',
+          textAlign:'right'
+        }}>
+          {item.valor}
+        </div>
 
     </div>
 
