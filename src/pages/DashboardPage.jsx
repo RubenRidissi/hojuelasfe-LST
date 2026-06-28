@@ -153,29 +153,36 @@ function HeroHeader({ user, nombre, hora, weather }) {
     <div style={{position:'absolute', right:20, bottom:16, fontSize:62, opacity:0.10, lineHeight:1}}>🥖</div>
 
     <div style={{position:'relative', zIndex:1}}>
-      <button onClick={() => navigate('/')} aria-label="Ir al inicio" style={{
-        border:0, background:'transparent', color:'white', display:'flex', alignItems:'center', gap:14,
-        padding:0, marginBottom:14, cursor:'pointer', width:'100%', textAlign:'left'
+      <div style={{
+        display:'flex',
+        alignItems:'center',
+        gap:14,
+        marginBottom:14,
+        width:'100%'
       }}>
-        <img
-          src="/branding/logo-principal.png"
-          alt="Hojuelas"
-          style={{
-            width:58,
-            height:58,
-            objectFit:'contain',
-            background:'white',
-            borderRadius:4,
-            padding:4,
-            flexShrink:0,
-            filter:'drop-shadow(0 5px 12px rgba(0,0,0,.22))'
-          }}
-        />
+        <button onClick={() => navigate('/')} aria-label="Ir al inicio" style={{
+          border:0, background:'transparent', padding:0, cursor:'pointer', flexShrink:0
+        }}>
+          <img
+            src="/branding/logo-principal.png"
+            alt="Hojuelas"
+            style={{
+              width:58, height:58, objectFit:'contain', background:'white',
+              borderRadius:4, padding:4, display:'block',
+              filter:'drop-shadow(0 5px 12px rgba(0,0,0,.22))'
+            }}
+          />
+        </button>
 
-        <h1 style={{fontSize:25, lineHeight:1.08, margin:0, fontWeight:900, letterSpacing:'-0.04em'}}>
-          {tone.icono} {tone.saludo}, {nombreMostrar}
-        </h1>
-      </button>
+        <button onClick={() => navigate('/config')} aria-label="Ir a mi cuenta" style={{
+          border:0, background:'transparent', color:'white', padding:0, margin:0,
+          cursor:'pointer', textAlign:'left', minWidth:0
+        }}>
+          <h1 style={{fontSize:25, lineHeight:1.08, margin:0, fontWeight:900, letterSpacing:'-0.04em'}}>
+            {tone.icono} {tone.saludo}, {nombreMostrar}
+          </h1>
+        </button>
+      </div>
 
       <div style={{
         display:'grid',

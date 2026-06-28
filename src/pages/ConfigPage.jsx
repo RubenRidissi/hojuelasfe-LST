@@ -33,13 +33,17 @@ export function setFontSize(size) {
 }
 
 export default function ConfigPage() {
-  const { isAdmin } = useAuth()
+  const { user, isAdmin, nombre } = useAuth()
   const { toasts, toast } = useToast()
 
   const [fontActual, setFontActual] = useState(() => localStorage.getItem('app_font_size') || 'normal')
   const [exportando, setExportando] = useState(false)
   const [exportStatus, setExportStatus] = useState('')
   const [backupStatus, setBackupStatus] = useState('')
+
+  const APP_VERSION = 'RC1.4.02'
+  const nombreMostrar = nombre || user?.email || 'Usuario'
+  const rolMostrar = isAdmin ? 'Administrador' : 'Vendedor'
 
   async function exportarTodoExcel() {
     setExportando(true)
@@ -117,11 +121,51 @@ export default function ConfigPage() {
   }
 
   if (!isAdmin) return (
-    <div className="card" style={{ padding: 32, textAlign: 'center' }}>
-      <div style={{ fontSize: 40, marginBottom: 12 }}>🔒</div>
-      <p style={{ color: 'var(--muted)' }}>Solo el administrador puede acceder a esta sección.</p>
+  <div>
+    <div className="page-header">
+      <h1 className="page-title">Mi cuenta</h1>
     </div>
-  )
+
+    <div className="card" style={{padding:20,marginBottom:16}}>
+      <div style={{fontWeight:700,fontSize:15,marginBottom:12}}>👤 Mi cuenta</div>
+      <div style={{fontSize:13,color:'var(--muted)',display:'flex',flexDirection:'column',gap:6}}>
+        <div>Nombre: <strong style={{color:'var(--text)'}}>{nombreMostrar}</strong></div>
+        <div>Usuario: <strong style={{color:'var(--text)'}}>{user?.email || '—'}</strong></div>
+        <div>Rol: <strong style={{color:'var(--text)'}}>{rolMostrar}</strong></div>
+      </div>
+    </div>
+
+    <div className="card" style={{padding:20,marginBottom:16}}>
+      <div style={{fontWeight:700,fontSize:15,marginBottom:8}}>🔑 Seguridad</div>
+      <p style={{color:'var(--muted)',fontSize:13,marginBottom:0}}>
+        El cambio de contraseña se incorporará en una próxima versión.
+      </p>
+    </div>
+
+    <div className="card" style={{padding:20,marginBottom:16}}>
+      <div style={{fontWeight:700,fontSize:15,marginBottom:8}}>🔤 Tamaño de texto</div>
+      <p style={{color:'var(--muted)',fontSize:13,marginBottom:16}}>Ajustá el tamaño del texto a tu preferencia. Se guarda automáticamente.</p>
+      <div style={{display:'flex',gap:8}}>
+        {[{key:'small',label:'A Pequeño'},{key:'normal',label:'A Normal'},{key:'large',label:'A Grande'}].map(({key,label}) => (
+          <button key={key} className="btn" style={{flex:1,background:fontActual===key?'var(--primary)':'var(--bg)',color:fontActual===key?'#fff':'var(--text)',border:'1px solid var(--border)'}}
+            onClick={() => { setFontSize(key); setFontActual(key) }}>{label}</button>
+        ))}
+      </div>
+    </div>
+
+    <div className="card" style={{padding:20}}>
+      <div style={{fontWeight:700,fontSize:15,marginBottom:12}}>ℹ️ Acerca de</div>
+      <div style={{fontSize:13,color:'var(--muted)',display:'flex',flexDirection:'column',gap:6}}>
+        <div>Aplicación: <strong style={{color:'var(--text)'}}>Hojuelas Santa Fe</strong></div>
+        <div>Versión: <strong style={{color:'var(--text)'}}>{APP_VERSION}</strong></div>
+        <div>Stack: <strong style={{color:'var(--text)'}}>React + Vite + Supabase + Vercel</strong></div>
+        <div>© <strong style={{color:'var(--text)'}}>Alpha y Omega</strong></div>
+      </div>
+    </div>
+
+    <ToastContainer toasts={toasts} />
+  </div>
+)
 
   return (
     <div>
