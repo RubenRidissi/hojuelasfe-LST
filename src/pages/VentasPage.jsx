@@ -357,7 +357,8 @@ export default function VentasPage() {
 
       const { data: remitosVenta, error: remReadError } = await supabase
         .from('remitos')
-        .select('id,numero,origen_id')
+        .select('id,numero,origen_tipo,origen_id')
+        .eq('origen_tipo', 'venta')
         .eq('origen_id', v.id)
 
       if (remReadError) throw remReadError
@@ -375,7 +376,8 @@ export default function VentasPage() {
       if (pedidoOrigen?.id) {
         const { data, error } = await supabase
           .from('remitos')
-          .select('id,numero,origen_id')
+          .select('id,numero,origen_tipo,origen_id')
+          .eq('origen_tipo', 'pedido')
           .eq('origen_id', pedidoOrigen.id)
 
         if (error) throw error
