@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../services/supabase'
+import { buscarRemitoExistente } from '../services/logisticaService'
 import { nombreCliente } from '../utils/helpers'
 
 const EMPRESA = {
@@ -274,23 +275,6 @@ function buildReciboPago(pago) {
   html += `<div style="margin-top:18px;padding:10px 12px;background:#F0FDF4;color:#15803D;border-radius:8px;font-size:12px;text-align:center;font-weight:600">Gracias por su pago.</div>`
   html += buildFooter(pago.notas)
   return html
-}
-
-// ===== BUSCAR REMITO EXISTENTE =====
-async function buscarRemitoExistente(tipo, id) {
-  let origenIds = [id]
-  if (tipo === 'pedido') {
-    const { data: ped } = await supabase.from('pedidos').select('convertido_venta_id').eq('id', id).single()
-    if (ped?.convertido_venta_id) origenIds.push(ped.convertido_venta_id)
-  } else {
-    const { data: peds } = await supabase.from('pedidos').select('id').eq('convertido_venta_id', id)
-    if (peds?.length) origenIds.push(peds[0].id)
-  }
-  for (const oid of origenIds) {
-    const { data } = await supabase.from('remitos').select('*').eq('origen_id', oid).limit(1)
-    if (data?.length) return data[0]
-  }
-  return null
 }
 
 // ===== PRINT / DOWNLOAD =====

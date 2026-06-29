@@ -361,20 +361,25 @@ export default function DashboardPage() {
     const today = hoyStr()
     const desde7 = hace7diasStr()
 
-    const [{data:pedidosPend},{data:entregasHoy},{data:ventasPend},{count:cntCli}] = await Promise.all([
+    const [{data:pedidosPend},{data:pedidosEntrega},{data:ventasEntrega},{data:ventasPend},{count:cntCli}] = await Promise.all([
       supabase.from('pedidos').select('id,total').eq('vendedor_id',user).eq('estado','pendiente'),
-      supabase.from('pedidos').select('id,total').eq('vendedor_id',user).eq('fecha_entrega',today).eq('estado','pendiente'),
+      supabase.from('ventas').select('id,total,estado,estado_entrega,estado_pago').eq('vendedor_id',user),
+      supabase.from('ventas').select('id,total').eq('vendedor_id',user).neq('estado_entrega','entregado'),
       supabase.from('ventas').select('id,total,monto_pagado').eq('vendedor_id',user).neq('estado_pago','pagado'),
       supabase.from('clientes').select('id',{count:'exact',head:true}).eq('estado_cliente','Activo').eq('vendedor_id',user)
-    ])
+])
 
     const totalPedidosPend = (pedidosPend||[]).reduce((s,p)=>s+parseFloat(p.total||0),0)
-    const totalEntregasHoy = (entregasHoy||[]).reduce((s,p)=>s+parseFloat(p.total||0),0)
+    const totalEntregasHoy =
+      (pedidosEntrega||[]).reduce((s,p)=>s+parseFloat(p.total||0),0) +
+      (ventasEntrega||[]).reduce((s,v)=>s+parseFloat(v.total||0),0)
     const cobranzasPend = (ventasPend||[]).reduce((s,v)=>s+parseFloat(v.total||0)-parseFloat(v.monto_pagado||0),0)
     setStatsVend({
       pedidosPend:(pedidosPend||[]).length,
       totalPedidosPend,
-      entregasHoy:(entregasHoy||[]).length,
+      entregasHoy:(pedidosEntrega||[]).length + (ventasEntrega||[]).length,
+      entregasPedidos:(pedidosEntrega||[]).length,
+      entregasVentas:(ventasEntrega||[]).length,
       totalEntregasHoy,
       cobranzasPend,
       cobranzasCount:(ventasPend||[]).length,
