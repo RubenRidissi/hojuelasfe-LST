@@ -55,8 +55,6 @@ export default function PedidosPage() {
 
   // Modal convertir
   const [modalConvertir, setModalConvertir] = useState(null) // pedido
-  const [yaEntregado, setYaEntregado] = useState(false)
-  const [fechaConvertir, setFechaConvertir] = useState('')
   const [convirtiendo, setConvirtiendo] = useState(false)
 
   // Cache remitos
@@ -392,46 +390,73 @@ export default function PedidosPage() {
   // ===== CONVERTIR A VENTA =====
   function abrirConvertir(p) {
     setModalConvertir(p)
-    setYaEntregado(!!p.fecha_entrega_real)
-    setFechaConvertir(p.fecha_entrega_real || new Date().toISOString().split('T')[0])
   }
 
   async function confirmarConvertir() {
     if (!modalConvertir) return
+
     const p = modalConvertir
-    const fechaEntregaReal = yaEntregado ? fechaConvertir : null
-    if (yaEntregado && !fechaConvertir) { toast('Elegí la fecha de entrega', 'error'); return }
     setConvirtiendo(true)
+
     try {
-      const { data: its } = await supabase.from('pedido_items').select('producto_id,cantidad,bonificado,precio_unitario').eq('pedido_id', p.id)
-      if (!its?.length) { toast('El pedido no tiene productos', 'error'); return }
+      const { data: its, error: itemsError } = await supabase
+        .from('pedido_items')
+        .select('producto_id,cantidad,bonificado,precio_unitario')
+        .eq('pedido_id', p.id)
+
+      if (itemsError) throw itemsError
+      if (!its?.length) {
+        toast('El pedido no tiene productos', 'error')
+        return
+      }
 
       const hoy = new Date().toISOString().split('T')[0]
-      const dataVenta = { cliente_id: p.cliente_id, fecha: hoy, notas: (p.notas || '') + ' | Generada desde pedido', total: p.total, vendedor_id: p.vendedor_id, estado_pago: 'pendiente' }
-      if (fechaEntregaReal) dataVenta.fecha_entrega_real = fechaEntregaReal
 
-      const { data: [venta] } = await supabase.from('ventas').insert(dataVenta).select()
+      const dataVenta = {
+        cliente_id: p.cliente_id,
+        fecha: hoy,
+        notas: (p.notas || '') + ' | Generada desde pedido',
+        total: p.total,
+        vendedor_id: p.vendedor_id,
+        estado_pago: 'pendiente'
+      }
 
-      await Promise.all(its.map(item => {
-        return supabase
-          .from('venta_items')
-          .insert({
+      const { data: [venta], error: ventaError } = await supabase
+        .from('ventas')
+        .insert(dataVenta)
+        .select()
+
+      if (ventaError) throw ventaError
+
+      const { error: itemsVentaError } = await supabase
+        .from('venta_items')
+        .insert(
+          its.map(item => ({
             venta_id: venta.id,
             producto_id: item.producto_id,
             cantidad: item.cantidad,
             bonificado: item.bonificado || 0,
             precio_unitario: item.precio_unitario
-          })
-      }))
+          }))
+        )
 
-      const patchPedido = { convertido_venta_id: venta.id }
-      if (fechaEntregaReal) { patchPedido.estado = 'entregado'; patchPedido.fecha_entrega_real = fechaEntregaReal }
-      await supabase.from('pedidos').update(patchPedido).eq('id', p.id)
+      if (itemsVentaError) throw itemsVentaError
+
+      const { error: pedidoError } = await supabase
+        .from('pedidos')
+        .update({ convertido_venta_id: venta.id })
+        .eq('id', p.id)
+
+      if (pedidoError) throw pedidoError
 
       toast('Pedido convertido en venta ✓')
       setModalConvertir(null)
       loadPedidos()
-    } catch (e) { toast('Error al convertir: ' + e.message, 'error') } finally { setConvirtiendo(false) }
+    } catch (e) {
+      toast('Error al convertir: ' + e.message, 'error')
+    } finally {
+      setConvirtiendo(false)
+    }
   }
 
   // ===== COMPROBANTE / REMITO =====
@@ -443,6 +468,15 @@ export default function PedidosPage() {
   }
   async function handlePrepararEntrega(pedidoId) {
     try { await prepararEntregaRemito('pedido', pedidoId); loadPedidos() } catch(e) { toast('Error: ' + e.message, 'error') }
+  }
+
+  function irAVenta(ventaId) {
+    if (!ventaId) return
+    sessionStorage.setItem('hojuelas_venta_id', ventaId)
+    window.dispatchEvent(new CustomEvent('hojuelas:navigate', { detail: { page: 'ventas', ventaId } }))
+    window.dispatchEvent(new CustomEvent('navigate:ventas', { detail: { ventaId } }))
+    window.location.hash = 'ventas'
+    toast('Pedido convertido: continuá la logística desde Ventas.', 'info')
   }
 
   // ===== RENDER =====
@@ -510,7 +544,7 @@ export default function PedidosPage() {
                 {pedidos.map(p => {
                   const yaConvertido = !!p.convertido_venta_id
                   const puedeConvertir = !yaConvertido && (p.estado === 'confirmado' || p.estado === 'entregado')
-                  const puedeRemitir = p.estado === 'confirmado' || p.estado === 'entregado'
+                  const puedeRemitir = !yaConvertido && (p.estado === 'confirmado' || p.estado === 'entregado')
                   const tieneRemito = origenesConRemito.has(p.id) || (yaConvertido && origenesConRemito.has(p.convertido_venta_id))
                   return (
                     <tr key={p.id}>
@@ -532,7 +566,7 @@ export default function PedidosPage() {
                       <td style={{ whiteSpace: 'nowrap' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                           {yaConvertido
-                            ? <span className="badge badge-green">✓ Facturado</span>
+                            ? <button className="btn btn-sm btn-secondary" style={{ padding: '3px 6px', fontSize: 11 }} onClick={() => irAVenta(p.convertido_venta_id)}>👁 Ver venta</button>
                             : p.estado === 'entregado'
                               ? <span className={`badge ${{ pendiente: 'badge-yellow', confirmado: 'badge-blue', entregado: 'badge-green', cancelado: 'badge-red' }[p.estado]}`}>{p.estado}</span>
                               : <select style={{ fontSize: 11, padding: '3px 4px', border: '1px solid var(--border)', borderRadius: 6, maxWidth: 108 }}
@@ -574,7 +608,7 @@ export default function PedidosPage() {
         ) : pedidos.map(p => {
           const yaConvertido = !!p.convertido_venta_id
           const puedeConvertir = !yaConvertido && (p.estado === 'confirmado' || p.estado === 'entregado')
-          const puedeRemitir = p.estado === 'confirmado' || p.estado === 'entregado'
+          const puedeRemitir = !yaConvertido && (p.estado === 'confirmado' || p.estado === 'entregado')
           const tieneRemito = origenesConRemito.has(p.id) || (yaConvertido && origenesConRemito.has(p.convertido_venta_id))
           return (
             <div key={p.id} className="op-card">
@@ -593,8 +627,8 @@ export default function PedidosPage() {
               </div>
               <div className="op-card-actions">
                 <button className="btn btn-secondary" onClick={() => verComprobante(p.id)}>📋 Ver</button>
-                {yaConvertido
-                  ? <span className="badge badge-green" style={{ flex: 1, textAlign: 'center' }}>✓ Facturado</span>
+                {yaConvertido && !tieneRemito
+                  ? <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => irAVenta(p.convertido_venta_id)}>👁 Ver venta</button>
                   : p.estado === 'entregado'
                     ? <span className="badge badge-green" style={{ flex: 1, textAlign: 'center' }}>Entregado</span>
                     : <select style={{ flex: 1, padding: '8px 6px', border: '1px solid var(--border)', borderRadius: 10, fontSize: 12 }}
@@ -784,21 +818,17 @@ export default function PedidosPage() {
                 <strong>{nombreCliente(modalConvertir.clientes)}</strong><br />
                 <span style={{ color: 'var(--muted)' }}>Total: ${parseFloat(modalConvertir.total || 0).toLocaleString('es-AR')}</span>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                <input type="checkbox" id="yaEntregado" checked={yaEntregado} onChange={e => setYaEntregado(e.target.checked)} disabled={!!modalConvertir.fecha_entrega_real} />
-                <label htmlFor="yaEntregado">Ya fue entregado</label>
-              </div>
-              {yaEntregado && (
-                <div className="form-group">
-                  <label>Fecha de entrega</label>
-                  <input type="date" value={fechaConvertir} onChange={e => setFechaConvertir(e.target.value)} disabled={!!modalConvertir.fecha_entrega_real} />
-                </div>
-              )}
+              <p>
+                Se creará una <strong>Venta</strong> a partir de este pedido.
+              </p>
+              <p style={{ color: 'var(--muted)' }}>
+                La preparación de la entrega y la emisión del remito se realizarán posteriormente desde la venta.
+              </p>
             </div>
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setModalConvertir(null)}>Cancelar</button>
               <button className="btn btn-primary" onClick={confirmarConvertir} disabled={convirtiendo}>
-                {convirtiendo ? 'Convirtiendo...' : '✓ Confirmar'}
+                {convirtiendo ? 'Convirtiendo...' : '✓ Convertir'}
               </button>
             </div>
           </div>

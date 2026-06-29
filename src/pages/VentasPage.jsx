@@ -115,10 +115,19 @@ export default function VentasPage() {
       if (ventaIds.length) {
         const { data: pedRel } = await supabase.from('pedidos').select('id,convertido_venta_id').in('convertido_venta_id', ventaIds)
         const idsRelevantes = [...ventaIds, ...(pedRel || []).map(p => p.id)]
-        const { data: remitos } = await supabase.from('remitos').select('origen_id').in('origen_id', idsRelevantes)
+        const { data: remitos } = await supabase
+          .from('remitos')
+          .select('origen_tipo,origen_id')
+          .in('origen_id', idsRelevantes)
+
         const pedRelMap = {}
         ;(pedRel || []).forEach(p => { pedRelMap[p.convertido_venta_id] = p.id })
-        const origenSet = new Set((remitos || []).map(r => r.origen_id))
+
+        const origenSet = new Set(
+          (remitos || [])
+            .filter(r => r.origen_tipo && r.origen_id)
+            .map(r => `${r.origen_tipo}:${r.origen_id}`)
+        )
         setOrigenesConRemito(origenSet)
         // guardar pedRelMap para uso en render
         setPedRelMap(pedRelMap)
@@ -328,8 +337,8 @@ export default function VentasPage() {
 
     const nombre = v.clientes ? nombreCliente(v.clientes) : 'este cliente'
     const ok = confirm(
-      `¿Anular la venta #${String(v.numero || 0).padStart(6, '0')} de ${nombre}?\n\n` +
-      'Esta acción eliminará los ítems de la venta, revertirá movimientos de stock asociados y, si proviene de un pedido, lo dejará nuevamente confirmado.'
+       `¿Anular la venta #${String(v.numero || 0).padStart(6, '0')} de ${nombre}?\n\n` +
+    'Esta acción eliminará los ítems de la venta y, si proviene de un pedido, lo dejará nuevamente confirmado. Si la venta o el pedido ya tiene remito, primero deberás revisar o anular el remito.'
     )
     if (!ok) return
 
@@ -498,7 +507,7 @@ export default function VentasPage() {
               </thead>
               <tbody>
                 {ventas.map(v => {
-                  const tieneRemito = origenesConRemito.has(v.id) || (pedRelMap[v.id] && origenesConRemito.has(pedRelMap[v.id]))
+                  const tieneRemito = origenesConRemito.has(`venta:${v.id}`) || (pedRelMap[v.id] && origenesConRemito.has(`pedido:${pedRelMap[v.id]}`))
                   return (
                     <tr key={v.id}>
                       <td style={{ color: 'var(--muted)', fontSize: 12 }}>#{String(v.numero || 0).padStart(6, '0')}</td>
@@ -524,10 +533,10 @@ export default function VentasPage() {
                               ? <span className="badge badge-yellow">Parcial</span>
                               : <button className="btn btn-sm btn-success" onClick={() => navigate('/pagos')}>💰 Cobrar</button>
                           }
-                          {!v.fecha_entrega_real && (
+                          {tieneRemito && !v.fecha_entrega_real && (
                             <button className="btn btn-sm" style={{ background: '#DBEAFE', color: '#1D4ED8' }}
                               onClick={() => { setModalFecha({ id: v.id, fechaActual: '' }); setFechaInput(new Date().toISOString().split('T')[0]) }}
-                              title="Marcar como entregado">📦 Entregar</button>
+                              title="Confirmar recepción del cliente">📦 Confirmar entrega</button>
                           )}
                           <button className="btn btn-sm btn-secondary" onClick={async () => { try { await verComprobanteVenta(v.id) } catch(e) { toast('Error', 'error') } }}>🧾</button>
                           {tieneRemito
@@ -555,7 +564,7 @@ export default function VentasPage() {
         ) : ventas.length === 0 ? (
           <div className="empty"><div className="empty-icon">🧾</div><p>No hay ventas todavía</p></div>
         ) : ventas.map(v => {
-          const tieneRemito = origenesConRemito.has(v.id)
+          const tieneRemito = origenesConRemito.has(`venta:${v.id}`) || (pedRelMap[v.id] && origenesConRemito.has(`pedido:${pedRelMap[v.id]}`))
           const fechaCorta = v.fecha ? new Date(v.fecha + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' }) : '—'
           return (
             <div key={v.id} className="op-card">
@@ -571,10 +580,10 @@ export default function VentasPage() {
               <div className="op-card-total">${parseFloat(v.total || 0).toLocaleString('es-AR', { maximumFractionDigits: 0 })}</div>
               <div className="op-card-actions">
                 <button className="btn btn-secondary" onClick={async () => { try { await verComprobanteVenta(v.id) } catch(e) { toast('Error', 'error') } }}>🧾 Ver</button>
-                {!v.fecha_entrega_real && (
+                {tieneRemito && !v.fecha_entrega_real && (
                   <button className="btn btn-secondary"
                     onClick={() => { setModalFecha({ id: v.id, fechaActual: '' }); setFechaInput(new Date().toISOString().split('T')[0]) }}>
-                    📦 Entregar
+                    📦 Confirmar entrega
                   </button>
                 )}
                 {v.estado_pago !== 'pagado' && (
