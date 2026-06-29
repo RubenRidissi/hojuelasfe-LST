@@ -108,8 +108,18 @@ export default function PedidosPage() {
       const ventaIds = (peds || []).filter(p => p.convertido_venta_id).map(p => p.convertido_venta_id)
       const todosIds = [...ids, ...ventaIds]
       if (todosIds.length) {
-        const { data: remitos } = await supabase.from('remitos').select('origen_id').in('origen_id', todosIds)
-        setOrigenesConRemito(new Set((remitos || []).map(r => r.origen_id)))
+        const { data: remitos, error: remitosError } = await supabase
+          .from('remitos')
+          .select('origen_tipo,origen_id')
+          .in('origen_id', todosIds)
+
+        if (remitosError) throw remitosError
+
+        setOrigenesConRemito(
+          new Set((remitos || []).map(r => `${r.origen_tipo}:${r.origen_id}`))
+        )
+      } else {
+        setOrigenesConRemito(new Set())
       }
 
       setPedidos(peds || [])
@@ -313,6 +323,11 @@ export default function PedidosPage() {
 
   // ===== ELIMINAR PEDIDO =====
   async function deletePedido(p) {
+    if (!isAdmin) {
+      toast('Solo el administrador puede borrar pedidos.', 'error')
+      return
+    }
+
     try {
       if (p.convertido_venta_id) {
         toast('Este pedido ya fue facturado. Anulá la venta desde Ventas.', 'error')
@@ -545,7 +560,7 @@ export default function PedidosPage() {
                   const yaConvertido = !!p.convertido_venta_id
                   const puedeConvertir = !yaConvertido && (p.estado === 'confirmado' || p.estado === 'entregado')
                   const puedeRemitir = !yaConvertido && (p.estado === 'confirmado' || p.estado === 'entregado')
-                  const tieneRemito = origenesConRemito.has(p.id) || (yaConvertido && origenesConRemito.has(p.convertido_venta_id))
+                  const tieneRemito = origenesConRemito.has(`pedido:${p.id}`) || (yaConvertido && origenesConRemito.has(`venta:${p.convertido_venta_id}`))
                   return (
                     <tr key={p.id}>
                       <td style={{ color: 'var(--muted)', fontSize: 12 }}>#{String(p.numero || 0).padStart(6, '0')}</td>
@@ -611,7 +626,7 @@ export default function PedidosPage() {
           const yaConvertido = !!p.convertido_venta_id
           const puedeConvertir = !yaConvertido && (p.estado === 'confirmado' || p.estado === 'entregado')
           const puedeRemitir = !yaConvertido && (p.estado === 'confirmado' || p.estado === 'entregado')
-          const tieneRemito = origenesConRemito.has(p.id) || (yaConvertido && origenesConRemito.has(p.convertido_venta_id))
+          const tieneRemito = origenesConRemito.has(`pedido:${p.id}`) || (yaConvertido && origenesConRemito.has(`venta:${p.convertido_venta_id}`))
           return (
             <div key={p.id} className="op-card">
               <div className="op-card-header">
@@ -620,6 +635,12 @@ export default function PedidosPage() {
                 <span className="op-card-fecha">{p.fecha_entrega ? new Date(p.fecha_entrega + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' }) : 'Sin fecha'}</span>
               </div>
               <div className="op-card-cliente">{p.clientes ? nombreCliente(p.clientes) : '—'}</div>
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4, marginBottom: 8 }}>
+                <div>📅 Entrega: {p.fecha_entrega ? new Date(p.fecha_entrega + 'T00:00:00').toLocaleDateString('es-AR') : 'Sin programar'}</div>
+                <div style={{ color: p.fecha_entrega_real ? 'var(--success)' : 'var(--muted)' }}>
+                  {p.fecha_entrega_real ? `✓ Entregado: ${p.fecha_entrega_real}` : 'Sin entregar'}
+                </div>
+              </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div className="op-card-total">${parseFloat(p.total || 0).toLocaleString('es-AR', { maximumFractionDigits: 0 })}</div>
                 <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
