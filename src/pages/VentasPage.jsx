@@ -19,7 +19,7 @@ function badgePago(estado) {
 export default function VentasPage() {
   const { user, isAdmin } = useAuth()
   const { toasts, toast } = useToast()
-  const { comp, cerrarComp, imprimir, descargar, verComprobanteVenta, verRemito, imprimirRemito } = useComprobante()
+  const { comp, cerrarComp, imprimir, descargar, verComprobanteVenta, verRemito, prepararEntregaRemito } = useComprobante()
   const navigate = useNavigate()
 
   const [ventas, setVentas] = useState([])
@@ -528,7 +528,7 @@ export default function VentasPage() {
                           <button className="btn btn-sm btn-secondary" onClick={async () => { try { await verComprobanteVenta(v.id) } catch(e) { toast('Error', 'error') } }}>🧾</button>
                           {tieneRemito
                             ? <button className="btn btn-sm" style={{ background: '#F3F4F6', color: '#374151' }} onClick={async () => { try { await verRemito('venta', v.id) } catch(e) { toast('Error', 'error') } }}>👁 Remito</button>
-                            : <button className="btn btn-sm" style={{ background: '#FEF3C7', color: '#92400E' }} onClick={async () => { try { await imprimirRemito('venta', v.id); loadVentas() } catch(e) { toast('Error', 'error') } }}>🚚</button>
+                            : <button className="btn btn-sm" style={{ background: '#FEF3C7', color: '#92400E' }} onClick={async () => { try { await prepararEntregaRemito('venta', v.id); loadVentas() } catch(e) { toast('Error', 'error') } }} title="Preparar entrega">🚚 Prep.</button>
                           }
                           {isAdmin && v.estado_pago !== 'pagado' && (
                             <button className="btn btn-sm btn-danger" onClick={() => deleteVenta(v)}>Anular</button>
@@ -578,7 +578,7 @@ export default function VentasPage() {
                 )}
                 {tieneRemito
                   ? <button className="btn btn-secondary" onClick={async () => { try { await verRemito('venta', v.id) } catch(e) { toast('Error', 'error') } }}>👁 Remito</button>
-                  : <button className="btn btn-secondary" onClick={async () => { try { await imprimirRemito('venta', v.id); loadVentas() } catch(e) { toast('Error', 'error') } }}>🚚 Remito</button>
+                  : <button className="btn btn-secondary" onClick={async () => { try { await prepararEntregaRemito('venta', v.id); loadVentas() } catch(e) { toast('Error', 'error') } }}>🚚 Preparar entrega</button>
                 }
               </div>
             </div>

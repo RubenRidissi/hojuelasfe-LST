@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../services/supabase'
-import { buscarRemitoExistente, emitirRemito } from '../services/logisticaService'
+import { buscarRemitoExistente, prepararEntrega, MODALIDADES_ENTREGA } from '../services/logisticaService'
 import { nombreCliente } from '../utils/helpers'
 
 const EMPRESA = {
@@ -367,10 +367,27 @@ export function useComprobante() {
     } catch (e) { throw e }
   }
 
-  async function imprimirRemitoFunc(tipo, id) {
+  async function prepararEntregaFunc(tipo, id) {
     try {
       const existente = await buscarRemitoExistente(tipo, id)
       if (existente) { await verRemitoFunc(tipo, id); return }
+
+      const opcionEntrega = window.prompt(
+        '¿Cómo se entrega la mercadería?\n\n1 = Retira en depósito (queda entregado hoy)\n2 = Sale por reparto/transporte (queda pendiente de entrega)\n\nIngrese 1 o 2:',
+        '2'
+      )
+
+      if (opcionEntrega === null) return
+
+      const opcionNormalizada = opcionEntrega.trim()
+      if (!['1', '2'].includes(opcionNormalizada)) {
+        alert('Opción inválida. Ingresá 1 para retiro en depósito o 2 para reparto/transporte.')
+        return
+      }
+
+      const modalidadEntrega = opcionNormalizada === '1'
+        ? MODALIDADES_ENTREGA.RETIRO_DEPOSITO
+        : MODALIDADES_ENTREGA.REPARTO
 
       let datos, clienteId, vendedorId, total
       if (tipo === 'venta') {
@@ -389,15 +406,16 @@ export function useComprobante() {
         clienteId = p.cliente_id; vendedorId = p.vendedor_id; total = p.total
       }
 
-      const remito = await emitirRemito({
+      const remito = await prepararEntrega({
         origenTipo: tipo,
         origenId: id,
         clienteId,
         vendedorId,
         total,
-        fechaEntregaReal: datos.fecha_entrega_real || null
+        modalidadEntrega
       })
 
+      datos.fecha_entrega_real = remito.fecha_entrega_real || null
       datos.remito_numero = remito.numero
       setComp({ titulo: 'Remito de Entrega', html: buildRemitoEntrega(datos), filename: `Remito_${String(remito.numero).padStart(6, '0')}` })
     } catch (e) { throw e }
@@ -437,7 +455,9 @@ export function useComprobante() {
     verComprobanteVenta,
     verComprobantePedido,
     verRemito: verRemitoFunc,
-    imprimirRemito: imprimirRemitoFunc,
+    prepararEntregaRemito: prepararEntregaFunc,
+    // Alias temporal para compatibilidad con pantallas que todavía usen el nombre anterior.
+    imprimirRemito: prepararEntregaFunc,
     verReciboPago,
   }
 }

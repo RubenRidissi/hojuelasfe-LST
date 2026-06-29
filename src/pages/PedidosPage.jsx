@@ -15,7 +15,7 @@ const EMPTY_FORM = {
 export default function PedidosPage() {
   const { user, isAdmin } = useAuth()
   const { toasts, toast } = useToast()
-  const { comp, cerrarComp, imprimir, descargar, verComprobantePedido, verRemito, imprimirRemito } = useComprobante()
+  const { comp, cerrarComp, imprimir, descargar, verComprobantePedido, verRemito, prepararEntregaRemito } = useComprobante()
 
   const [pedidos, setPedidos] = useState([])
   const [clientes, setClientes] = useState([])
@@ -437,8 +437,8 @@ export default function PedidosPage() {
   async function handleVerRemito(pedidoId) {
     try { await verRemito('pedido', pedidoId) } catch(e) { toast('Error: ' + e.message, 'error') }
   }
-  async function handleImprimirRemito(pedidoId) {
-    try { await imprimirRemito('pedido', pedidoId); loadPedidos() } catch(e) { toast('Error: ' + e.message, 'error') }
+  async function handlePrepararEntrega(pedidoId) {
+    try { await prepararEntregaRemito('pedido', pedidoId); loadPedidos() } catch(e) { toast('Error: ' + e.message, 'error') }
   }
 
   // ===== RENDER =====
@@ -547,7 +547,7 @@ export default function PedidosPage() {
                           <button className="btn btn-sm btn-secondary" style={{ padding: '3px 6px' }} onClick={() => verComprobante(p.id)}>📋</button>
                           {tieneRemito
                             ? <button className="btn btn-sm" style={{ padding: '3px 6px', background: '#F3F4F6', color: '#374151' }} onClick={() => handleVerRemito(p.id)}>👁</button>
-                            : puedeRemitir && <button className="btn btn-sm" style={{ padding: '3px 6px', background: '#FEF3C7', color: '#92400E' }} onClick={() => handleImprimirRemito(p.id)}>🚚</button>
+                            : puedeRemitir && <button className="btn btn-sm" style={{ padding: '3px 6px', background: '#FEF3C7', color: '#92400E' }} title="Preparar entrega" onClick={() => handlePrepararEntrega(p.id)}>🚚 Prep.</button>
                           }
                           {isAdmin && !yaConvertido && <button className="btn btn-sm btn-danger" style={{ padding: '3px 6px', fontSize: 11 }} onClick={() => deletePedido(p)}>✕</button>}
                         </div>
@@ -606,7 +606,7 @@ export default function PedidosPage() {
                 }
                 {tieneRemito
                   ? <button className="btn btn-secondary" onClick={() => handleVerRemito(p.id)}>👁 Remito</button>
-                  : puedeRemitir && <button className="btn btn-secondary" onClick={() => handleImprimirRemito(p.id)}>🚚 Remito</button>
+                  : puedeRemitir && <button className="btn btn-secondary" onClick={() => handlePrepararEntrega(p.id)}>🚚 Preparar entrega</button>
                 }
               </div>
             </div>
