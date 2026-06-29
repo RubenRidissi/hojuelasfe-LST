@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../services/supabase'
-import { buscarRemitoExistente } from '../services/logisticaService'
+import { buscarRemitoExistente, emitirRemito } from '../services/logisticaService'
 import { nombreCliente } from '../utils/helpers'
 
 const EMPRESA = {
@@ -389,13 +389,17 @@ export function useComprobante() {
         clienteId = p.cliente_id; vendedorId = p.vendedor_id; total = p.total
       }
 
-      const { data: ultimo } = await supabase.from('remitos').select('numero').order('numero', { ascending: false }).limit(1)
-      const numero = (ultimo?.[0]?.numero || 0) + 1
+      const remito = await emitirRemito({
+        origenTipo: tipo,
+        origenId: id,
+        clienteId,
+        vendedorId,
+        total,
+        fechaEntregaReal: datos.fecha_entrega_real || null
+      })
 
-      await supabase.from('remitos').insert({ numero, origen_tipo: tipo, origen_id: id, cliente_id: clienteId, vendedor_id: vendedorId, fecha_entrega_real: datos.fecha_entrega_real || null, total })
-
-      datos.remito_numero = numero
-      setComp({ titulo: 'Remito de Entrega', html: buildRemitoEntrega(datos), filename: `Remito_${String(numero).padStart(6, '0')}` })
+      datos.remito_numero = remito.numero
+      setComp({ titulo: 'Remito de Entrega', html: buildRemitoEntrega(datos), filename: `Remito_${String(remito.numero).padStart(6, '0')}` })
     } catch (e) { throw e }
   }
 

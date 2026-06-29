@@ -1,31 +1,23 @@
 import { supabase } from './supabase'
 
 /**
- * ==========================================================
  * Servicio Logístico
- * Centraliza la lógica de remitos, entregas y stock.
- * RC 1.4.06 - Iteración 1
- * ==========================================================
+ *
+ * Centraliza la lógica relacionada con remitos, entregas y stock.
+ * En esta primera iteración incorpora funciones de lectura y emisión
+ * sin modificar todavía el movimiento de stock.
  */
 
 /**
- * Busca un remito existente para un Pedido o una Venta.
- *
- * Contempla también:
- * - Pedido convertido en venta.
- * - Venta originada desde un pedido.
+ * Busca un remito existente para un pedido o una venta.
  */
 export async function buscarRemitoExistente(origenTipo, origenId) {
   if (!origenTipo || !origenId) return null
 
   const origenes = [
-    {
-      tipo: origenTipo,
-      id: origenId
-    }
+    { tipo: origenTipo, id: origenId }
   ]
 
-  // Pedido -> Venta
   if (origenTipo === 'pedido') {
     const { data: pedido, error } = await supabase
       .from('pedidos')
@@ -43,7 +35,6 @@ export async function buscarRemitoExistente(origenTipo, origenId) {
     }
   }
 
-  // Venta -> Pedido
   if (origenTipo === 'venta') {
     const { data: pedidos, error } = await supabase
       .from('pedidos')
@@ -52,7 +43,7 @@ export async function buscarRemitoExistente(origenTipo, origenId) {
 
     if (error) throw error
 
-    pedidos?.forEach((p) => {
+    pedidos?.forEach(p => {
       origenes.push({
         tipo: 'pedido',
         id: p.id
@@ -80,20 +71,16 @@ export async function buscarRemitoExistente(origenTipo, origenId) {
 }
 
 /**
- * Estado logístico simple.
+ * Devuelve un estado logístico simple.
  */
 export function obtenerEstadoLogistico(remito) {
   if (!remito) return 'sin_remito'
-
-  if (remito.fecha_entrega_real) {
-    return 'entregado'
-  }
-
+  if (remito.fecha_entrega_real) return 'entregado'
   return 'remito_emitido'
 }
 
 /**
- * Indica si todavía puede emitirse un remito.
+ * Indica si puede emitirse un remito.
  */
 export async function puedeEmitirRemito(origenTipo, origenId) {
   const remito = await buscarRemitoExistente(origenTipo, origenId)
@@ -101,8 +88,57 @@ export async function puedeEmitirRemito(origenTipo, origenId) {
   return {
     puede: !remito,
     remito,
-    motivo: remito
-      ? 'Ya existe un remito para este documento.'
-      : null
+    motivo: remito ? 'Ya existe un remito para este origen.' : null
   }
+}
+
+/**
+ * Emite un remito para un pedido o una venta.
+ *
+ * IMPORTANTE:
+ * En esta iteración solo centraliza la creación del documento remito.
+ * Todavía NO descuenta stock ni registra movimientos.
+ */
+export async function emitirRemito({
+  origenTipo,
+  origenId,
+  clienteId,
+  vendedorId,
+  total,
+  fechaEntregaReal = null
+}) {
+  if (!origenTipo || !origenId) {
+    throw new Error('Faltan datos de origen para emitir el remito')
+  }
+
+  const existente = await buscarRemitoExistente(origenTipo, origenId)
+  if (existente) return existente
+
+  const { data: ultimo, error: ultimoError } = await supabase
+    .from('remitos')
+    .select('numero')
+    .order('numero', { ascending: false })
+    .limit(1)
+
+  if (ultimoError) throw ultimoError
+
+  const numero = (ultimo?.[0]?.numero || 0) + 1
+
+  const { data, error } = await supabase
+    .from('remitos')
+    .insert({
+      numero,
+      origen_tipo: origenTipo,
+      origen_id: origenId,
+      cliente_id: clienteId,
+      vendedor_id: vendedorId,
+      fecha_entrega_real: fechaEntregaReal || null,
+      total
+    })
+    .select('*')
+    .single()
+
+  if (error) throw error
+
+  return data
 }
