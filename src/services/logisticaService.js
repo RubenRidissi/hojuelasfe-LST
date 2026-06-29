@@ -1,22 +1,91 @@
 import { supabase } from './supabase'
 
-/**
- * Servicio Logístico
- * RC 1.4.06 - Núcleo logístico
- */
-
 export const ESTADOS_LOGISTICOS = {
   SIN_REMITO: 'SIN_REMITO',
   REMITO_EMITIDO: 'REMITO_EMITIDO',
   ENTREGADO: 'ENTREGADO'
 }
+
 export const MODALIDADES_ENTREGA = {
   RETIRO_DEPOSITO: 'retiro_deposito',
   REPARTO: 'reparto'
 }
 
-function hoyISO() {
-  return new Date().toISOString().split('T')[0]
+function fechaHoyISO() {
+  const hoy = new Date()
+  const yyyy = hoy.getFullYear()
+  const mm = String(hoy.getMonth() + 1).padStart(2, '0')
+  const dd = String(hoy.getDate()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
+}
+
+function normalizarItemsStock(items = []) {
+  return items
+    .map(item => {
+      const productoId = item.producto_id || item.productoId || item.productos?.id
+      const cantidad = Number(item.cantidad || 0)
+      const bonificado = Number(item.bonificado || 0)
+      const cantidadFisica = cantidad + bonificado
+
+      return {
+        producto_id: productoId,
+        cantidad: cantidadFisica,
+        bonificado
+      }
+    })
+    .filter(item => item.producto_id && item.cantidad > 0)
+}
+
+async function registrarMovimientosStockRemito({ remito, items = [], clienteId }) {
+  const itemsStock = normalizarItemsStock(items)
+
+  if (!itemsStock.length) return
+
+  const fecha = fechaHoyISO()
+
+  const movimientos = itemsStock.map(item => ({
+    producto_id: item.producto_id,
+    cliente_id: clienteId || null,
+    tipo: 'salida',
+    origen: 'remito',
+    cantidad: -item.cantidad,
+    referencia_id: remito.id,
+    fecha,
+    notas: `Remito #${String(remito.numero || '').padStart(6, '0')}${item.bonificado ? ` (incl. ${item.bonificado} bonif.)` : ''}`
+  }))
+
+  const { error } = await supabase
+    .from('stock_movimientos')
+    .insert(movimientos)
+
+  if (error) throw error
+}
+
+async function marcarOrigenEntregado(origenTipo, origenId, fechaEntregaReal) {
+  if (!fechaEntregaReal) return
+
+  if (origenTipo === 'pedido') {
+    const { error } = await supabase
+      .from('pedidos')
+      .update({
+        fecha_entrega_real: fechaEntregaReal,
+        estado: 'entregado'
+      })
+      .eq('id', origenId)
+
+    if (error) throw error
+  }
+
+  if (origenTipo === 'venta') {
+    const { error } = await supabase
+      .from('ventas')
+      .update({
+        fecha_entrega_real: fechaEntregaReal
+      })
+      .eq('id', origenId)
+
+    if (error) throw error
+  }
 }
 
 export async function buscarRemitoExistente(origenTipo, origenId) {
@@ -34,7 +103,10 @@ export async function buscarRemitoExistente(origenTipo, origenId) {
     if (error) throw error
 
     if (pedido?.convertido_venta_id) {
-      origenes.push({ tipo: 'venta', id: pedido.convertido_venta_id })
+      origenes.push({
+        tipo: 'venta',
+        id: pedido.convertido_venta_id
+      })
     }
   }
 
@@ -47,7 +119,10 @@ export async function buscarRemitoExistente(origenTipo, origenId) {
     if (error) throw error
 
     pedidos?.forEach(p => {
-      origenes.push({ tipo: 'pedido', id: p.id })
+      origenes.push({
+        tipo: 'pedido',
+        id: p.id
+      })
     })
   }
 
@@ -127,31 +202,6 @@ export async function puedeEmitirRemito(origenTipo, origenId) {
   }
 }
 
-async function actualizarDocumentoComoEntregado(origenTipo, origenId, fechaEntregaReal) {
-  if (origenTipo === 'pedido') {
-    const { error } = await supabase
-      .from('pedidos')
-      .update({
-        estado: 'entregado',
-        fecha_entrega_real: fechaEntregaReal
-      })
-      .eq('id', origenId)
-
-    if (error) throw error
-  }
-
-  if (origenTipo === 'venta') {
-    const { error } = await supabase
-      .from('ventas')
-      .update({
-        fecha_entrega_real: fechaEntregaReal
-      })
-      .eq('id', origenId)
-
-    if (error) throw error
-  }
-}
-
 export async function emitirRemito({
   origenTipo,
   origenId,
@@ -193,10 +243,6 @@ export async function emitirRemito({
 
   if (error) throw error
 
-  if (fechaEntregaReal) {
-    await actualizarDocumentoComoEntregado(origenTipo, origenId, fechaEntregaReal)
-  }
-
   return data
 }
 
@@ -206,23 +252,39 @@ export async function prepararEntrega({
   clienteId,
   vendedorId,
   total,
-  modalidadEntrega = 'reparto'
+  items = [],
+  modalidadEntrega = MODALIDADES_ENTREGA.REPARTO,
+  fechaEntregaReal = null
 }) {
   const estado = await obtenerEstadoLogisticoDocumento({ origenTipo, origenId })
 
-  if (estado.remito) return estado.remito
+  if (estado.remito) {
+    return estado.remito
+  }
 
-  const fechaEntregaReal =
-    modalidadEntrega === 'retiro_deposito'
-      ? hoyISO()
-      : null
+  const fechaEntregaFinal =
+    modalidadEntrega === MODALIDADES_ENTREGA.RETIRO_DEPOSITO
+      ? fechaHoyISO()
+      : fechaEntregaReal
 
-  return emitirRemito({
+  const remito = await emitirRemito({
     origenTipo,
     origenId,
     clienteId,
     vendedorId,
     total,
-    fechaEntregaReal
+    fechaEntregaReal: fechaEntregaFinal
   })
+
+  await registrarMovimientosStockRemito({
+    remito,
+    items,
+    clienteId
+  })
+
+  if (fechaEntregaFinal) {
+    await marcarOrigenEntregado(origenTipo, origenId, fechaEntregaFinal)
+  }
+
+  return remito
 }

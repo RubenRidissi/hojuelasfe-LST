@@ -295,11 +295,15 @@ export default function VentasPage() {
 
       await Promise.all(items.map(item => {
         const precioConDesc = item.precio_unitario * (1 - descPct / 100) * ivaFactor
-        const cantTotal = item.cantidad + (item.bonificado || 0)
-        return Promise.all([
-          supabase.from('venta_items').insert({ venta_id: venta.id, producto_id: item.producto_id, cantidad: item.cantidad, bonificado: item.bonificado || 0, precio_unitario: precioConDesc }),
-          supabase.from('stock_movimientos').insert({ producto_id: item.producto_id, tipo: 'salida', origen: 'venta', cantidad: -cantTotal, referencia_id: venta.id, notas: `Venta #${venta.id.substring(0, 8)}${item.bonificado ? ` (incl. ${item.bonificado} bonif.)` : ''}`, fecha })
-        ])
+        return supabase
+          .from('venta_items')
+          .insert({
+            venta_id: venta.id,
+            producto_id: item.producto_id,
+            cantidad: item.cantidad,
+            bonificado: item.bonificado || 0,
+            precio_unitario: precioConDesc
+          })
       }))
 
       // Activar cliente si estaba Pendiente/Inactivo
@@ -411,7 +415,7 @@ export default function VentasPage() {
 
       toast(pedidoOrigen
         ? 'Venta anulada. El pedido quedó nuevamente confirmado.'
-        : 'Venta anulada y stock revertido.'
+        : 'Venta anulada.'
       )
       loadVentas()
     } catch (e) {

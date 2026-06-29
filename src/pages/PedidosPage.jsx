@@ -413,11 +413,15 @@ export default function PedidosPage() {
       const { data: [venta] } = await supabase.from('ventas').insert(dataVenta).select()
 
       await Promise.all(its.map(item => {
-        const cantTotal = item.cantidad + (item.bonificado || 0)
-        return Promise.all([
-          supabase.from('venta_items').insert({ venta_id: venta.id, producto_id: item.producto_id, cantidad: item.cantidad, bonificado: item.bonificado || 0, precio_unitario: item.precio_unitario }),
-          supabase.from('stock_movimientos').insert({ producto_id: item.producto_id, tipo: 'salida', origen: 'venta', cantidad: -cantTotal, referencia_id: venta.id, notas: `Venta desde pedido`, fecha: hoy })
-        ])
+        return supabase
+          .from('venta_items')
+          .insert({
+            venta_id: venta.id,
+            producto_id: item.producto_id,
+            cantidad: item.cantidad,
+            bonificado: item.bonificado || 0,
+            precio_unitario: item.precio_unitario
+          })
       }))
 
       const patchPedido = { convertido_venta_id: venta.id }
