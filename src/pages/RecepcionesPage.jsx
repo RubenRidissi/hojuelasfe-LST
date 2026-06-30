@@ -248,7 +248,6 @@ export default function RecepcionesPage() {
       ))
       toast(editandoId ? 'Borrador actualizado ✓' : 'Recepción guardada como borrador ✓ — confirmala para impactar el stock')
       setModalOpen(false)
-      setModalFechaConf(null)
       loadAll()
     } catch (e) { toast('Error: ' + e.message, 'error') } finally { setSaving(false) }
   }
