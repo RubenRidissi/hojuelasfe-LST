@@ -59,6 +59,7 @@ export default function PedidosPage() {
 
   // Cache remitos
   const [origenesConRemito, setOrigenesConRemito] = useState(new Set())
+  const [remitosPorOrigen, setRemitosPorOrigen] = useState(new Map())
 
   useEffect(() => { loadAll() }, [])
 
@@ -110,16 +111,20 @@ export default function PedidosPage() {
       if (todosIds.length) {
         const { data: remitos, error: remitosError } = await supabase
           .from('remitos')
-          .select('origen_tipo,origen_id')
+          .select('id,numero,origen_tipo,origen_id,fecha_entrega_real')
           .in('origen_id', todosIds)
 
         if (remitosError) throw remitosError
 
-        setOrigenesConRemito(
-          new Set((remitos || []).map(r => `${r.origen_tipo}:${r.origen_id}`))
+        const remitosMap = new Map(
+          (remitos || []).map(r => [`${r.origen_tipo}:${r.origen_id}`, r])
         )
+
+        setOrigenesConRemito(new Set(remitosMap.keys()))
+        setRemitosPorOrigen(remitosMap)
       } else {
         setOrigenesConRemito(new Set())
+        setRemitosPorOrigen(new Map())
       }
 
       setPedidos(peds || [])
@@ -558,23 +563,28 @@ export default function PedidosPage() {
               <tbody>
                 {pedidos.map(p => {
                   const yaConvertido = !!p.convertido_venta_id
-                  const puedeConvertir = !yaConvertido && (p.estado === 'confirmado' || p.estado === 'entregado')
-                  const puedeRemitir = !yaConvertido && (p.estado === 'confirmado' || p.estado === 'entregado')
-                  const tieneRemito = origenesConRemito.has(`pedido:${p.id}`) || (yaConvertido && origenesConRemito.has(`venta:${p.convertido_venta_id}`))
+                  const remitoPedido = remitosPorOrigen.get(`pedido:${p.id}`)
+                  const remitoVenta = yaConvertido ? remitosPorOrigen.get(`venta:${p.convertido_venta_id}`) : null
+                  const remitoLogistico = remitoPedido || remitoVenta
+                  const tieneRemito = !!remitoLogistico
+                  const fechaEntregaReal = p.fecha_entrega_real || remitoLogistico?.fecha_entrega_real || ''
+                  const estadoVisual = fechaEntregaReal ? 'entregado' : p.estado
+                  const puedeConvertir = !yaConvertido && !tieneRemito && (p.estado === 'confirmado' || p.estado === 'entregado')
+                  const puedeRemitir = !yaConvertido && !tieneRemito && (p.estado === 'confirmado' || p.estado === 'entregado')
                   return (
                     <tr key={p.id}>
                       <td style={{ color: 'var(--muted)', fontSize: 12 }}>#{String(p.numero || 0).padStart(6, '0')}</td>
                       <td>{p.clientes ? nombreCliente(p.clientes) : '—'}</td>
                       <td style={{ fontSize: 12 }}>
                         <div>📅 {p.fecha_entrega || 'Sin programar'}</div>
-                        <div style={{ color: p.fecha_entrega_real ? 'var(--success)' : 'var(--muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                          {p.fecha_entrega_real ? `✓ Entregado: ${p.fecha_entrega_real}` : 'Sin entregar'}
-                          <span style={{ cursor: 'pointer' }} onClick={() => { setModalFecha({ id: p.id, modo: 'editar', tabla: 'pedidos', fechaActual: p.fecha_entrega_real || '' }); setFechaInput(p.fecha_entrega_real || new Date().toISOString().split('T')[0]) }} title="Editar fecha">✏</span>
+                        <div style={{ color: fechaEntregaReal ? 'var(--success)' : 'var(--muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                          {fechaEntregaReal ? `✓ Entregado: ${fechaEntregaReal}` : (tieneRemito ? 'Remitido / pendiente de entrega' : 'Sin entregar')}
+                          <span style={{ cursor: 'pointer' }} onClick={() => { setModalFecha({ id: p.id, modo: 'editar', tabla: 'pedidos', fechaActual: fechaEntregaReal || '' }); setFechaInput(fechaEntregaReal || new Date().toISOString().split('T')[0]) }} title="Editar fecha">✏</span>
                         </div>
                       </td>
                       <td>
-                        <span className={`badge ${{ pendiente: 'badge-yellow', confirmado: 'badge-blue', entregado: 'badge-green', cancelado: 'badge-red' }[p.estado] || 'badge-gray'}`}>
-                          {p.estado}
+                        <span className={`badge ${{ pendiente: 'badge-yellow', confirmado: 'badge-blue', entregado: 'badge-green', cancelado: 'badge-red' }[estadoVisual] || 'badge-gray'}`}>
+                          {estadoVisual}
                         </span>
                       </td>
                       <td>${parseFloat(p.total || 0).toLocaleString('es-AR')}</td>
@@ -604,7 +614,7 @@ export default function PedidosPage() {
                             ? <button className="btn btn-sm" style={{ padding: '3px 6px', background: '#F3F4F6', color: '#374151' }} onClick={() => handleVerRemito(p.id)}>👁</button>
                             : puedeRemitir && <button className="btn btn-sm" style={{ padding: '3px 6px', background: '#FEF3C7', color: '#92400E' }} title="Preparar entrega" onClick={() => handlePrepararEntrega(p.id)}>🚚 Prep.</button>
                           }
-                          {isAdmin && !yaConvertido && <button className="btn btn-sm btn-danger" style={{ padding: '3px 6px', fontSize: 11 }} onClick={() => deletePedido(p)}>✕</button>}
+                          {isAdmin && !yaConvertido && !tieneRemito && <button className="btn btn-sm btn-danger" style={{ padding: '3px 6px', fontSize: 11 }} onClick={() => deletePedido(p)}>✕</button>}
                         </div>
                       </td>
                     </tr>
@@ -624,21 +634,26 @@ export default function PedidosPage() {
           <div className="empty"><div className="empty-icon">📋</div><p>No hay pedidos todavía</p></div>
         ) : pedidos.map(p => {
           const yaConvertido = !!p.convertido_venta_id
-          const puedeConvertir = !yaConvertido && (p.estado === 'confirmado' || p.estado === 'entregado')
-          const puedeRemitir = !yaConvertido && (p.estado === 'confirmado' || p.estado === 'entregado')
-          const tieneRemito = origenesConRemito.has(`pedido:${p.id}`) || (yaConvertido && origenesConRemito.has(`venta:${p.convertido_venta_id}`))
+          const remitoPedido = remitosPorOrigen.get(`pedido:${p.id}`)
+          const remitoVenta = yaConvertido ? remitosPorOrigen.get(`venta:${p.convertido_venta_id}`) : null
+          const remitoLogistico = remitoPedido || remitoVenta
+          const tieneRemito = !!remitoLogistico
+          const fechaEntregaReal = p.fecha_entrega_real || remitoLogistico?.fecha_entrega_real || ''
+          const estadoVisual = fechaEntregaReal ? 'entregado' : p.estado
+          const puedeConvertir = !yaConvertido && !tieneRemito && (p.estado === 'confirmado' || p.estado === 'entregado')
+          const puedeRemitir = !yaConvertido && !tieneRemito && (p.estado === 'confirmado' || p.estado === 'entregado')
           return (
             <div key={p.id} className="op-card">
               <div className="op-card-header">
                 <span className="op-card-num">#{String(p.numero || 0).padStart(6, '0')}</span>
-                <span className={`badge ${{ pendiente: 'badge-yellow', confirmado: 'badge-blue', entregado: 'badge-green', cancelado: 'badge-red' }[p.estado] || 'badge-gray'}`}>{p.estado}</span>
+                <span className={`badge ${{ pendiente: 'badge-yellow', confirmado: 'badge-blue', entregado: 'badge-green', cancelado: 'badge-red' }[estadoVisual] || 'badge-gray'}`}>{estadoVisual}</span>
                 <span className="op-card-fecha">{p.fecha_entrega ? new Date(p.fecha_entrega + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' }) : 'Sin fecha'}</span>
               </div>
               <div className="op-card-cliente">{p.clientes ? nombreCliente(p.clientes) : '—'}</div>
               <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4, marginBottom: 8 }}>
                 <div>📅 Entrega: {p.fecha_entrega ? new Date(p.fecha_entrega + 'T00:00:00').toLocaleDateString('es-AR') : 'Sin programar'}</div>
-                <div style={{ color: p.fecha_entrega_real ? 'var(--success)' : 'var(--muted)' }}>
-                  {p.fecha_entrega_real ? `✓ Entregado: ${p.fecha_entrega_real}` : 'Sin entregar'}
+                <div style={{ color: fechaEntregaReal ? 'var(--success)' : 'var(--muted)' }}>
+                  {fechaEntregaReal ? `✓ Entregado: ${fechaEntregaReal}` : (tieneRemito ? 'Remitido / pendiente de entrega' : 'Sin entregar')}
                 </div>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
