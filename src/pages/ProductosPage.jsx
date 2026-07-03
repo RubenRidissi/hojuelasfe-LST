@@ -14,6 +14,8 @@ const MARKUP_COLS = [
   { key: 'markup_almacen', precio: 'precio_almacen', label: 'Almacén' },
 ]
 
+const BULK_PRICE_FIELDS = ['descuento_costo', ...MARKUP_COLS.map(c => c.key)]
+
 const EMPTY_FORM = {
   id: '', codigo: '', codigo_viejo: '', familia: '', variante: '',
   nombre: '', descripcion: '', costo: '', descuento_costo: '0',
@@ -32,7 +34,7 @@ const EMPTY_BULK_PRICE_FORM = {
   markup_mayorista: '0',
   markup_supermercado: '0',
   markup_almacen: '0',
-  aplicarSoloFiltrados: false
+  familias: []
 }
 
 function calcPrecio(costo, descuento_costo, markup) {
@@ -82,6 +84,28 @@ export default function ProductosPage() {
     return list
   }, [productos, filtroFamilia, search])
 
+  // Valor común de cada campo entre los productos objetivo (familias seleccionadas, o todos)
+  // Si todos comparten el mismo valor, se prellena; si son distintos, queda vacío ("varios valores")
+  const valoresComunesBulk = useMemo(() => {
+    const target = bulkPriceForm.familias.length
+      ? productos.filter(p => bulkPriceForm.familias.includes(p.familia))
+      : productos
+
+    const result = {}
+    BULK_PRICE_FIELDS.forEach(key => {
+      if (!target.length) { result[key] = '' ; return }
+      const primero = Number(target[0][key] ?? 0)
+      const uniforme = target.every(p => Number(p[key] ?? 0) === primero)
+      result[key] = uniforme ? String(primero) : ''
+    })
+    return result
+  }, [productos, bulkPriceForm.familias])
+
+  useEffect(() => {
+    setBulkPriceForm(f => ({ ...f, ...valoresComunesBulk }))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bulkPriceForm.familias.join(',')])
+
   // Precios calculados en tiempo real para el formulario
   const preciosPreview = useMemo(() => {
     return MARKUP_COLS.map(col => ({
@@ -91,27 +115,34 @@ export default function ProductosPage() {
   }, [form.costo, form.descuento_costo, form.markup_representante, form.markup_distribuidor, form.markup_mayorista, form.markup_supermercado, form.markup_almacen])
 
   async function aplicarPoliticaPrecios() {
-    const productosObjetivo = bulkPriceForm.aplicarSoloFiltrados ? productosFiltrados : productos
+    const familiasSel = bulkPriceForm.familias
+    const productosObjetivo = familiasSel.length
+      ? productos.filter(p => familiasSel.includes(p.familia))
+      : productos
 
     if (!productosObjetivo.length) {
       toast('No hay productos para actualizar', 'error')
       return
     }
 
-    const alcance = bulkPriceForm.aplicarSoloFiltrados ? `${productosObjetivo.length} productos filtrados` : 'todos los productos'
+    const payload = {}
+    BULK_PRICE_FIELDS.forEach(key => {
+      const val = bulkPriceForm[key]
+      if (val !== '' && val !== null && val !== undefined) payload[key] = parseFloat(val) || 0
+    })
+
+    if (!Object.keys(payload).length) {
+      toast('No definiste ningún valor para aplicar (todos los campos están en "varios valores")', 'error')
+      return
+    }
+
+    const alcance = familiasSel.length
+      ? `${productosObjetivo.length} productos (familias: ${familiasSel.join(', ')})`
+      : `todos los productos (${productosObjetivo.length})`
     if (!confirm(`¿Aplicar esta política de precios a ${alcance}?`)) return
 
     setSavingPrices(true)
     try {
-      const payload = {
-        descuento_costo: parseFloat(bulkPriceForm.descuento_costo) || 0,
-        markup_representante: parseFloat(bulkPriceForm.markup_representante) || 0,
-        markup_distribuidor: parseFloat(bulkPriceForm.markup_distribuidor) || 0,
-        markup_mayorista: parseFloat(bulkPriceForm.markup_mayorista) || 0,
-        markup_supermercado: parseFloat(bulkPriceForm.markup_supermercado) || 0,
-        markup_almacen: parseFloat(bulkPriceForm.markup_almacen) || 0,
-      }
-
       const ids = productosObjetivo.map(p => p.id).filter(Boolean)
       const { error } = await supabase
         .from('productos')
@@ -344,6 +375,35 @@ export default function ProductosPage() {
               </p>
 
               <div style={{ background: 'var(--bg)', borderRadius: 8, padding: 12, marginBottom: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <label style={{ margin: 0 }}>Alcance (familias)</label>
+                  {bulkPriceForm.familias.length > 0 && (
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-secondary"
+                      onClick={() => setBulkPriceForm(f => ({ ...f, familias: [] }))}
+                    >
+                      Limpiar (todo el listado)
+                    </button>
+                  )}
+                </div>
+                <select
+                  multiple
+                  size={Math.min(Math.max(familias.length, 1), 6)}
+                  value={bulkPriceForm.familias}
+                  onChange={e => setBulkPriceForm(f => ({ ...f, familias: Array.from(e.target.selectedOptions, o => o.value) }))}
+                  style={{ width: '100%' }}
+                >
+                  {familias.map(f => <option key={f} value={f}>{f}</option>)}
+                </select>
+                <p style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--muted)' }}>
+                  {bulkPriceForm.familias.length === 0
+                    ? `Sin selección: se aplica a todo el listado (${productos.length} productos). Ctrl/Cmd + click para elegir una o varias familias.`
+                    : `Se aplica a ${productos.filter(p => bulkPriceForm.familias.includes(p.familia)).length} productos de ${bulkPriceForm.familias.length} familia(s) seleccionada(s).`}
+                </p>
+              </div>
+
+              <div style={{ background: 'var(--bg)', borderRadius: 8, padding: 12, marginBottom: 12 }}>
                 <div className="form-row">
                   <div className="form-group">
                     <label>Descuento s/costo global (%)</label>
@@ -352,6 +412,7 @@ export default function ProductosPage() {
                       min="0"
                       max="100"
                       step="0.1"
+                      placeholder="Varios valores"
                       value={bulkPriceForm.descuento_costo}
                       onChange={e => setBulkPriceForm(f => ({ ...f, descuento_costo: e.target.value }))}
                     />
@@ -363,6 +424,9 @@ export default function ProductosPage() {
                 <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8 }}>
                   Markups por tipo de cliente
                 </div>
+                <p style={{ margin: '0 0 8px', fontSize: 12, color: 'var(--muted)' }}>
+                  Los campos ya cargados con un valor son iguales en todos los productos del alcance elegido — no hace falta retipearlos, solo cambiá el que quieras ajustar. "Varios valores" significa que difieren entre productos y, si lo dejás vacío, no se tocan.
+                </p>
                 <div className="form-row">
                   {MARKUP_COLS.map(col => (
                     <div className="form-group" key={col.key}>
@@ -371,6 +435,7 @@ export default function ProductosPage() {
                         type="number"
                         min="0"
                         step="0.1"
+                        placeholder="Varios valores"
                         value={bulkPriceForm[col.key]}
                         onChange={e => setBulkPriceForm(f => ({ ...f, [col.key]: e.target.value }))}
                       />
@@ -378,15 +443,6 @@ export default function ProductosPage() {
                   ))}
                 </div>
               </div>
-
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontWeight: 'normal' }}>
-                <input
-                  type="checkbox"
-                  checked={bulkPriceForm.aplicarSoloFiltrados}
-                  onChange={e => setBulkPriceForm(f => ({ ...f, aplicarSoloFiltrados: e.target.checked }))}
-                />
-                Aplicar solo a los productos filtrados actualmente ({productosFiltrados.length})
-              </label>
             </div>
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setPriceModalOpen(false)}>Cancelar</button>
