@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { nombreCliente } from '../utils/helpers'
@@ -21,6 +21,8 @@ function badgePago(estado) {
 export default function VentasPage() {
   const { user, isAdmin, puedeVerMontos } = useAuth()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const ventaIdParam = searchParams.get('venta')
   const { toasts, toast } = useToast()
   const { comp, cerrarComp, imprimir, descargar, verComprobanteVenta, verRemito, confirmarDespachoVenta } = useComprobante()
   const [ventas, setVentas] = useState([])
@@ -101,8 +103,12 @@ export default function VentasPage() {
         .order('created_at', { ascending: false })
 
       if (!isAdmin) q = q.eq('vendedor_id', user)
-      if (isAdmin && filtroVendedor) q = q.eq('vendedor_id', filtroVendedor)
-      if (filtroCliente) q = q.eq('cliente_id', filtroCliente)
+      if (ventaIdParam) {
+        q = q.eq('id', ventaIdParam)
+      } else {
+        if (isAdmin && filtroVendedor) q = q.eq('vendedor_id', filtroVendedor)
+        if (filtroCliente) q = q.eq('cliente_id', filtroCliente)
+      }
 
       const { data: vents } = await q
 
@@ -136,7 +142,7 @@ export default function VentasPage() {
     } catch (e) { console.error(e) } finally { setLoading(false) }
   }
 
-  useEffect(() => { loadVentas() }, [filtroCliente, filtroVendedor])
+  useEffect(() => { loadVentas() }, [filtroCliente, filtroVendedor, ventaIdParam])
 
   const PRECIO_POR_TIPO = {
     'Representante': 'precio_representante',
@@ -541,19 +547,25 @@ export default function VentasPage() {
         </div>
       </div>
 
-      {/* Filtros */}
-      <div className="filter-bar">
-        <select value={filtroCliente} onChange={e => setFiltroCliente(e.target.value)} style={{ flex: 2, minWidth: 150 }}>
-          <option value="">Todos los clientes</option>
-          {misClientes.map(c => <option key={c.id} value={c.id}>{nombreCliente(c)}</option>)}
-        </select>
-        {isAdmin && (
-          <select value={filtroVendedor} onChange={e => setFiltroVendedor(e.target.value)} style={{ flex: 1, minWidth: 130 }}>
-            <option value="">Todos los vendedores</option>
-            {vendedores.map(v => <option key={v.user_id} value={v.user_id}>{v.nombre}</option>)}
+      {ventaIdParam ? (
+        <div className="card" style={{ padding: '10px 14px', marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>
+          <span>Mostrando solo la venta vinculada al pedido.</span>
+          <button className="btn btn-sm btn-secondary" onClick={() => setSearchParams({})}>Ver todas las ventas</button>
+        </div>
+      ) : (
+        <div className="filter-bar">
+          <select value={filtroCliente} onChange={e => setFiltroCliente(e.target.value)} style={{ flex: 2, minWidth: 150 }}>
+            <option value="">Todos los clientes</option>
+            {misClientes.map(c => <option key={c.id} value={c.id}>{nombreCliente(c)}</option>)}
           </select>
-        )}
-      </div>
+          {isAdmin && (
+            <select value={filtroVendedor} onChange={e => setFiltroVendedor(e.target.value)} style={{ flex: 1, minWidth: 130 }}>
+              <option value="">Todos los vendedores</option>
+              {vendedores.map(v => <option key={v.user_id} value={v.user_id}>{v.nombre}</option>)}
+            </select>
+          )}
+        </div>
+      )}
 
       {/* Tabla desktop */}
       <div className="card desktop-table">

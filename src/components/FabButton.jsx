@@ -18,7 +18,6 @@ function EspigaIcon({ size = 30 }) {
 const FAB_GROUPS = {
   operaciones: [
     { label: 'Nuevo Pedido', icon: '📋', path: '/pedidos', event: 'fab:nuevo-pedido' },
-    { label: 'Nueva Venta', icon: '📈', path: '/ventas', event: 'fab:nueva-venta' },
     { label: 'Nuevo Cobro', icon: '💰', path: '/pagos', event: 'fab:nuevo-cobro' },
     { label: 'Nuevo Cliente', icon: '👤', path: '/clientes', event: 'fab:nuevo-cliente' },
   ],

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { nombreCliente } from '../utils/helpers'
@@ -18,6 +19,7 @@ const EMPTY_FORM = {
 
 export default function PedidosPage() {
   const { user, isAdmin, puedeVerMontos } = useAuth()
+  const navigate = useNavigate()
   const { toasts, toast } = useToast()
   const { comp, cerrarComp, imprimir, descargar, verComprobantePedido } = useComprobante()
 
@@ -524,10 +526,7 @@ export default function PedidosPage() {
 
   function irAVenta(ventaId) {
     if (!ventaId) return
-    sessionStorage.setItem('hojuelas_venta_id', ventaId)
-    window.dispatchEvent(new CustomEvent('hojuelas:navigate', { detail: { page: 'ventas', ventaId } }))
-    window.dispatchEvent(new CustomEvent('navigate:ventas', { detail: { ventaId } }))
-    window.location.href = '/ventas'
+    navigate(`/ventas?venta=${ventaId}`)
   }
 
   function estadoVisualPedido(p) {
