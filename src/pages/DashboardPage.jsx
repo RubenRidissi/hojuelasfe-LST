@@ -361,26 +361,21 @@ export default function DashboardPage() {
     const today = hoyStr()
     const desde7 = hace7diasStr()
 
-    const [{data:pedidosPend},{data:pedidosEntrega},{data:ventasEntrega},{data:ventasPend},{count:cntCli}] = await Promise.all([
-      supabase.from('pedidos').select('id,total').eq('vendedor_id',user).eq('estado','pendiente'),
-      supabase.from('ventas').select('id,total,estado,estado_entrega,estado_pago').eq('vendedor_id',user),
-      supabase.from('ventas').select('id,total').eq('vendedor_id',user).neq('estado_entrega','entregado'),
-      supabase.from('ventas').select('id,total,monto_pagado').eq('vendedor_id',user).neq('estado_pago','pagado'),
+    const [{data:pedidosPend},{data:ventasAbiertas},{data:ventasPend},{count:cntCli}] = await Promise.all([
+      supabase.from('pedidos').select('id,total').eq('vendedor_id',user).in('estado',['pendiente','confirmado']).is('convertido_venta_id',null),
+      supabase.from('ventas').select('id,total').eq('vendedor_id',user).eq('estado','abierta'),
+      supabase.from('ventas').select('id,total,monto_pagado').eq('vendedor_id',user).in('estado',['remitida','entregada']).neq('estado_pago','pagado'),
       supabase.from('clientes').select('id',{count:'exact',head:true}).eq('estado_cliente','Activo').eq('vendedor_id',user)
 ])
 
     const totalPedidosPend = (pedidosPend||[]).reduce((s,p)=>s+parseFloat(p.total||0),0)
-    const totalEntregasHoy =
-      (pedidosEntrega||[]).reduce((s,p)=>s+parseFloat(p.total||0),0) +
-      (ventasEntrega||[]).reduce((s,v)=>s+parseFloat(v.total||0),0)
+    const totalVentasAbiertas = (ventasAbiertas||[]).reduce((s,v)=>s+parseFloat(v.total||0),0)
     const cobranzasPend = (ventasPend||[]).reduce((s,v)=>s+parseFloat(v.total||0)-parseFloat(v.monto_pagado||0),0)
     setStatsVend({
       pedidosPend:(pedidosPend||[]).length,
       totalPedidosPend,
-      entregasHoy:(pedidosEntrega||[]).length + (ventasEntrega||[]).length,
-      entregasPedidos:(pedidosEntrega||[]).length,
-      entregasVentas:(ventasEntrega||[]).length,
-      totalEntregasHoy,
+      ventasAbiertas:(ventasAbiertas||[]).length,
+      totalVentasAbiertas,
       cobranzasPend,
       cobranzasCount:(ventasPend||[]).length,
       clientesActivos:cntCli||0
@@ -477,10 +472,10 @@ export default function DashboardPage() {
       icon:'📋',
       titulo:'Concretemos oportunidades',
       valor: statsVend.pedidosPend === 0
-        ? 'Sin pedidos pendientes. ¡A vender!'
+        ? 'Sin oportunidades pendientes. ¡A vender!'
         : statsVend.pedidosPend === 1
-          ? '1 pendiente'
-          : `${statsVend.pedidosPend} pendientes`,
+          ? '1 por concretar'
+          : `${statsVend.pedidosPend} por concretar`,
       meta: statsVend.pedidosPend === 0 ? '' : `≈ $${fmt(statsVend.totalPedidosPend).replace('$','')}`,
       route:'/pedidos'
     },
@@ -489,13 +484,13 @@ export default function DashboardPage() {
       bg:'rgba(37,99,235,0.12)',
       icon:'🚚',
       titulo:'Honremos compromisos',
-      valor: statsVend.entregasHoy === 0
-        ? 'Todo entregado. ¡Buen trabajo!'
-        : statsVend.entregasHoy === 1
-          ? '1 programada'
-          : `${statsVend.entregasHoy} programadas`,
-      meta: statsVend.entregasHoy === 0 ? '' : `≈ ${fmt(statsVend.totalEntregasHoy)}`,
-      route:'/pedidos'
+      valor: statsVend.ventasAbiertas === 0
+        ? 'Todo despachado. ¡Buen trabajo!'
+        : statsVend.ventasAbiertas === 1
+          ? '1 por despachar'
+          : `${statsVend.ventasAbiertas} por despachar`,
+      meta: statsVend.ventasAbiertas === 0 ? '' : `≈ ${fmt(statsVend.totalVentasAbiertas)}`,
+      route:'/ventas'
     },
     {
       color:'#DC2626',
@@ -503,7 +498,7 @@ export default function DashboardPage() {
       icon:'💰',
       titulo:'Completemos ciclos',
       valor: statsVend.cobranzasPend === 0
-        ? '¡Excelente gestión de Cobranza'
+        ? '¡Excelente gestión de Cobranza!'
         : fmt(statsVend.cobranzasPend),
       meta: statsVend.cobranzasPend === 0
         ? ''
