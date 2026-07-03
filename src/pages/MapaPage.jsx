@@ -34,6 +34,10 @@ export default function MapaPage() {
   const [leafletCargado, setLeafletCargado] = useState(false)
   const [clienteAUbicar, setClienteAUbicar] = useState('')
   const pendingCoordsRef = useRef(null)
+  const [geocodificando, setGeocodificando] = useState(false)
+  const [progresoGeocod, setProgresoGeocod] = useState(null)
+  const centroideSugeridoRef = useRef({}) // { [clienteId]: {lat,lng} } — punto de partida sugerido para ubicar a mano
+  const centroideCacheRef = useRef({}) // { "localidad|provincia": {lat,lng} | null }
 
   // Cargar Leaflet dinámicamente
   useEffect(() => {
@@ -61,7 +65,7 @@ export default function MapaPage() {
       setLoading(true)
       try {
         const [{ data: c }, { data: v }] = await Promise.all([
-          supabase.from('clientes').select('id,nombre,nombre_fantasia,tipo,latitud,longitud,localidad,provincia,telefono,vendedor_id,modalidad_factura,estado_cliente').order('nombre'),
+          supabase.from('clientes').select('id,nombre,nombre_fantasia,tipo,latitud,longitud,direccion,localidad,provincia,telefono,vendedor_id,modalidad_factura,estado_cliente').order('nombre'),
           supabase.from('user_roles').select('user_id,nombre').eq('rol', 'vendedor').order('nombre')
         ])
         setVendedores(v || [])
@@ -85,6 +89,75 @@ export default function MapaPage() {
     } catch (e) {
       toast('Error al guardar la ubicación: ' + e.message, 'error')
     }
+  }
+
+  // Busca la ubicación exacta de una dirección usando la API oficial de georreferenciación (georef.gob.ar)
+  async function buscarDireccionExacta(c) {
+    if (!c.direccion?.trim()) return null
+    try {
+      const params = new URLSearchParams({ direccion: c.direccion.trim(), max: '1', campos: 'estandar' })
+      if (c.provincia) params.set('provincia', c.provincia)
+      if (c.localidad) params.set('localidad_censal', c.localidad)
+      const res = await fetch(`https://apis.datos.gob.ar/georef/api/direcciones?${params}`)
+      const data = await res.json()
+      const match = data?.direcciones?.[0]
+      return match?.ubicacion ? { lat: match.ubicacion.lat, lng: match.ubicacion.lon } : null
+    } catch {
+      return null
+    }
+  }
+
+  // Cuando no hay match exacto, busca el centroide de la localidad como punto de partida para ubicar a mano
+  async function buscarCentroideLocalidad(localidad, provincia) {
+    if (!localidad?.trim()) return null
+    const key = `${localidad}|${provincia || ''}`
+    if (key in centroideCacheRef.current) return centroideCacheRef.current[key]
+    let coords = null
+    try {
+      const params = new URLSearchParams({ nombre: localidad.trim(), max: '1', campos: 'estandar' })
+      if (provincia) params.set('provincia', provincia)
+      const res = await fetch(`https://apis.datos.gob.ar/georef/api/localidades?${params}`)
+      const data = await res.json()
+      const loc = data?.localidades?.[0]
+      if (loc?.centroide) coords = { lat: loc.centroide.lat, lng: loc.centroide.lon }
+    } catch { /* sin centroide disponible */ }
+    centroideCacheRef.current[key] = coords
+    return coords
+  }
+
+  // Geocodifica automáticamente los clientes sin coordenadas. Los que no matchean con dirección
+  // exacta quedan con un centroide de localidad sugerido para agilizar la ubicación manual.
+  async function geocodificarPendientes() {
+    const pendientes = clientes.filter(c => (!c.latitud || !c.longitud) && (c.direccion?.trim() || c.localidad?.trim()))
+    if (!pendientes.length) {
+      toast('No hay clientes con datos suficientes para geocodificar', 'error')
+      return
+    }
+    centroideSugeridoRef.current = {}
+    setGeocodificando(true)
+    let exitosos = 0
+    try {
+      for (let i = 0; i < pendientes.length; i++) {
+        const c = pendientes[i]
+        setProgresoGeocod({ actual: i + 1, total: pendientes.length })
+        const exacto = await buscarDireccionExacta(c)
+        if (exacto) {
+          const { error } = await supabase.from('clientes').update({ latitud: exacto.lat, longitud: exacto.lng }).eq('id', c.id)
+          if (!error) {
+            setClientes(prev => prev.map(x => x.id === c.id ? { ...x, latitud: exacto.lat, longitud: exacto.lng } : x))
+            exitosos++
+          }
+        } else {
+          const centroide = await buscarCentroideLocalidad(c.localidad, c.provincia)
+          if (centroide) centroideSugeridoRef.current[c.id] = centroide
+        }
+      }
+    } finally {
+      setGeocodificando(false)
+      setProgresoGeocod(null)
+    }
+    const faltantes = pendientes.length - exitosos
+    toast(`Geocodificados ${exitosos} de ${pendientes.length}` + (faltantes ? ` · ${faltantes} para ubicar a mano (con punto de partida sugerido)` : ''))
   }
 
   // Inicializar mapa cuando Leaflet esté cargado y el contenedor visible
@@ -140,8 +213,6 @@ export default function MapaPage() {
     const sin = filtrados.filter(c => !c.latitud || !c.longitud)
     setConCoords(con.length)
     setSinCoords(sin.length)
-
-    if (!con.length) return
 
     const bounds = []
     con.forEach(c => {
@@ -202,7 +273,8 @@ export default function MapaPage() {
     if (clienteAUbicar) {
       const clientePendiente = clientes.find(c => c.id === clienteAUbicar)
       if (clientePendiente) {
-        const centro = bounds.length ? mapaInstanceRef.current.getCenter() : { lat: -31.63, lng: -60.70 }
+        const sugerido = centroideSugeridoRef.current[clienteAUbicar]
+        const centro = sugerido || (bounds.length ? mapaInstanceRef.current.getCenter() : { lat: -31.63, lng: -60.70 })
         pendingCoordsRef.current = { lat: centro.lat, lng: centro.lng }
 
         const iconPendiente = L.divIcon({
@@ -211,8 +283,12 @@ export default function MapaPage() {
           iconSize: [20, 20], iconAnchor: [10, 20], popupAnchor: [0, -20]
         })
 
+        const textoAyuda = sugerido
+          ? 'Este pin está centrado en la localidad del cliente. Arrastralo a su ubicación real y tocá "Guardar ubicación".'
+          : 'Arrastrá este pin a su ubicación real y tocá "Guardar ubicación".'
+
         const markerPendiente = L.marker([centro.lat, centro.lng], { icon: iconPendiente, draggable: true, zIndexOffset: 1000 })
-          .bindPopup(`<div style="font-size:12px;max-width:170px"><strong>${nombreCliente(clientePendiente)}</strong><br/>Arrastrá este pin a su ubicación real y tocá "Guardar ubicación".</div>`)
+          .bindPopup(`<div style="font-size:12px;max-width:170px"><strong>${nombreCliente(clientePendiente)}</strong><br/>${textoAyuda}</div>`)
           .addTo(mapaInstanceRef.current)
           .openPopup()
 
@@ -222,7 +298,7 @@ export default function MapaPage() {
         })
 
         markersRef.current.push(markerPendiente)
-        if (!bounds.length) mapaInstanceRef.current.setView([centro.lat, centro.lng], 13)
+        if (sugerido || !bounds.length) mapaInstanceRef.current.setView([centro.lat, centro.lng], sugerido ? 14 : 13)
       }
     }
   }
@@ -260,8 +336,32 @@ export default function MapaPage() {
             {clientes.map(c => <option key={c.id} value={c.id}>{nombreCliente(c)}</option>)}
           </select>
         )}
-
+        {!isInvitado && sinCoords > 0 && (
+          <button className="btn btn-secondary" onClick={geocodificarPendientes} disabled={geocodificando}>
+            {geocodificando
+              ? `Geocodificando ${progresoGeocod?.actual || 0}/${progresoGeocod?.total || 0}...`
+              : `📍 Geocodificar pendientes (${sinCoords})`}
+          </button>
+        )}
       </div>
+
+      {/* Ubicar manualmente un cliente sin coordenadas */}
+      {!isInvitado && sinCoords > 0 && (
+        <div className="filter-bar" style={{ marginBottom: 12, alignItems: 'center' }}>
+          <select value={clienteAUbicar} onChange={e => setClienteAUbicar(e.target.value)} style={{ flex: 2 }}>
+            <option value="">Ubicar manualmente un cliente sin coordenadas...</option>
+            {clientes.filter(c => !c.latitud || !c.longitud).map(c => (
+              <option key={c.id} value={c.id}>{nombreCliente(c)}</option>
+            ))}
+          </select>
+          {clienteAUbicar && (
+            <>
+              <button className="btn btn-primary" onClick={confirmarUbicacionPendiente}>Guardar ubicación</button>
+              <button className="btn btn-secondary" onClick={() => setClienteAUbicar('')}>Cancelar</button>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Leyenda */}
       <div style={{ display: 'flex', gap: 12, marginBottom: 8, flexWrap: 'wrap' }}>

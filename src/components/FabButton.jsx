@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 
 function EspigaIcon({ size = 30 }) {
   return (
@@ -53,7 +54,9 @@ export default function FabButton() {
   const [open, setOpen] = useState(false)
   const navigate = useNavigate()
   const location = useLocation()
+  const { isInvitado } = useAuth()
   const items = FAB_GROUPS[contextFromPath(location.pathname)]
+    .filter(item => !(isInvitado && item.event === 'fab:nuevo-cliente'))
 
   function runAction(item) {
     setOpen(false)

@@ -17,7 +17,7 @@ const EMPTY_FORM = {
 }
 
 export default function ClientesPage() {
-  const { user, isAdmin } = useAuth()
+  const { user, isAdmin, isInvitado } = useAuth()
   const { toasts, toast } = useToast()
 
   const [clientes, setClientes] = useState([])
@@ -44,6 +44,7 @@ export default function ClientesPage() {
 
   useEffect(() => {
     const abrirDesdeFab = () => {
+      if (isInvitado) return
       setForm(EMPTY_FORM)
       setModalOpen(true)
     }
@@ -106,6 +107,7 @@ export default function ClientesPage() {
 
   // Guardar cliente
   async function saveCliente() {
+    if (isInvitado) { toast('No tenés permiso para editar clientes', 'error'); return }
     if (!form.nombre.trim()) { toast('El nombre es obligatorio', 'error'); return }
     setSaving(true)
     try {
@@ -204,6 +206,7 @@ export default function ClientesPage() {
   }
 
   async function solicitarCliente(clienteId) {
+    if (isInvitado) { toast('No tenés permiso para solicitar clientes', 'error'); return }
     if (!confirm('¿Enviar solicitud al admin para que te asigne este cliente?')) return
     try {
       const { error } = await supabase.from('solicitudes_clientes').insert({ cliente_id: clienteId, vendedor_id: user })
@@ -256,6 +259,7 @@ export default function ClientesPage() {
   }
 
   function accionesDesktop(c) {
+    if (isInvitado) return null
     const tieneSolicitud = solicitudes.some(s => s.cliente_id === c.id && s.vendedor_id === user)
     if (isAdmin) return (
       <div style={{ display:'flex', gap:4 }}>
@@ -272,6 +276,7 @@ export default function ClientesPage() {
   }
 
   function accionesMobile(c) {
+    if (isInvitado) return null
     const tieneSolicitud = solicitudes.some(s => s.cliente_id === c.id && s.vendedor_id === user)
     if (isAdmin) return (
       <>
@@ -307,9 +312,11 @@ export default function ClientesPage() {
           {clientesFiltrados.length > 0 && (
             <span style={{ fontSize:13, color:'var(--muted)' }}>{clientesFiltrados.length} cliente{clientesFiltrados.length !== 1 ? 's' : ''}</span>
           )}
-          <button className="mobile-hide btn btn-primary" onClick={() => { setForm(EMPTY_FORM); setModalOpen(true) }}>
-            + Nuevo cliente
-          </button>
+          {!isInvitado && (
+            <button className="mobile-hide btn btn-primary" onClick={() => { setForm(EMPTY_FORM); setModalOpen(true) }}>
+              + Nuevo cliente
+            </button>
+          )}
         </div>
       </div>
 
