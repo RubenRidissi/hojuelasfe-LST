@@ -472,7 +472,7 @@ export default function DashboardPage() {
       icon:'📋',
       titulo:'Concretemos oportunidades',
       valor: statsVend.pedidosPend === 0
-        ? 'Sin oportunidades pendientes. ¡A vender!'
+        ? 'Sin pendientes. ¡A vender!'
         : statsVend.pedidosPend === 1
           ? '1 por concretar'
           : `${statsVend.pedidosPend} por concretar`,
@@ -561,7 +561,7 @@ export default function DashboardPage() {
 
       </div>
 
-      {item.valor === 'Todo en orden' ? (
+      {!item.meta ? (
         <div style={{
           color:'var(--success)',
           fontSize:18,
