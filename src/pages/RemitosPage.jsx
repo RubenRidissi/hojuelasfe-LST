@@ -5,9 +5,10 @@ import { nombreCliente } from '../utils/helpers'
 import { useToast } from '../hooks/useToast'
 import { useComprobante, ComprobanteModal } from '../hooks/useComprobante.jsx'
 import { ToastContainer } from '../components/Toast'
+import { fmtMonto } from '../utils/money'
 
 export default function RemitosPage() {
-  const { user, isAdmin } = useAuth()
+  const { user, isAdmin, puedeVerMontos } = useAuth()
   const { toasts, toast } = useToast()
   const { comp, cerrarComp, imprimir, descargar, verRemito } = useComprobante()
 
@@ -115,7 +116,7 @@ export default function RemitosPage() {
                       <td style={{ fontSize: 12, color: r.fecha_entrega_real ? 'var(--success)' : 'var(--muted)' }}>
                         {r.fecha_entrega_real ? `✓ ${new Date(r.fecha_entrega_real + 'T00:00:00').toLocaleDateString('es-AR')}` : 'Sin entregar'}
                       </td>
-                      <td>${parseFloat(r.total || 0).toLocaleString('es-AR')}</td>
+                      <td>{fmtMonto(r.total, puedeVerMontos)}</td>
                       {isAdmin && <td style={{ fontSize: 12, color: 'var(--muted)' }}>{vendedorNombre}</td>}
                       <td>
                         <button className="btn btn-sm btn-secondary" onClick={() => handleVerRemito(r)}>👁 Ver</button>
@@ -152,7 +153,7 @@ export default function RemitosPage() {
                 </span>
               </div>
               <div className="op-card-cliente">{cliente ? nombreCliente(cliente) : '—'}</div>
-              <div className="op-card-total">${parseFloat(r.total || 0).toLocaleString('es-AR', { maximumFractionDigits: 0 })}</div>
+              <div className="op-card-total">{fmtMonto(r.total, puedeVerMontos)}</div>
               <div className="op-card-actions">
                 <button className="btn btn-secondary" onClick={() => handleVerRemito(r)}>👁 Ver remito</button>
               </div>

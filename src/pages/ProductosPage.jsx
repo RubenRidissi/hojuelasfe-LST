@@ -3,6 +3,7 @@ import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
+import { fmtMonto } from '../utils/money'
 
 const TIPOS_CLIENTE = ['Representante', 'Distribuidor', 'Mayorista', 'Supermercado', 'Almacén']
 
@@ -46,7 +47,7 @@ function calcPrecio(costo, descuento_costo, markup) {
 }
 
 export default function ProductosPage() {
-  const { isAdmin } = useAuth()
+  const { isAdmin, puedeVerMontos } = useAuth()
   const { toasts, toast } = useToast()
 
   const [productos, setProductos] = useState([])
@@ -285,7 +286,7 @@ export default function ProductosPage() {
             <table>
               <thead>
                 <tr>
-                  <th>Código</th><th>Nombre</th><th>Costo</th><th>Costo neto</th>
+                  <th>Código</th><th>Nombre</th>{isAdmin && <><th>Costo</th><th>Costo neto</th></>}
                   {MARKUP_COLS.map(c => <th key={c.key} style={{ textAlign: 'right' }}>{c.label}</th>)}
                   <th>Stock</th>{isAdmin && <th></th>}
                 </tr>
@@ -293,7 +294,7 @@ export default function ProductosPage() {
               <tbody>
                 {Object.entries(grupos).map(([fam, prods]) => [
                   <tr key={`fam-${fam}`} style={{ background: 'var(--primary-light)' }}>
-                    <td colSpan={9 + MARKUP_COLS.length} style={{ padding: '6px 12px', fontSize: 11, fontWeight: 700, color: 'var(--primary-dark)', textTransform: 'uppercase' }}>{fam}</td>
+                    <td colSpan={3 + (isAdmin ? 3 : 0) + MARKUP_COLS.length} style={{ padding: '6px 12px', fontSize: 11, fontWeight: 700, color: 'var(--primary-dark)', textTransform: 'uppercase' }}>{fam}</td>
                   </tr>,
                   ...prods.map(p => (
                     <tr key={p.id}>
@@ -302,15 +303,19 @@ export default function ProductosPage() {
                         <strong>{p.nombre}</strong>
                         {p.variante && <><br /><span style={{ fontSize: 11, color: 'var(--muted)' }}>{p.variante}</span></>}
                       </td>
-                      <td style={{ fontSize: 12 }}>${parseFloat(p.costo || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</td>
-                      <td style={{ fontSize: 12, color: 'var(--muted)' }}>
-                        ${costoNeto(p).toLocaleString('es-AR', { maximumFractionDigits: 2 })}
-                        {parseFloat(p.descuento_costo || 0) > 0 && <span style={{ fontSize: 10, color: 'var(--success)', marginLeft: 4 }}>-{p.descuento_costo}%</span>}
-                      </td>
+                      {isAdmin && (
+                        <>
+                          <td style={{ fontSize: 12 }}>${parseFloat(p.costo || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</td>
+                          <td style={{ fontSize: 12, color: 'var(--muted)' }}>
+                            ${costoNeto(p).toLocaleString('es-AR', { maximumFractionDigits: 2 })}
+                            {parseFloat(p.descuento_costo || 0) > 0 && <span style={{ fontSize: 10, color: 'var(--success)', marginLeft: 4 }}>-{p.descuento_costo}%</span>}
+                          </td>
+                        </>
+                      )}
                       {MARKUP_COLS.map(col => (
                         <td key={col.key} style={{ textAlign: 'right', fontSize: 12, fontWeight: 600 }}>
-                          ${parseFloat(p[col.precio] || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}
-                          <span style={{ fontSize: 10, color: 'var(--muted)', display: 'block' }}>{p[col.key] || 0}%</span>
+                          {fmtMonto(p[col.precio], puedeVerMontos, { maximumFractionDigits: 2 })}
+                          {isAdmin && <span style={{ fontSize: 10, color: 'var(--muted)', display: 'block' }}>{p[col.key] || 0}%</span>}
                         </td>
                       ))}
                       <td>{stockBadge(p)}</td>
@@ -335,10 +340,12 @@ export default function ProductosPage() {
                   <div>
                     <div style={{ fontWeight: 600 }}>{p.nombre}</div>
                     {p.codigo && <code style={{ fontSize: 11 }}>{p.codigo}</code>}
-                    <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
-                      Costo: ${parseFloat(p.costo || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}
-                      {parseFloat(p.descuento_costo || 0) > 0 && ` (neto: $${costoNeto(p).toLocaleString('es-AR', { maximumFractionDigits: 2 })})`}
-                    </div>
+                    {isAdmin && (
+                      <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+                        Costo: ${parseFloat(p.costo || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}
+                        {parseFloat(p.descuento_costo || 0) > 0 && ` (neto: $${costoNeto(p).toLocaleString('es-AR', { maximumFractionDigits: 2 })})`}
+                      </div>
+                    )}
                   </div>
                   <div style={{ textAlign: 'right', fontSize: 12 }}>{stockBadge(p)}</div>
                 </div>
@@ -346,7 +353,7 @@ export default function ProductosPage() {
                   {MARKUP_COLS.map(col => (
                     <div key={col.key} style={{ background: 'var(--bg)', borderRadius: 6, padding: '4px 6px', textAlign: 'center' }}>
                       <div style={{ fontSize: 10, color: 'var(--muted)' }}>{col.label}</div>
-                      <div style={{ fontSize: 13, fontWeight: 600 }}>${parseFloat(p[col.precio] || 0).toLocaleString('es-AR', { maximumFractionDigits: 0 })}</div>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>{fmtMonto(p[col.precio], puedeVerMontos)}</div>
                     </div>
                   ))}
                 </div>

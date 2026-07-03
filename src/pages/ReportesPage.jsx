@@ -3,6 +3,7 @@ import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
+import { fmtMonto } from '../utils/money'
 
 const TIPO_COLORS = { Minorista: 'badge-gray', Distribuidor: 'badge-blue', Mayorista: 'badge-yellow', Institucional: 'badge-green' }
 const HONEY_COLOR = '#D4860A'
@@ -22,7 +23,7 @@ function semanaLabel(lunesStr) {
 }
 
 export default function ReportesPage() {
-  const { user, isAdmin } = useAuth()
+  const { user, isAdmin, puedeVerMontos } = useAuth()
   const { toasts, toast } = useToast()
 
   const today = new Date()
@@ -182,7 +183,7 @@ export default function ReportesPage() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 16 }}>
               <div className="card" style={{ padding: 16, textAlign: 'center' }}>
                 <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 6 }}>Total ventas</div>
-                <div style={{ fontSize: 22, fontWeight: 700 }}>${(res.totalIngresos || 0).toLocaleString('es-AR', { maximumFractionDigits: 0 })}</div>
+                <div style={{ fontSize: 22, fontWeight: 700 }}>{fmtMonto(res.totalIngresos, puedeVerMontos)}</div>
               </div>
               <div className="card" style={{ padding: 16, textAlign: 'center' }}>
                 <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 6 }}>Cantidad</div>
@@ -216,8 +217,8 @@ export default function ReportesPage() {
                         <tr key={lunes}>
                           <td style={{ fontSize: 12 }}>{semanaLabel(lunes)}</td>
                           <td>{d.ventas}</td>
-                          <td>${d.total.toLocaleString('es-AR', { maximumFractionDigits: 0 })}</td>
-                          {isAdmin && <td style={{ color: 'var(--success)' }}>${(d.ganancia || 0).toLocaleString('es-AR', { maximumFractionDigits: 0 })}</td>}
+                          <td>{fmtMonto(d.total, puedeVerMontos)}</td>
+                          {isAdmin && <td style={{ color: 'var(--success)' }}>{fmtMonto(d.ganancia, puedeVerMontos)}</td>}
                         </tr>
                       ))}
                     </tbody>
@@ -238,7 +239,7 @@ export default function ReportesPage() {
                           <tr key={tipo}>
                             <td><span className={`badge ${TIPO_COLORS[tipo] || 'badge-gray'}`}>{tipo}</span></td>
                             <td>{d.ventas}</td>
-                            <td>${d.total.toLocaleString('es-AR', { maximumFractionDigits: 0 })}</td>
+                            <td>{fmtMonto(d.total, puedeVerMontos)}</td>
                             <td>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                 <div style={{ width: 60, height: 8, background: 'var(--border)', borderRadius: 4, overflow: 'hidden' }}>

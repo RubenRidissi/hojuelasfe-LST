@@ -6,6 +6,7 @@ import { nombreCliente } from '../utils/helpers'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
 import { useComprobante, ComprobanteModal } from '../hooks/useComprobante.jsx'
+import { fmtMonto } from '../utils/money'
 
 const MEDIOS = [
   { value: 'efectivo', label: 'Efectivo' },
@@ -50,7 +51,7 @@ const EMPTY_EDIT = {
 }
 
 export default function PagosPage() {
-  const { user, isAdmin } = useAuth()
+  const { user, isAdmin, puedeVerMontos } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
   const { toasts, toast } = useToast()
@@ -536,7 +537,7 @@ export default function PagosPage() {
                       <td>{p.fecha}</td>
                       <td style={{ fontSize: 12, color: 'var(--muted)' }}>{numeroVentaLabel(p)}</td>
                       <td>{p.clientes ? nombreCliente(p.clientes) : '—'}</td>
-                      <td><strong>${parseFloat(p.monto || 0).toLocaleString('es-AR')}</strong></td>
+                      <td><strong>{fmtMonto(p.monto, puedeVerMontos)}</strong></td>
                       <td>
                         <button
                           className={`badge ${estadoCobro.badge}`}
@@ -598,7 +599,7 @@ export default function PagosPage() {
                 {ccBadge}
               </div>
               <div className="op-card-cliente">{p.clientes ? nombreCliente(p.clientes) : '—'} <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 400 }}>{numeroVentaLabel(p)}</span></div>
-              <div className="op-card-total" style={{ color: 'var(--success)' }}>${parseFloat(p.monto || 0).toLocaleString('es-AR', { maximumFractionDigits: 0 })}</div>
+              <div className="op-card-total" style={{ color: 'var(--success)' }}>{fmtMonto(p.monto, puedeVerMontos)}</div>
               <div className="op-card-actions" style={{ marginTop: 8 }}>
                 <button className="btn btn-secondary" onClick={() => handleReciboPago(p.id)}>🧾 Recibo</button>
                 {estadoCobro.key !== 'imputado' && (
@@ -685,9 +686,9 @@ export default function PagosPage() {
                           <span style={{ color: 'var(--muted)', fontSize: 11 }}>{fechaStr}</span>
                           {v.notas && <span style={{ color: 'var(--muted)', fontSize: 11 }}> · {v.notas.split('|')[0].trim()}</span>}
                           <br />
-                          Total: <strong>${parseFloat(v.total || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</strong>
-                          {parseFloat(v.monto_pagado || 0) > 0 && ` · Pagado: $${parseFloat(v.monto_pagado).toLocaleString('es-AR', { maximumFractionDigits: 2 })}`}
-                          {' · '}<span style={{ color: '#DC2626', fontWeight: 600 }}>Saldo: ${saldo.toLocaleString('es-AR', { maximumFractionDigits: 2 })}</span>
+                          Total: <strong>{fmtMonto(v.total, puedeVerMontos, { maximumFractionDigits: 2 })}</strong>
+                          {parseFloat(v.monto_pagado || 0) > 0 && ` · Pagado: ${fmtMonto(v.monto_pagado, puedeVerMontos, { maximumFractionDigits: 2 })}`}
+                          {' · '}<span style={{ color: '#DC2626', fontWeight: 600 }}>Saldo: {fmtMonto(saldo, puedeVerMontos, { maximumFractionDigits: 2 })}</span>
                         </label>
                         <input type="number" min="0" max={saldo} step="0.01"
                           value={imp.monto}
@@ -707,9 +708,9 @@ export default function PagosPage() {
                     </div>
                   )}
                   <div style={{ marginTop: 8, fontSize: 13, display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Imputado: <strong>${totalImputado.toLocaleString('es-AR', { maximumFractionDigits: 2 })}</strong></span>
+                    <span>Imputado: <strong>{fmtMonto(totalImputado, puedeVerMontos, { maximumFractionDigits: 2 })}</strong></span>
                     <span style={{ color: saldoCuenta < -0.01 ? 'var(--danger)' : 'var(--muted)' }}>
-                      {saldoCuenta < -0.01 ? '⚠ Excede el cobro' : `A cuenta: $${saldoCuenta.toLocaleString('es-AR', { maximumFractionDigits: 2 })}`}
+                      {saldoCuenta < -0.01 ? '⚠ Excede el cobro' : `A cuenta: ${fmtMonto(saldoCuenta, puedeVerMontos, { maximumFractionDigits: 2 })}`}
                     </span>
                   </div>
                 </div>
@@ -816,15 +817,15 @@ export default function PagosPage() {
                 <div style={{ fontWeight: 600 }}>{detallePago.clientes ? nombreCliente(detallePago.clientes) : '—'}</div>
                 <div style={{ marginTop: 8, display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
                   <span>Total cobrado</span>
-                  <strong>${parseFloat(detallePago.monto || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</strong>
+                  <strong>{fmtMonto(detallePago.monto, puedeVerMontos, { maximumFractionDigits: 2 })}</strong>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
                   <span>Total imputado</span>
-                  <strong>${getEstadoCobro(detallePago).totalImputado.toLocaleString('es-AR', { maximumFractionDigits: 2 })}</strong>
+                  <strong>{fmtMonto(getEstadoCobro(detallePago).totalImputado, puedeVerMontos, { maximumFractionDigits: 2 })}</strong>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
                   <span>Saldo a cuenta</span>
-                  <strong>${Math.max(0, parseFloat(detallePago.monto || 0) - getEstadoCobro(detallePago).totalImputado).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</strong>
+                  <strong>{fmtMonto(Math.max(0, parseFloat(detallePago.monto || 0) - getEstadoCobro(detallePago).totalImputado), puedeVerMontos, { maximumFractionDigits: 2 })}</strong>
                 </div>
               </div>
 
@@ -843,7 +844,7 @@ export default function PagosPage() {
                         <div style={{ fontWeight: 600 }}>Venta #{String(imp.ventas?.numero || 0).padStart(6, '0')}</div>
                         <div style={{ color: 'var(--muted)', fontSize: 12 }}>{imp.ventas?.fecha || '—'}</div>
                       </div>
-                      <strong>${parseFloat(imp.monto_aplicado || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</strong>
+                      <strong>{fmtMonto(imp.monto_aplicado, puedeVerMontos, { maximumFractionDigits: 2 })}</strong>
                     </div>
                   ))}
                 </div>
@@ -869,7 +870,7 @@ export default function PagosPage() {
                 <div><strong>{modalImputar.clientes ? nombreCliente(modalImputar.clientes) : '—'}</strong></div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
                   <span>Disponible para imputar</span>
-                  <strong>${disponibleImputar.toLocaleString('es-AR', { maximumFractionDigits: 2 })}</strong>
+                  <strong>{fmtMonto(disponibleImputar, puedeVerMontos, { maximumFractionDigits: 2 })}</strong>
                 </div>
               </div>
 
@@ -888,8 +889,8 @@ export default function PagosPage() {
                         <label style={{ flex: 1, cursor: 'pointer', fontWeight: 'normal' }} onClick={() => toggleNuevaImputacion(v.id)}>
                           <span style={{ color: 'var(--muted)', fontSize: 11 }}>{fechaStr}</span>
                           <br />
-                          Total: <strong>${parseFloat(v.total || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</strong>
-                          {' · '}<span style={{ color: '#DC2626', fontWeight: 600 }}>Saldo: ${imp.saldo.toLocaleString('es-AR', { maximumFractionDigits: 2 })}</span>
+                          Total: <strong>{fmtMonto(v.total, puedeVerMontos, { maximumFractionDigits: 2 })}</strong>
+                          {' · '}<span style={{ color: '#DC2626', fontWeight: 600 }}>Saldo: {fmtMonto(imp.saldo, puedeVerMontos, { maximumFractionDigits: 2 })}</span>
                         </label>
                         <input type="number" min="0" max={imp.saldo} step="0.01"
                           value={imp.monto}
@@ -899,7 +900,7 @@ export default function PagosPage() {
                     )
                   })}
                   <div style={{ marginTop: 8, fontSize: 13, display: 'flex', justifyContent: 'space-between' }}>
-                    <span>A imputar: <strong>${totalNuevasImputaciones.toLocaleString('es-AR', { maximumFractionDigits: 2 })}</strong></span>
+                    <span>A imputar: <strong>{fmtMonto(totalNuevasImputaciones, puedeVerMontos, { maximumFractionDigits: 2 })}</strong></span>
                     {excedeDisponible && <span style={{ color: 'var(--danger)' }}>⚠ Supera el disponible</span>}
                   </div>
                 </div>

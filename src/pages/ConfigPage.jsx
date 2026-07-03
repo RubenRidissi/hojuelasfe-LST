@@ -40,10 +40,49 @@ export default function ConfigPage() {
   const [exportando, setExportando] = useState(false)
   const [exportStatus, setExportStatus] = useState('')
   const [backupStatus, setBackupStatus] = useState('')
+  const [pwNueva, setPwNueva] = useState('')
+  const [pwConfirmar, setPwConfirmar] = useState('')
+  const [pwSaving, setPwSaving] = useState(false)
 
   const APP_VERSION = 'RC1.4.02'
   const nombreMostrar = nombre || user?.email || 'Usuario'
   const rolMostrar = isAdmin ? 'Administrador' : 'Vendedor'
+
+  async function cambiarPassword() {
+    if (!pwNueva || pwNueva.length < 6) { toast('La contraseña debe tener al menos 6 caracteres', 'error'); return }
+    if (pwNueva !== pwConfirmar) { toast('Las contraseñas no coinciden', 'error'); return }
+    setPwSaving(true)
+    try {
+      const { error } = await supabase.auth.updateUser({ password: pwNueva })
+      if (error) throw error
+      toast('Contraseña actualizada')
+      setPwNueva('')
+      setPwConfirmar('')
+    } catch (e) {
+      toast('Error al actualizar la contraseña: ' + e.message, 'error')
+    } finally {
+      setPwSaving(false)
+    }
+  }
+
+  const cambiarPasswordCard = (
+    <div className="card" style={{ padding: 20, marginBottom: 16 }}>
+      <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 8 }}>🔑 Cambiar contraseña</div>
+      <div className="form-row">
+        <div className="form-group">
+          <label>Nueva contraseña</label>
+          <input type="password" value={pwNueva} onChange={e => setPwNueva(e.target.value)} placeholder="Mínimo 6 caracteres" />
+        </div>
+        <div className="form-group">
+          <label>Confirmar contraseña</label>
+          <input type="password" value={pwConfirmar} onChange={e => setPwConfirmar(e.target.value)} placeholder="Repetí la contraseña" />
+        </div>
+      </div>
+      <button className="btn btn-primary" onClick={cambiarPassword} disabled={pwSaving} style={{ marginTop: 8 }}>
+        {pwSaving ? 'Actualizando...' : 'Actualizar contraseña'}
+      </button>
+    </div>
+  )
 
   async function exportarTodoExcel() {
     setExportando(true)
@@ -135,12 +174,7 @@ export default function ConfigPage() {
       </div>
     </div>
 
-    <div className="card" style={{padding:20,marginBottom:16}}>
-      <div style={{fontWeight:700,fontSize:15,marginBottom:8}}>🔑 Seguridad</div>
-      <p style={{color:'var(--muted)',fontSize:13,marginBottom:0}}>
-        El cambio de contraseña se incorporará en una próxima versión.
-      </p>
-    </div>
+    {cambiarPasswordCard}
 
     <div className="card" style={{padding:20,marginBottom:16}}>
       <div style={{fontWeight:700,fontSize:15,marginBottom:8}}>🔤 Tamaño de texto</div>
@@ -172,6 +206,8 @@ export default function ConfigPage() {
       <div className="page-header">
         <h1 className="page-title">Configuración</h1>
       </div>
+
+      {cambiarPasswordCard}
 
       {/* Tamaño de fuente */}
       <div className="card" style={{padding:20,marginBottom:16}}>

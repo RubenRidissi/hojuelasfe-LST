@@ -71,9 +71,11 @@ export function AuthProvider({ children }) {
   }
 
   const isAdmin = rol === 'admin'
+  const isInvitado = rol === 'invitado'
+  const puedeVerMontos = !isInvitado
 
   return (
-    <AuthContext.Provider value={{ user, rol, nombre, isAdmin, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, rol, nombre, isAdmin, isInvitado, puedeVerMontos, loading, login, logout }}>
       {children}
     </AuthContext.Provider>
   )

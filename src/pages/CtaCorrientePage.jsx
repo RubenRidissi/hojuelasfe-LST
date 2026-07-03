@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { nombreCliente } from '../utils/helpers'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
+import { fmtMonto } from '../utils/money'
 
 const EMPTY_AJUSTE = {
   tipo: 'NC', clienteId: '', ventaId: '',
@@ -12,7 +13,7 @@ const EMPTY_AJUSTE = {
 }
 
 export default function CtaCorrientePage() {
-  const { isAdmin } = useAuth()
+  const { isAdmin, puedeVerMontos } = useAuth()
   const { toasts, toast } = useToast()
 
   const [clientes, setClientes] = useState([])
@@ -150,18 +151,18 @@ export default function CtaCorrientePage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 16 }}>
             <div className="card" style={{ padding: 16, textAlign: 'center' }}>
               <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--muted)', marginBottom: 8 }}>Total facturado</div>
-              <div style={{ fontSize: 24, fontWeight: 700 }}>${resumen.facturado.toLocaleString('es-AR', { maximumFractionDigits: 0 })}</div>
+              <div style={{ fontSize: 24, fontWeight: 700 }}>{fmtMonto(resumen.facturado, puedeVerMontos)}</div>
             </div>
             <div className="card" style={{ padding: 16, textAlign: 'center' }}>
               <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--muted)', marginBottom: 8 }}>Total cobrado</div>
-              <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--success)' }}>${resumen.cobrado.toLocaleString('es-AR', { maximumFractionDigits: 0 })}</div>
+              <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--success)' }}>{fmtMonto(resumen.cobrado, puedeVerMontos)}</div>
             </div>
             <div className="card" style={{ padding: 16, textAlign: 'center', borderTop: `3px solid ${resumen.saldo <= 0 ? 'var(--success)' : 'var(--danger)'}` }}>
               <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--muted)', marginBottom: 8 }}>
                 {resumen.saldo < 0 ? 'Saldo a favor' : resumen.saldo === 0 ? 'Sin deuda' : 'Saldo pendiente'}
               </div>
               <div style={{ fontSize: 24, fontWeight: 700, color: resumen.saldo <= 0 ? 'var(--success)' : 'var(--danger)' }}>
-                ${Math.abs(resumen.saldo).toLocaleString('es-AR', { maximumFractionDigits: 0 })}
+                {fmtMonto(Math.abs(resumen.saldo), puedeVerMontos)}
               </div>
             </div>
             <div className="card" style={{ padding: 16, textAlign: 'center' }}>
@@ -215,10 +216,10 @@ export default function CtaCorrientePage() {
                           <td style={{ fontSize: 12 }}>{new Date(m.fecha + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}</td>
                           <td><span className={`badge ${tipoBadge}`}>{tipoLabel}</span></td>
                           <td style={{ fontSize: 12, color: 'var(--muted)' }}>{detalle}</td>
-                          <td style={{ textAlign: 'right', color: 'var(--danger)' }}>{debe > 0 ? `$${debe.toLocaleString('es-AR', { maximumFractionDigits: 0 })}` : '—'}</td>
-                          <td style={{ textAlign: 'right', color: 'var(--success)' }}>{haber > 0 ? `$${haber.toLocaleString('es-AR', { maximumFractionDigits: 0 })}` : '—'}</td>
+                          <td style={{ textAlign: 'right', color: 'var(--danger)' }}>{debe > 0 ? fmtMonto(debe, puedeVerMontos) : '—'}</td>
+                          <td style={{ textAlign: 'right', color: 'var(--success)' }}>{haber > 0 ? fmtMonto(haber, puedeVerMontos) : '—'}</td>
                           <td style={{ textAlign: 'right', fontWeight: 600, color: saldoColor }}>
-                            ${Math.abs(saldoAcum).toLocaleString('es-AR', { maximumFractionDigits: 0 })}{saldoAcum < 0 ? ' ✓' : ''}
+                            {fmtMonto(Math.abs(saldoAcum), puedeVerMontos)}{saldoAcum < 0 ? ' ✓' : ''}
                           </td>
                         </tr>
                       )
@@ -262,11 +263,11 @@ export default function CtaCorrientePage() {
                     {detalle && <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>{detalle}</div>}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div style={{ fontSize: 13 }}>
-                        {debe > 0 && <span style={{ color: 'var(--danger)' }}>Debe: ${debe.toLocaleString('es-AR', { maximumFractionDigits: 0 })}</span>}
-                        {haber > 0 && <span style={{ color: 'var(--success)' }}>Haber: ${haber.toLocaleString('es-AR', { maximumFractionDigits: 0 })}</span>}
+                        {debe > 0 && <span style={{ color: 'var(--danger)' }}>Debe: {fmtMonto(debe, puedeVerMontos)}</span>}
+                        {haber > 0 && <span style={{ color: 'var(--success)' }}>Haber: {fmtMonto(haber, puedeVerMontos)}</span>}
                       </div>
                       <div style={{ fontWeight: 700, color: saldoColor }}>
-                        Saldo: ${Math.abs(saldoMob).toLocaleString('es-AR', { maximumFractionDigits: 0 })}{saldoMob < 0 ? ' ✓' : ''}
+                        Saldo: {fmtMonto(Math.abs(saldoMob), puedeVerMontos)}{saldoMob < 0 ? ' ✓' : ''}
                       </div>
                     </div>
                   </div>

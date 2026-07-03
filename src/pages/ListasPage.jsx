@@ -18,7 +18,7 @@ const EMPRESA = {
 const COMP_CSS = `body{font-family:Arial,sans-serif;color:#1C1917;margin:0;padding:0}.comp-wrap{padding:20px}.comp-table{width:100%;border-collapse:collapse;margin:16px 0;font-size:13px}.comp-table th{background:#D4860A;color:white;padding:7px 8px;text-align:left;font-size:12px}.comp-table td{padding:7px 8px;border-bottom:1px solid #E8E2D8}.comp-table tbody tr:nth-child(even){background:#FFFDF8}@media print{*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}}`
 
 export default function ListasPage() {
-  const { isAdmin } = useAuth()
+  const { isAdmin, puedeVerMontos } = useAuth()
   const { toasts, toast } = useToast()
 
   const [productos, setProductos] = useState([])
@@ -524,7 +524,7 @@ export default function ListasPage() {
 
       {!isAdmin && (
         <div className="card" style={{ padding: 14, marginBottom: 16, fontSize: 13, color: 'var(--muted)' }}>
-          Solo podés consultar listas generadas por administración.
+          {puedeVerMontos ? 'Solo podés consultar listas generadas por administración.' : 'Tu perfil no tiene acceso a las listas de precios.'}
         </div>
       )}
 
@@ -551,8 +551,8 @@ export default function ListasPage() {
                       {' · '}Guardada el {fecha}
                     </div>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      <button className="btn btn-sm btn-secondary" style={{ flex: 1, textAlign: 'center' }} onClick={() => verListaRepo(l)}>👁 Ver</button>
-                      <a href={`https://wa.me/?text=${waMsg}`} target="_blank" rel="noreferrer" className="btn btn-sm" style={{ flex: 1, textAlign: 'center', background: '#25D366', color: '#fff', textDecoration: 'none' }}>💬 WhatsApp</a>
+                      {puedeVerMontos && <button className="btn btn-sm btn-secondary" style={{ flex: 1, textAlign: 'center' }} onClick={() => verListaRepo(l)}>👁 Ver</button>}
+                      {puedeVerMontos && <a href={`https://wa.me/?text=${waMsg}`} target="_blank" rel="noreferrer" className="btn btn-sm" style={{ flex: 1, textAlign: 'center', background: '#25D366', color: '#fff', textDecoration: 'none' }}>💬 WhatsApp</a>}
                       {isAdmin && <button className="btn btn-sm btn-danger" style={{ flex: 1 }} onClick={() => deleteListaRepo(l.id)}>🗑 Borrar</button>}
                     </div>
                   </div>

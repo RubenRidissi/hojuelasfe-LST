@@ -7,6 +7,7 @@ import { useToast } from '../hooks/useToast'
 import { useComprobante, ComprobanteModal } from '../hooks/useComprobante.jsx'
 import { ToastContainer } from '../components/Toast'
 import { MODALIDADES_ENTREGA } from '../services/logisticaService'
+import { fmtMonto } from '../utils/money'
 
 const EMPTY_FORM = {
   clienteId: '', fecha: new Date().toISOString().split('T')[0], notas: '', modalidad: 'sin_iva'
@@ -18,7 +19,7 @@ function badgePago(estado) {
 }
 
 export default function VentasPage() {
-  const { user, isAdmin } = useAuth()
+  const { user, isAdmin, puedeVerMontos } = useAuth()
   const navigate = useNavigate()
   const { toasts, toast } = useToast()
   const { comp, cerrarComp, imprimir, descargar, verComprobanteVenta, verRemito, confirmarDespachoVenta } = useComprobante()
@@ -583,10 +584,10 @@ export default function VentasPage() {
                       <td>{v.fecha || (v.created_at ? v.created_at.slice(0, 10) : '—')}</td>
                       <td>{v.clientes ? nombreCliente(v.clientes) : '—'}</td>
                       <td>{badgeEstado(estado)}</td>
-                      <td>${parseFloat(v.total || 0).toLocaleString('es-AR')}</td>
+                      <td>{fmtMonto(v.total, puedeVerMontos)}</td>
                       <td style={{ whiteSpace: 'nowrap' }}>
                         <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
-                          <button className="btn btn-sm btn-secondary" onClick={async () => { try { await verComprobanteVenta(v.id) } catch(e) { toast('Error', 'error') } }}>👁 Ver comprobante</button>
+                          {puedeVerMontos && <button className="btn btn-sm btn-secondary" onClick={async () => { try { await verComprobanteVenta(v.id) } catch(e) { toast('Error', 'error') } }}>👁 Ver comprobante</button>}
                           {estado === 'abierta' && (
                             <>
                               <button className="btn btn-sm btn-secondary" onClick={() => abrirEditarVenta(v)}>✏️ Editar</button>
@@ -596,14 +597,14 @@ export default function VentasPage() {
                           )}
                           {estado === 'remitida' && (
                             <>
-                              <button className="btn btn-sm btn-secondary" onClick={async () => { try { await verRemito('venta', v.id) } catch(e) { toast('Error', 'error') } }}>👁 Ver remito</button>
+                              {puedeVerMontos && <button className="btn btn-sm btn-secondary" onClick={async () => { try { await verRemito('venta', v.id) } catch(e) { toast('Error', 'error') } }}>👁 Ver remito</button>}
                               <button className="btn btn-sm" style={{ background: '#DCFCE7', color: '#15803D' }}
                                 onClick={() => { setModalFecha({ id: v.id, fechaActual: '' }); setFechaInput(new Date().toISOString().split('T')[0]) }}>
                                 ✅ Confirmar entrega
                               </button>
                             </>
                           )}
-                          {estado === 'entregada' && (
+                          {estado === 'entregada' && puedeVerMontos && (
                             <button className="btn btn-sm btn-secondary" onClick={async () => { try { await verRemito('venta', v.id) } catch(e) { toast('Error', 'error') } }}>👁 Ver remito</button>
                           )}
                           {(estado === 'remitida' || estado === 'entregada') && v.estado_pago !== 'pagado' && (
@@ -637,9 +638,9 @@ export default function VentasPage() {
                 {badgeEstado(estado)}
               </div>
               <div className="op-card-cliente">{v.clientes ? nombreCliente(v.clientes) : '—'}</div>
-              <div className="op-card-total">${parseFloat(v.total || 0).toLocaleString('es-AR', { maximumFractionDigits: 0 })}</div>
+              <div className="op-card-total">{fmtMonto(v.total, puedeVerMontos)}</div>
               <div className="op-card-actions">
-                <button className="btn btn-secondary" onClick={async () => { try { await verComprobanteVenta(v.id) } catch(e) { toast('Error', 'error') } }}>👁 Ver</button>
+                {puedeVerMontos && <button className="btn btn-secondary" onClick={async () => { try { await verComprobanteVenta(v.id) } catch(e) { toast('Error', 'error') } }}>👁 Ver</button>}
                 {estado === 'abierta' && (
                   <>
                     <button className="btn btn-secondary" onClick={() => abrirEditarVenta(v)}>✏️ Editar</button>
@@ -649,11 +650,11 @@ export default function VentasPage() {
                 )}
                 {estado === 'remitida' && (
                   <>
-                    <button className="btn btn-secondary" onClick={async () => { try { await verRemito('venta', v.id) } catch(e) { toast('Error', 'error') } }}>👁 Remito</button>
+                    {puedeVerMontos && <button className="btn btn-secondary" onClick={async () => { try { await verRemito('venta', v.id) } catch(e) { toast('Error', 'error') } }}>👁 Remito</button>}
                     <button className="btn btn-secondary" onClick={() => { setModalFecha({ id: v.id, fechaActual: '' }); setFechaInput(new Date().toISOString().split('T')[0]) }}>✅ Confirmar entrega</button>
                   </>
                 )}
-                {estado === 'entregada' && (
+                {estado === 'entregada' && puedeVerMontos && (
                   <button className="btn btn-secondary" onClick={async () => { try { await verRemito('venta', v.id) } catch(e) { toast('Error', 'error') } }}>👁 Remito</button>
                 )}
                 {(estado === 'remitida' || estado === 'entregada') && v.estado_pago !== 'pagado' && (
@@ -749,7 +750,7 @@ export default function VentasPage() {
                         const precio = parseFloat(p[col] || 0)
                         return (
                           <option key={p.id} value={p.id}>
-                            {p.codigo ? `${p.codigo} — ` : ''}{p.nombre} — ${precio.toLocaleString('es-AR')}{p.promo ? ` 🎁${p.promo}` : ''}
+                            {p.codigo ? `${p.codigo} — ` : ''}{p.nombre} — {fmtMonto(precio, puedeVerMontos)}{p.promo ? ` 🎁${p.promo}` : ''}
                           </option>
                         )
                       })}
@@ -784,8 +785,8 @@ export default function VentasPage() {
                         {item.precio_unitario === 0 && <span style={{ background: '#DCFCE7', color: '#15803D', fontSize: 10, padding: '1px 5px', borderRadius: 8, marginLeft: 4 }}>🎁 muestra</span>}
                       </span>
                       <span style={{ flex: 1, textAlign: 'right' }}>
-                        {descPct > 0 && <span style={{ textDecoration: 'line-through', color: 'var(--muted)', fontSize: 11 }}>${(item.cantidad * item.precio_unitario).toLocaleString('es-AR')}<br /></span>}
-                        ${(item.cantidad * item.precio_unitario * (1 - descPct / 100) * ivaFactor).toLocaleString('es-AR', { maximumFractionDigits: 2 })}
+                        {descPct > 0 && <span style={{ textDecoration: 'line-through', color: 'var(--muted)', fontSize: 11 }}>{fmtMonto(item.cantidad * item.precio_unitario, puedeVerMontos)}<br /></span>}
+                        {fmtMonto(item.cantidad * item.precio_unitario * (1 - descPct / 100) * ivaFactor, puedeVerMontos, { maximumFractionDigits: 2 })}
                       </span>
                       <button className="btn btn-sm btn-danger" onClick={() => removeItem(i)}>✕</button>
                     </div>
@@ -795,10 +796,10 @@ export default function VentasPage() {
                     {items.reduce((s, i) => s + (i.bonificado || 0), 0) > 0 && (
                       <div style={{ fontSize: 12, color: 'var(--success)' }}>Unidades bonificadas: {items.reduce((s, i) => s + (i.bonificado || 0), 0)}</div>
                     )}
-                    <div style={{ fontSize: 16, fontWeight: 600 }}>Total: ${total.toLocaleString('es-AR', { maximumFractionDigits: 2 })}</div>
+                    <div style={{ fontSize: 16, fontWeight: 600 }}>Total: {fmtMonto(total, puedeVerMontos, { maximumFractionDigits: 2 })}</div>
                     {isAdmin && items.length > 0 && (
                       <div style={{ fontSize: 12, marginTop: 4, color: margenColor }}>
-                        Ganancia estimada: ${ganancia.toLocaleString('es-AR', { maximumFractionDigits: 0 })} ({margen.toFixed(1)}% margen)
+                        Ganancia estimada: {fmtMonto(ganancia, puedeVerMontos)} ({margen.toFixed(1)}% margen)
                         {margen < 10 && margen > 0 && <div style={{ color: 'var(--danger)', fontWeight: 500 }}>⚠ Margen bajo — revisá el descuento aplicado</div>}
                       </div>
                     )}
@@ -851,7 +852,7 @@ export default function VentasPage() {
               <div className="comp-datos" style={{ marginBottom: 12 }}>
                 <div><span>Cliente</span><strong>{despachoVenta.clientes ? nombreCliente(despachoVenta.clientes) : '—'}</strong></div>
                 <div><span>Fecha creación</span><strong>{despachoVenta.fecha || '—'}</strong></div>
-                <div><span>Total</span><strong>${parseFloat(despachoVenta.total || 0).toLocaleString('es-AR')}</strong></div>
+                <div><span>Total</span><strong>{fmtMonto(despachoVenta.total, puedeVerMontos)}</strong></div>
                 <div><span>Observaciones</span><strong>{despachoVenta.notas || '—'}</strong></div>
               </div>
               <div className="table-wrap">
@@ -873,8 +874,8 @@ export default function VentasPage() {
                         <td>{item.productos?.nombre || '—'}</td>
                         <td style={{ textAlign: 'center' }}>{item.cantidad}</td>
                         <td style={{ textAlign: 'center' }}>{item.bonificado || 0}</td>
-                        <td style={{ textAlign: 'right' }}>${parseFloat(item.precio_unitario || 0).toLocaleString('es-AR')}</td>
-                        <td style={{ textAlign: 'right' }}>${(parseFloat(item.cantidad || 0) * parseFloat(item.precio_unitario || 0)).toLocaleString('es-AR')}</td>
+                        <td style={{ textAlign: 'right' }}>{fmtMonto(item.precio_unitario, puedeVerMontos)}</td>
+                        <td style={{ textAlign: 'right' }}>{fmtMonto(parseFloat(item.cantidad || 0) * parseFloat(item.precio_unitario || 0), puedeVerMontos)}</td>
                       </tr>
                     ))}
                   </tbody>

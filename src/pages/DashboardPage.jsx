@@ -7,7 +7,7 @@ import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
 
 const ESTADO_BADGE = { pendiente: 'badge-yellow', confirmado: 'badge-blue', entregado: 'badge-green', cancelado: 'badge-red' }
-const fmt = n => '$' + parseFloat(n || 0).toLocaleString('es-AR', { maximumFractionDigits: 0 })
+const fmt = (n, puedeVer = true) => puedeVer ? '$' + parseFloat(n || 0).toLocaleString('es-AR', { maximumFractionDigits: 0 }) : '•••'
 
 function hoyStr() {
   const now = new Date()
@@ -238,7 +238,7 @@ function StatCard({ item, onClick }) {
 }
 
 export default function DashboardPage() {
- const { user, isAdmin, nombre } = useAuth()
+ const { user, isAdmin, nombre, puedeVerMontos } = useAuth()
   const { toasts } = useToast()
   const navigate = useNavigate()
 
@@ -476,7 +476,7 @@ export default function DashboardPage() {
         : statsVend.pedidosPend === 1
           ? '1 por concretar'
           : `${statsVend.pedidosPend} por concretar`,
-      meta: statsVend.pedidosPend === 0 ? '' : `≈ $${fmt(statsVend.totalPedidosPend).replace('$','')}`,
+      meta: statsVend.pedidosPend === 0 ? '' : `≈ ${fmt(statsVend.totalPedidosPend, puedeVerMontos)}`,
       route:'/pedidos'
     },
     {
@@ -489,7 +489,7 @@ export default function DashboardPage() {
         : statsVend.ventasAbiertas === 1
           ? '1 por despachar'
           : `${statsVend.ventasAbiertas} por despachar`,
-      meta: statsVend.ventasAbiertas === 0 ? '' : `≈ ${fmt(statsVend.totalVentasAbiertas)}`,
+      meta: statsVend.ventasAbiertas === 0 ? '' : `≈ ${fmt(statsVend.totalVentasAbiertas, puedeVerMontos)}`,
       route:'/ventas'
     },
     {
@@ -499,7 +499,7 @@ export default function DashboardPage() {
       titulo:'Completemos ciclos',
       valor: statsVend.cobranzasPend === 0
         ? '¡Excelente gestión de Cobranza!'
-        : fmt(statsVend.cobranzasPend),
+        : fmt(statsVend.cobranzasPend, puedeVerMontos),
       meta: statsVend.cobranzasPend === 0
         ? ''
         : `${statsVend.cobranzasCount} ${statsVend.cobranzasCount === 1 ? 'venta' : 'ventas'}`,

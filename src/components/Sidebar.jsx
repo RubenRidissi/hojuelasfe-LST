@@ -140,8 +140,10 @@ function NavGroup({ group, icon, defaultOpen, items }) {
   )
 }
 
+const ROL_LABEL = { admin: 'Admin', vendedor: 'Vendedor', invitado: 'Invitado' }
+
 export default function Sidebar() {
-  const { nombre, isAdmin, logout } = useAuth()
+  const { nombre, rol, isAdmin, logout } = useAuth()
   const nav = isAdmin ? NAV_ADMIN : NAV_VENDEDOR
 
   return (
@@ -190,7 +192,7 @@ export default function Sidebar() {
             background: isAdmin ? 'var(--primary-light)' : '#DBEAFE',
             color: isAdmin ? 'var(--primary-dark)' : '#1D4ED8',
             padding: '1px 8px', borderRadius: 10, display: 'inline-block', marginTop: 2
-          }}>{isAdmin ? 'Admin' : 'Vendedor'}</div>
+          }}>{ROL_LABEL[rol] || 'Vendedor'}</div>
         </div>
         <button onClick={logout} className="btn btn-secondary btn-sm">Salir</button>
       </div>

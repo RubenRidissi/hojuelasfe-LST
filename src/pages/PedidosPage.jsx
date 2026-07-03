@@ -5,6 +5,7 @@ import { nombreCliente } from '../utils/helpers'
 import { useToast } from '../hooks/useToast'
 import { useComprobante, ComprobanteModal } from '../hooks/useComprobante.jsx'
 import { ToastContainer } from '../components/Toast'
+import { fmtMonto } from '../utils/money'
 
 const ESTADOS = ['pendiente', 'confirmado', 'cancelado']
 
@@ -16,7 +17,7 @@ const EMPTY_FORM = {
 }
 
 export default function PedidosPage() {
-  const { user, isAdmin } = useAuth()
+  const { user, isAdmin, puedeVerMontos } = useAuth()
   const { toasts, toast } = useToast()
   const { comp, cerrarComp, imprimir, descargar, verComprobantePedido } = useComprobante()
 
@@ -642,10 +643,10 @@ export default function PedidosPage() {
                         <td>{fechaCreacionPedido(p)}</td>
                         <td>{nombreCliente(p.clientes)}</td>
                         <td><span className={estadoBadgeClass(visual)}>{estadoLabel(visual)}</span></td>
-                        <td style={{ textAlign: 'right' }}>${parseFloat(p.total || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</td>
+                        <td style={{ textAlign: 'right' }}>{fmtMonto(p.total, puedeVerMontos, { maximumFractionDigits: 2 })}</td>
                         <td>
                           <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                            <button className="btn btn-sm btn-secondary" onClick={() => verComprobante(p.id)}>Ver</button>
+                            {puedeVerMontos && <button className="btn btn-sm btn-secondary" onClick={() => verComprobante(p.id)}>Ver</button>}
 
                             {visual === 'pendiente' && (
                               <>
@@ -687,7 +688,7 @@ export default function PedidosPage() {
                       <span className={estadoBadgeClass(visual)}>{estadoLabel(visual)}</span>
                     </div>
                     <div style={{ marginTop: 8 }}>{nombreCliente(p.clientes)}</div>
-                    <div style={{ marginTop: 6, fontWeight: 700 }}>${parseFloat(p.total || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</div>
+                    <div style={{ marginTop: 6, fontWeight: 700 }}>{fmtMonto(p.total, puedeVerMontos, { maximumFractionDigits: 2 })}</div>
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 12 }}>
                       <button className="btn btn-sm btn-secondary" onClick={() => verComprobante(p.id)}>Ver</button>
 
@@ -773,7 +774,7 @@ export default function PedidosPage() {
                     <option value="">— Elegí un producto —</option>
                     {productos.map(p => (
                       <option key={p.id} value={p.id}>
-                        {p.codigo ? `${p.codigo} — ` : ''}{p.nombre} — ${getPrecio(p.id).toLocaleString('es-AR', { maximumFractionDigits: 2 })}{p.promo ? ` 🎁${p.promo}` : ''}
+                        {p.codigo ? `${p.codigo} — ` : ''}{p.nombre} — {fmtMonto(getPrecio(p.id), puedeVerMontos, { maximumFractionDigits: 2 })}{p.promo ? ` 🎁${p.promo}` : ''}
                       </option>
                     ))}
                   </select>
@@ -806,14 +807,14 @@ export default function PedidosPage() {
                       </span>
                       <span style={{ flex: 1, textAlign: 'right' }}>
                         {item.descuento_item > 0 && <span style={{ fontSize: 11, color: 'var(--success)', display: 'block' }}>-{item.descuento_item}% dcto</span>}
-                        ${(item.cantidad * item.precio_unitario * (1 - descPct / 100) * ivaFactor).toLocaleString('es-AR', { maximumFractionDigits: 2 })}
+                        {fmtMonto(item.cantidad * item.precio_unitario * (1 - descPct / 100) * ivaFactor, puedeVerMontos, { maximumFractionDigits: 2 })}
                       </span>
                       <button className="btn btn-sm btn-danger" onClick={() => removeItem(i)}>✕</button>
                     </div>
                   ))}
                   <div style={{ marginTop: 8, textAlign: 'right' }}>
                     {descPct > 0 && <div style={{ fontSize: 12, color: 'var(--muted)' }}>Descuento {descPct}%</div>}
-                    <div style={{ fontSize: 16, fontWeight: 600 }}>Total: ${total.toLocaleString('es-AR', { maximumFractionDigits: 2 })}</div>
+                    <div style={{ fontSize: 16, fontWeight: 600 }}>Total: {fmtMonto(total, puedeVerMontos, { maximumFractionDigits: 2 })}</div>
                   </div>
                 </div>
               )}
@@ -836,7 +837,7 @@ export default function PedidosPage() {
             <div className="modal-body">
               <div style={{ marginBottom: 16 }}>
                 <strong>{nombreCliente(modalConvertir.clientes)}</strong><br />
-                <span style={{ color: 'var(--muted)' }}>Total: ${parseFloat(modalConvertir.total || 0).toLocaleString('es-AR')}</span>
+                <span style={{ color: 'var(--muted)' }}>Total: {fmtMonto(modalConvertir.total, puedeVerMontos)}</span>
               </div>
               <p>Se creará una <strong>Venta</strong> a partir de este pedido.</p>
               <p style={{ color: 'var(--muted)' }}>La logística comenzará posteriormente desde la Venta.</p>
