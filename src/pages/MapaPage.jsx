@@ -16,7 +16,7 @@ const LEAFLET_CSS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css'
 const LEAFLET_JS = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'
 
 export default function MapaPage() {
-  const { user, isAdmin } = useAuth()
+  const { user, isAdmin, isInvitado } = useAuth()
   const { toasts, toast } = useToast()
 
   const mapRef = useRef(null)
@@ -32,6 +32,8 @@ export default function MapaPage() {
   const [conCoords, setConCoords] = useState(0)
   const [sinCoords, setSinCoords] = useState(0)
   const [leafletCargado, setLeafletCargado] = useState(false)
+  const [clienteAUbicar, setClienteAUbicar] = useState('')
+  const pendingCoordsRef = useRef(null)
 
   // Cargar Leaflet dinámicamente
   useEffect(() => {
@@ -71,6 +73,20 @@ export default function MapaPage() {
     loadData()
   }, [isAdmin, user])
 
+  async function guardarNuevaUbicacion(clienteId, lat, lng) {
+    try {
+      const { error } = await supabase
+        .from('clientes')
+        .update({ latitud: lat, longitud: lng })
+        .eq('id', clienteId)
+      if (error) throw error
+      setClientes(prev => prev.map(c => c.id === clienteId ? { ...c, latitud: lat, longitud: lng } : c))
+      toast('Ubicación actualizada')
+    } catch (e) {
+      toast('Error al guardar la ubicación: ' + e.message, 'error')
+    }
+  }
+
   // Inicializar mapa cuando Leaflet esté cargado y el contenedor visible
   useEffect(() => {
     if (!leafletCargado || loading) return
@@ -106,7 +122,7 @@ export default function MapaPage() {
   // Re-renderizar cuando cambian filtros
   useEffect(() => {
     if (mapaInstanceRef.current) renderMapa()
-  }, [filtroVendedor, filtroCliente])
+  }, [filtroVendedor, filtroCliente, clienteAUbicar])
 
   function renderMapa() {
     const L = window.L
@@ -161,11 +177,19 @@ export default function MapaPage() {
           <div style="margin-top:6px">
             <a href="https://www.google.com/maps?q=${c.latitud},${c.longitud}" target="_blank" style="font-size:11px;color:#6B7280">📍 Ver en Google Maps</a>
           </div>
+          ${!isInvitado ? '<div style="margin-top:4px;font-size:11px;color:#9CA3AF">↕ Arrastrá el pin para corregir la ubicación</div>' : ''}
         </div>`
 
-      const marker = L.marker([parseFloat(c.latitud), parseFloat(c.longitud)], { icon })
+      const marker = L.marker([parseFloat(c.latitud), parseFloat(c.longitud)], { icon, draggable: !isInvitado })
         .bindPopup(popup)
         .addTo(mapaInstanceRef.current)
+
+      if (!isInvitado) {
+        marker.on('dragend', () => {
+          const { lat, lng } = marker.getLatLng()
+          guardarNuevaUbicacion(c.id, lat, lng)
+        })
+      }
 
       markersRef.current.push(marker)
       bounds.push([parseFloat(c.latitud), parseFloat(c.longitud)])
@@ -174,6 +198,40 @@ export default function MapaPage() {
     if (bounds.length > 0) {
       mapaInstanceRef.current.fitBounds(bounds, { padding: [30, 30], maxZoom: 14 })
     }
+
+    if (clienteAUbicar) {
+      const clientePendiente = clientes.find(c => c.id === clienteAUbicar)
+      if (clientePendiente) {
+        const centro = bounds.length ? mapaInstanceRef.current.getCenter() : { lat: -31.63, lng: -60.70 }
+        pendingCoordsRef.current = { lat: centro.lat, lng: centro.lng }
+
+        const iconPendiente = L.divIcon({
+          className: '',
+          html: `<div style="width:20px;height:20px;border-radius:50% 50% 50% 0;background:#DC2626;border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,.5);transform:rotate(-45deg)"></div>`,
+          iconSize: [20, 20], iconAnchor: [10, 20], popupAnchor: [0, -20]
+        })
+
+        const markerPendiente = L.marker([centro.lat, centro.lng], { icon: iconPendiente, draggable: true, zIndexOffset: 1000 })
+          .bindPopup(`<div style="font-size:12px;max-width:170px"><strong>${nombreCliente(clientePendiente)}</strong><br/>Arrastrá este pin a su ubicación real y tocá "Guardar ubicación".</div>`)
+          .addTo(mapaInstanceRef.current)
+          .openPopup()
+
+        markerPendiente.on('dragend', () => {
+          const { lat, lng } = markerPendiente.getLatLng()
+          pendingCoordsRef.current = { lat, lng }
+        })
+
+        markersRef.current.push(markerPendiente)
+        if (!bounds.length) mapaInstanceRef.current.setView([centro.lat, centro.lng], 13)
+      }
+    }
+  }
+
+  async function confirmarUbicacionPendiente() {
+    if (!clienteAUbicar || !pendingCoordsRef.current) return
+    await guardarNuevaUbicacion(clienteAUbicar, pendingCoordsRef.current.lat, pendingCoordsRef.current.lng)
+    setClienteAUbicar('')
+    pendingCoordsRef.current = null
   }
 
   const TIPOS = ['Minorista', 'Distribuidor', 'Mayorista', 'Institucional']
