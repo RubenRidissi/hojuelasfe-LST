@@ -3,17 +3,13 @@ import { useAuth } from '../context/AuthContext'
 
 const LOGO_URL = '/branding/logo-principal.png'
 
-// RC1.1 - Bloqueo temporal de acceso por mantenimiento
-// Rubén puede ingresar. Esteban y Adrián ven pantalla de mantenimiento.
-const MAINTENANCE_MODE = true
-const ALLOWED_EMAILS = [
-  'rridissi@gmail.com',
-  'vendedor.demo@hojuelas.local',
-  'gaitandurol@gmail.com',
-  'adrianridissi@gmail.com'
+// Modo mantenimiento: pausa el acceso a todos los usuarios excepto los de OWNER_EMAILS.
+// Para pausar el acceso mientras se hace una revisión: poner MAINTENANCE_MODE = true.
+// Para reabrir el acceso normal a todos los usuarios: poner MAINTENANCE_MODE = false.
+const MAINTENANCE_MODE = false
+const OWNER_EMAILS = [
+  'rridissi@gmail.com'
 ]
-
-const BLOCKED_EMAILS = []
 
 function normalizeEmail(value) {
   return String(value || '').trim().toLowerCase()
@@ -125,14 +121,9 @@ export default function LoginPage() {
 
     const normalizedEmail = normalizeEmail(email)
 
-    if (MAINTENANCE_MODE) {
-      const isBlocked = BLOCKED_EMAILS.includes(normalizedEmail)
-      const isAllowed = ALLOWED_EMAILS.includes(normalizedEmail)
-
-      if (isBlocked || !isAllowed) {
-        setShowMaintenance(true)
-        return
-      }
+    if (MAINTENANCE_MODE && !OWNER_EMAILS.includes(normalizedEmail)) {
+      setShowMaintenance(true)
+      return
     }
 
     setLoading(true)
