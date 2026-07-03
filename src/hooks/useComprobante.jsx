@@ -423,6 +423,47 @@ export function useComprobante() {
   }
 
 
+
+  async function confirmarDespachoVenta(id, modalidadEntrega = MODALIDADES_ENTREGA.REPARTO) {
+    try {
+      const existente = await buscarRemitoExistente('venta', id)
+      if (existente) {
+        await supabase.from('ventas').update({ estado: 'remitida' }).eq('id', id)
+        await verRemitoFunc('venta', id)
+        return existente
+      }
+
+      const { data: v } = await supabase.from('ventas')
+        .select('id,fecha,fecha_entrega_real,estado_pago,notas,cliente_id,vendedor_id,total,clientes(nombre,nombre_fantasia,direccion,localidad,provincia,telefono,tipo),venta_items(producto_id,cantidad,bonificado,precio_unitario,productos(id,nombre,codigo,unidad))')
+        .eq('id', id).single()
+      if (!v) throw new Error('No se encontró la venta')
+
+      const remito = await prepararEntrega({
+        origenTipo: 'venta',
+        origenId: id,
+        clienteId: v.cliente_id,
+        vendedorId: v.vendedor_id,
+        total: v.total,
+        items: v.venta_items,
+        modalidadEntrega
+      })
+
+      await supabase.from('ventas').update({ estado: 'remitida' }).eq('id', id)
+
+      const datos = {
+        fecha_entrega: v.fecha,
+        fecha_entrega_real: remito.fecha_entrega_real || null,
+        estado: 'Remitida',
+        notas: v.notas,
+        clientes: v.clientes,
+        items: v.venta_items,
+        remito_numero: remito.numero
+      }
+      setComp({ titulo: 'Remito de Entrega', html: buildRemitoEntrega(datos), filename: `Remito_${String(remito.numero).padStart(6, '0')}` })
+      return remito
+    } catch (e) { throw e }
+  }
+
   async function verReciboPago(id) {
     try {
       const { data: pago } = await supabase.from('pagos')
@@ -457,6 +498,7 @@ export function useComprobante() {
     verComprobantePedido,
     verRemito: verRemitoFunc,
     prepararEntregaRemito: prepararEntregaFunc,
+    confirmarDespachoVenta,
     // Alias temporal para compatibilidad con pantallas que todavía usen el nombre anterior.
     imprimirRemito: prepararEntregaFunc,
     verReciboPago,

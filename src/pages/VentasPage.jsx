@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { nombreCliente } from '../utils/helpers'
 import { useToast } from '../hooks/useToast'
 import { useComprobante, ComprobanteModal } from '../hooks/useComprobante.jsx'
 import { ToastContainer } from '../components/Toast'
+import { MODALIDADES_ENTREGA } from '../services/logisticaService'
 
 const EMPTY_FORM = {
   clienteId: '', fecha: new Date().toISOString().split('T')[0], notas: '', modalidad: 'sin_iva'
@@ -19,9 +19,7 @@ function badgePago(estado) {
 export default function VentasPage() {
   const { user, isAdmin } = useAuth()
   const { toasts, toast } = useToast()
-  const { comp, cerrarComp, imprimir, descargar, verComprobanteVenta, verRemito, prepararEntregaRemito } = useComprobante()
-  const navigate = useNavigate()
-
+  const { comp, cerrarComp, imprimir, descargar, verComprobanteVenta, verRemito, confirmarDespachoVenta } = useComprobante()
   const [ventas, setVentas] = useState([])
   const [clientes, setClientes] = useState([])
   const [vendedores, setVendedores] = useState([])
@@ -36,8 +34,11 @@ export default function VentasPage() {
   const [origenesConRemito, setOrigenesConRemito] = useState(new Set())
   const [pedRelMap, setPedRelMap] = useState({})
 
-  // Modal venta
+  // Modal edición venta
   const [modalOpen, setModalOpen] = useState(false)
+  const [editingVenta, setEditingVenta] = useState(null)
+  const [despachoVenta, setDespachoVenta] = useState(null)
+  const [modalidadEntregaVenta, setModalidadEntregaVenta] = useState('')
   const [form, setForm] = useState(EMPTY_FORM)
   const [items, setItems] = useState([])
   const [saving, setSaving] = useState(false)
@@ -65,15 +66,7 @@ export default function VentasPage() {
 
   useEffect(() => { loadAll() }, [])
 
-  useEffect(() => {
-    const abrirDesdeFab = () => {
-      setForm(EMPTY_FORM)
-      setItems([])
-      setModalOpen(true)
-    }
-    window.addEventListener('fab:nueva-venta', abrirDesdeFab)
-    return () => window.removeEventListener('fab:nueva-venta', abrirDesdeFab)
-  }, [])
+
 
 
   async function loadAll() {
@@ -101,7 +94,7 @@ export default function VentasPage() {
     setLoading(true)
     try {
       let q = supabase.from('ventas')
-        .select('id,numero,fecha,fecha_entrega_real,total,estado_pago,vendedor_id,cliente_id,notas,clientes(nombre,nombre_fantasia)')
+        .select('id,numero,fecha,created_at,fecha_entrega_real,fecha_anulacion,total,estado,estado_pago,vendedor_id,cliente_id,notas,clientes(nombre,nombre_fantasia)')
         .order('created_at', { ascending: false })
 
       if (!isAdmin) q = q.eq('vendedor_id', user)
@@ -131,6 +124,9 @@ export default function VentasPage() {
         setOrigenesConRemito(origenSet)
         // guardar pedRelMap para uso en render
         setPedRelMap(pedRelMap)
+      } else {
+        setOrigenesConRemito(new Set())
+        setPedRelMap({})
       }
 
       setVentas(vents || [])
@@ -275,8 +271,99 @@ export default function VentasPage() {
     return { ganancia, margen }
   }
 
+  function estadoFuncional(v, tieneRemito) {
+    const estado = (v.estado || '').toLowerCase()
+    if (estado === 'anulada') return 'anulada'
+    if (v.fecha_entrega_real || estado === 'entregada') return 'entregada'
+    if (tieneRemito || estado === 'remitida') return 'remitida'
+    return 'abierta'
+  }
+
+  function badgeEstado(estado) {
+    const map = {
+      abierta: ['badge-yellow', 'Abierta'],
+      remitida: ['badge-blue', 'Remitida'],
+      entregada: ['badge-green', 'Entregada'],
+      anulada: ['badge-gray', 'Anulada'],
+    }
+    const [cls, label] = map[estado] || ['badge-gray', estado || '—']
+    return <span className={`badge ${cls}`}>{label}</span>
+  }
+
+  function resetEditor() {
+    setForm(EMPTY_FORM)
+    setItems([])
+    setEditingVenta(null)
+    setSearchCliente('')
+    setProdSel('')
+    setCantidad(1)
+    setPrecioEditable('')
+    setDescuentoItem('')
+    setPromoInfo(null)
+    setAplicarPromo(false)
+    setUsarListaHistorica(false)
+    setVersionId('')
+  }
+
+  async function abrirDespachoVenta(v) {
+    const tieneRemito = origenesConRemito.has(`venta:${v.id}`) || (pedRelMap[v.id] && origenesConRemito.has(`pedido:${pedRelMap[v.id]}`))
+    if (estadoFuncional(v, tieneRemito) !== 'abierta') {
+      toast('Solo puede despacharse una venta abierta.', 'error')
+      return
+    }
+    try {
+      const { data, error } = await supabase.from('ventas')
+        .select('id,numero,fecha,total,notas,clientes(nombre,nombre_fantasia),venta_items(producto_id,cantidad,bonificado,precio_unitario,productos(id,nombre,codigo,unidad))')
+        .eq('id', v.id)
+        .single()
+      if (error) throw error
+      setModalidadEntregaVenta('')
+      setDespachoVenta(data)
+    } catch (e) {
+      toast('Error al preparar despacho: ' + e.message, 'error')
+    }
+  }
+
+  async function abrirEditarVenta(v) {
+    const tieneRemito = origenesConRemito.has(`venta:${v.id}`) || (pedRelMap[v.id] && origenesConRemito.has(`pedido:${pedRelMap[v.id]}`))
+    if (estadoFuncional(v, tieneRemito) !== 'abierta') {
+      toast('La venta ya tiene remito o está cerrada; no puede editarse.', 'error')
+      return
+    }
+
+    try {
+      const { data, error } = await supabase.from('ventas')
+        .select('id,fecha,cliente_id,notas,modalidad_factura,total,venta_items(producto_id,cantidad,bonificado,precio_unitario,productos(id,nombre,costo,familia,promo,precio_editable))')
+        .eq('id', v.id)
+        .single()
+      if (error) throw error
+      setEditingVenta(data)
+      setForm({
+        clienteId: data.cliente_id || '',
+        fecha: data.fecha || new Date().toISOString().split('T')[0],
+        notas: (data.notas || '').split('|').map(x => x.trim()).filter(x => x && !x.includes('Descuento aplicado') && !x.includes('Con IVA') && !x.includes('bonificadas') && !x.includes('muestras')).join(' | '),
+        modalidad: data.modalidad_factura || 'sin_iva'
+      })
+      setItems((data.venta_items || []).map(i => ({
+        producto_id: i.producto_id,
+        nombre: i.productos?.nombre || '—',
+        costo: i.productos?.costo || 0,
+        familia: i.productos?.familia || '',
+        cantidad: i.cantidad || 0,
+        bonificado: i.bonificado || 0,
+        precio_unitario: parseFloat(i.precio_unitario || 0),
+        descuento_item: 0,
+        promo: i.productos?.promo || ''
+      })))
+      setModalOpen(true)
+    } catch (e) {
+      toast('Error al abrir edición: ' + e.message, 'error')
+    }
+  }
+
   // ===== GUARDAR VENTA =====
   async function saveVenta() {
+    if (!editingVenta?.id) { toast('Las ventas nuevas se generan desde Pedidos confirmados.', 'error'); return }
     if (!form.clienteId) { toast('Seleccioná un cliente', 'error'); return }
     if (!items.length) { toast('Agregá al menos un producto', 'error'); return }
     setSaving(true)
@@ -297,48 +384,72 @@ export default function VentasPage() {
       const vendedorId = cliente?.vendedor_id || user
       const fecha = form.fecha || new Date().toISOString().split('T')[0]
 
-      const { data: [venta] } = await supabase.from('ventas').insert({
-        cliente_id: form.clienteId, fecha, notas, total,
-        vendedor_id: vendedorId, modalidad_factura: form.modalidad, estado_pago: 'pendiente'
-      }).select()
+      const { error: ventaError } = await supabase.from('ventas')
+        .update({
+          cliente_id: form.clienteId,
+          fecha,
+          notas,
+          total,
+          vendedor_id: vendedorId,
+          modalidad_factura: form.modalidad,
+          estado: 'abierta'
+        })
+        .eq('id', editingVenta.id)
 
-      await Promise.all(items.map(item => {
+      if (ventaError) throw ventaError
+
+      const { error: delItemsError } = await supabase.from('venta_items').delete().eq('venta_id', editingVenta.id)
+      if (delItemsError) throw delItemsError
+
+      const nuevosItems = items.map(item => {
         const precioConDesc = item.precio_unitario * (1 - descPct / 100) * ivaFactor
-        return supabase
-          .from('venta_items')
-          .insert({
-            venta_id: venta.id,
-            producto_id: item.producto_id,
-            cantidad: item.cantidad,
-            bonificado: item.bonificado || 0,
-            precio_unitario: precioConDesc
-          })
-      }))
+        return {
+          venta_id: editingVenta.id,
+          producto_id: item.producto_id,
+          cantidad: item.cantidad,
+          bonificado: item.bonificado || 0,
+          precio_unitario: precioConDesc
+        }
+      })
 
-      // Activar cliente si estaba Pendiente/Inactivo
+      const { error: insItemsError } = await supabase.from('venta_items').insert(nuevosItems)
+      if (insItemsError) throw insItemsError
+
       if (cliente && cliente.estado_cliente !== 'Activo') {
         await supabase.from('clientes').update({ estado_cliente: 'Activo' }).eq('id', form.clienteId)
       }
 
-      toast('Venta registrada')
+      toast('Venta actualizada')
       setModalOpen(false)
-      setForm(EMPTY_FORM)
-      setItems([])
+      resetEditor()
       loadVentas()
     } catch (e) { toast('Error: ' + e.message, 'error') } finally { setSaving(false) }
   }
 
-  // ===== ANULAR / ELIMINAR VENTA =====
+  // ===== ANULAR VENTA =====
   async function deleteVenta(v) {
     if (!isAdmin) {
       toast('Solo el administrador puede anular ventas.', 'error')
       return
     }
 
+    const tieneRemito = origenesConRemito.has(`venta:${v.id}`) || (pedRelMap[v.id] && origenesConRemito.has(`pedido:${pedRelMap[v.id]}`))
+    const estado = estadoFuncional(v, tieneRemito)
+
+    if (estado === 'remitida' || estado === 'entregada') {
+      toast('Esta venta ya tiene remito. La anulación mediante devoluciones/remitos inversos será implementada en una futura versión del ERP.', 'info')
+      return
+    }
+
+    if (estado === 'anulada') {
+      toast('La venta ya se encuentra anulada.', 'info')
+      return
+    }
+
     const nombre = v.clientes ? nombreCliente(v.clientes) : 'este cliente'
     const ok = confirm(
-       `¿Anular la venta #${String(v.numero || 0).padStart(6, '0')} de ${nombre}?\n\n` +
-    'Esta acción eliminará los ítems de la venta y, si proviene de un pedido, lo dejará nuevamente confirmado. Si la venta o el pedido ya tiene remito, primero deberás revisar o anular el remito.'
+      `¿Anular la venta #${String(v.numero || 0).padStart(6, '0')} de ${nombre}?\n\n` +
+      'La venta quedará como antecedente histórico. No se eliminarán registros, no se moverá stock y no se modificará el pedido origen.'
     )
     if (!ok) return
 
@@ -355,82 +466,36 @@ export default function VentasPage() {
         return
       }
 
-      const { data: remitosVenta, error: remReadError } = await supabase
-        .from('remitos')
-        .select('id,numero,origen_tipo,origen_id')
-        .eq('origen_tipo', 'venta')
-        .eq('origen_id', v.id)
-
-      if (remReadError) throw remReadError
-
-      const { data: pedidosOrigen, error: pedReadError } = await supabase
-        .from('pedidos')
-        .select('id,numero')
-        .eq('convertido_venta_id', v.id)
-
-      if (pedReadError) throw pedReadError
-
-      const pedidoOrigen = pedidosOrigen?.[0] || null
-
-      let remitosPedido = []
-      if (pedidoOrigen?.id) {
-        const { data, error } = await supabase
-          .from('remitos')
-          .select('id,numero,origen_tipo,origen_id')
-          .eq('origen_tipo', 'pedido')
-          .eq('origen_id', pedidoOrigen.id)
-
-        if (error) throw error
-        remitosPedido = data || []
-      }
-
-      if ((remitosVenta || []).length > 0 || remitosPedido.length > 0) {
-        toast('No se puede anular automáticamente: la venta/pedido tiene remito. Primero revisá o anulá el remito.', 'error')
-        return
-      }
-
-      const { error: stockError } = await supabase
-        .from('stock_movimientos')
-        .delete()
-        .eq('referencia_id', v.id)
-        .eq('origen', 'venta')
-
-      if (stockError) throw stockError
-
-      const { error: itemsError } = await supabase
-        .from('venta_items')
-        .delete()
-        .eq('venta_id', v.id)
-
-      if (itemsError) throw itemsError
-
-      if (pedidoOrigen?.id) {
-        const { error: pedidoError } = await supabase
-          .from('pedidos')
-          .update({
-            convertido_venta_id: null,
-            estado: 'confirmado',
-            fecha_entrega_real: null
-          })
-          .eq('id', pedidoOrigen.id)
-
-        if (pedidoError) throw pedidoError
-      }
-
       const { error: ventaError } = await supabase
         .from('ventas')
-        .delete()
+        .update({ estado: 'anulada', fecha_anulacion: new Date().toISOString() })
         .eq('id', v.id)
 
       if (ventaError) throw ventaError
 
-      toast(pedidoOrigen
-        ? 'Venta anulada. El pedido quedó nuevamente confirmado.'
-        : 'Venta anulada.'
-      )
+      toast('Venta anulada. El pedido origen no fue modificado.')
       loadVentas()
     } catch (e) {
       toast('Error al anular venta: ' + e.message, 'error')
+    }
+  }
+
+  async function confirmarDespacho() {
+    if (!despachoVenta) return
+    if (!modalidadEntregaVenta) {
+      toast('Seleccioná cómo se entrega la mercadería.', 'error')
+      return
+    }
+    setSaving(true)
+    try {
+      await confirmarDespachoVenta(despachoVenta.id, modalidadEntregaVenta)
+      toast('Despacho confirmado. Remito generado y stock actualizado.')
+      setDespachoVenta(null)
+      loadVentas()
+    } catch (e) {
+      toast('Error al confirmar despacho: ' + e.message, 'error')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -440,14 +505,10 @@ export default function VentasPage() {
     const fecha = borrar ? null : fechaInput
     if (!borrar && !fecha) { toast('Elegí una fecha', 'error'); return }
     try {
-      await supabase.from('ventas').update({ fecha_entrega_real: fecha }).eq('id', modalFecha.id)
-      // Sincronizar con pedido origen si existe
-      const { data: pedOrigen } = await supabase.from('pedidos').select('id').eq('convertido_venta_id', modalFecha.id)
-      if (pedOrigen?.length) {
-        const dataPedido = { fecha_entrega_real: fecha }
-        if (fecha) dataPedido.estado = 'entregado'
-        await supabase.from('pedidos').update(dataPedido).eq('id', pedOrigen[0].id)
-      }
+      await supabase.from('ventas').update({
+        fecha_entrega_real: fecha,
+        estado: fecha ? 'entregada' : 'remitida'
+      }).eq('id', modalFecha.id)
       toast(borrar ? 'Fecha borrada' : 'Fecha guardada')
       setModalFecha(null)
       loadVentas()
@@ -470,7 +531,6 @@ export default function VentasPage() {
         <h1 className="page-title">Ventas</h1>
         <div className="page-header-actions">
           <button className="btn btn-secondary hide-on-mobile" onClick={() => toast('Excel — próximamente', 'info')}>📥 Excel</button>
-          <button className="mobile-hide btn btn-primary" onClick={() => { setForm(EMPTY_FORM); setItems([]); setSearchCliente(''); setPromoInfo(null); setAplicarPromo(false); setUsarListaHistorica(false); setVersionId(''); setModalOpen(true) }}>+ Nueva venta</button>
         </div>
       </div>
 
@@ -499,54 +559,46 @@ export default function VentasPage() {
             <table>
               <thead>
                 <tr>
-                  <th>N°</th>
+                  <th>Nº Venta</th>
+                  <th>Fecha creación</th>
                   <th>Cliente</th>
-                  <th>Facturación / Entrega</th>
+                  <th>Estado</th>
                   <th>Total</th>
-                  <th>Pago</th>
                   <th>Acciones</th>
                 </tr>
               </thead>
               <tbody>
                 {ventas.map(v => {
                   const tieneRemito = origenesConRemito.has(`venta:${v.id}`) || (pedRelMap[v.id] && origenesConRemito.has(`pedido:${pedRelMap[v.id]}`))
+                  const estado = estadoFuncional(v, tieneRemito)
                   return (
                     <tr key={v.id}>
                       <td style={{ color: 'var(--muted)', fontSize: 12 }}>#{String(v.numero || 0).padStart(6, '0')}</td>
+                      <td>{v.fecha || (v.created_at ? v.created_at.slice(0, 10) : '—')}</td>
                       <td>{v.clientes ? nombreCliente(v.clientes) : '—'}</td>
-                      <td style={{ fontSize: 12 }}>
-                        <div>🧾 {v.fecha}</div>
-                        <div style={{ color: v.fecha_entrega_real ? 'var(--success)' : 'var(--muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                          {v.fecha_entrega_real ? `✓ Entregado: ${v.fecha_entrega_real}` : 'Sin entregar'}
-                          {v.fecha_entrega_real && (
-                            <span style={{ cursor: 'pointer' }}
-                              onClick={() => { setModalFecha({ id: v.id, fechaActual: v.fecha_entrega_real }); setFechaInput(v.fecha_entrega_real) }}
-                              title="Editar fecha">✏</span>
-                          )}
-                        </div>
-                      </td>
+                      <td>{badgeEstado(estado)}</td>
                       <td>${parseFloat(v.total || 0).toLocaleString('es-AR')}</td>
-                      <td>{badgePago(v.estado_pago)}</td>
                       <td style={{ whiteSpace: 'nowrap' }}>
-                        <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'nowrap' }}>
-                          {v.estado_pago === 'pagado'
-                            ? <span className="badge badge-green">Pagado</span>
-                            : v.estado_pago === 'parcial'
-                              ? <span className="badge badge-yellow">Parcial</span>
-                              : <button className="btn btn-sm btn-success" onClick={() => navigate('/pagos')}>💰 Cobrar</button>
-                          }
-                          {tieneRemito && !v.fecha_entrega_real && (
-                            <button className="btn btn-sm" style={{ background: '#DBEAFE', color: '#1D4ED8' }}
-                              onClick={() => { setModalFecha({ id: v.id, fechaActual: '' }); setFechaInput(new Date().toISOString().split('T')[0]) }}
-                              title="Confirmar recepción del cliente">📦 Confirmar entrega</button>
+                        <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
+                          <button className="btn btn-sm btn-secondary" onClick={async () => { try { await verComprobanteVenta(v.id) } catch(e) { toast('Error', 'error') } }}>👁 Ver comprobante</button>
+                          {estado === 'abierta' && (
+                            <>
+                              <button className="btn btn-sm btn-secondary" onClick={() => abrirEditarVenta(v)}>✏️ Editar</button>
+                              <button className="btn btn-sm" style={{ background: '#DBEAFE', color: '#1D4ED8' }} onClick={() => abrirDespachoVenta(v)}>🚚 Despachar</button>
+                              {isAdmin && <button className="btn btn-sm btn-danger" onClick={() => deleteVenta(v)}>❌ Anular</button>}
+                            </>
                           )}
-                          <button className="btn btn-sm btn-secondary" onClick={async () => { try { await verComprobanteVenta(v.id) } catch(e) { toast('Error', 'error') } }}>🧾</button>
-                          {tieneRemito
-                            ? <button className="btn btn-sm" style={{ background: '#F3F4F6', color: '#374151' }} onClick={async () => { try { await verRemito('venta', v.id) } catch(e) { toast('Error', 'error') } }}>👁 Remito</button>
-                            : <button className="btn btn-sm" style={{ background: '#FEF3C7', color: '#92400E' }} onClick={async () => { try { await prepararEntregaRemito('venta', v.id); loadVentas() } catch(e) { toast('Error', 'error') } }} title="Preparar entrega">🚚 Prep.</button>
-                          }
-                          {isAdmin && v.estado_pago !== 'pagado' && (
-                            <button className="btn btn-sm btn-danger" onClick={() => deleteVenta(v)}>Anular</button>
+                          {estado === 'remitida' && (
+                            <>
+                              <button className="btn btn-sm btn-secondary" onClick={async () => { try { await verRemito('venta', v.id) } catch(e) { toast('Error', 'error') } }}>👁 Ver remito</button>
+                              <button className="btn btn-sm" style={{ background: '#DCFCE7', color: '#15803D' }}
+                                onClick={() => { setModalFecha({ id: v.id, fechaActual: '' }); setFechaInput(new Date().toISOString().split('T')[0]) }}>
+                                ✅ Confirmar entrega
+                              </button>
+                            </>
+                          )}
+                          {estado === 'entregada' && (
+                            <button className="btn btn-sm btn-secondary" onClick={async () => { try { await verRemito('venta', v.id) } catch(e) { toast('Error', 'error') } }}>👁 Ver remito</button>
                           )}
                         </div>
                       </td>
@@ -567,47 +619,47 @@ export default function VentasPage() {
           <div className="empty"><div className="empty-icon">🧾</div><p>No hay ventas todavía</p></div>
         ) : ventas.map(v => {
           const tieneRemito = origenesConRemito.has(`venta:${v.id}`) || (pedRelMap[v.id] && origenesConRemito.has(`pedido:${pedRelMap[v.id]}`))
+          const estado = estadoFuncional(v, tieneRemito)
           const fechaCorta = v.fecha ? new Date(v.fecha + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' }) : '—'
           return (
             <div key={v.id} className="op-card">
               <div className="op-card-header">
                 <span className="op-card-num">#{String(v.numero || 0).padStart(6, '0')} · {fechaCorta}</span>
-                {badgePago(v.estado_pago)}
-                {!v.fecha_entrega_real
-                  ? <span style={{ fontSize: 11, color: '#D97706' }}>Sin entregar</span>
-                  : <span style={{ fontSize: 11, color: 'var(--success)' }}>✓ Entregado</span>
-                }
+                {badgeEstado(estado)}
               </div>
               <div className="op-card-cliente">{v.clientes ? nombreCliente(v.clientes) : '—'}</div>
               <div className="op-card-total">${parseFloat(v.total || 0).toLocaleString('es-AR', { maximumFractionDigits: 0 })}</div>
               <div className="op-card-actions">
-                <button className="btn btn-secondary" onClick={async () => { try { await verComprobanteVenta(v.id) } catch(e) { toast('Error', 'error') } }}>🧾 Ver</button>
-                {tieneRemito && !v.fecha_entrega_real && (
-                  <button className="btn btn-secondary"
-                    onClick={() => { setModalFecha({ id: v.id, fechaActual: '' }); setFechaInput(new Date().toISOString().split('T')[0]) }}>
-                    📦 Confirmar entrega
-                  </button>
+                <button className="btn btn-secondary" onClick={async () => { try { await verComprobanteVenta(v.id) } catch(e) { toast('Error', 'error') } }}>👁 Ver</button>
+                {estado === 'abierta' && (
+                  <>
+                    <button className="btn btn-secondary" onClick={() => abrirEditarVenta(v)}>✏️ Editar</button>
+                    <button className="btn btn-secondary" onClick={() => abrirDespachoVenta(v)}>🚚 Despachar</button>
+                    {isAdmin && <button className="btn btn-danger" onClick={() => deleteVenta(v)}>❌ Anular</button>}
+                  </>
                 )}
-                {v.estado_pago !== 'pagado' && (
-                  <button className="btn btn-success" onClick={() => navigate('/pagos')}>💰 Cobrar</button>
+                {estado === 'remitida' && (
+                  <>
+                    <button className="btn btn-secondary" onClick={async () => { try { await verRemito('venta', v.id) } catch(e) { toast('Error', 'error') } }}>👁 Remito</button>
+                    <button className="btn btn-secondary" onClick={() => { setModalFecha({ id: v.id, fechaActual: '' }); setFechaInput(new Date().toISOString().split('T')[0]) }}>✅ Confirmar entrega</button>
+                  </>
                 )}
-                {tieneRemito
-                  ? <button className="btn btn-secondary" onClick={async () => { try { await verRemito('venta', v.id) } catch(e) { toast('Error', 'error') } }}>👁 Remito</button>
-                  : <button className="btn btn-secondary" onClick={async () => { try { await prepararEntregaRemito('venta', v.id); loadVentas() } catch(e) { toast('Error', 'error') } }}>🚚 Preparar entrega</button>
-                }
+                {estado === 'entregada' && (
+                  <button className="btn btn-secondary" onClick={async () => { try { await verRemito('venta', v.id) } catch(e) { toast('Error', 'error') } }}>👁 Remito</button>
+                )}
               </div>
             </div>
           )
         })}
       </div>
 
-      {/* ===== MODAL NUEVA VENTA ===== */}
+      {/* ===== MODAL EDITAR VENTA ===== */}
       {modalOpen && (
-        <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && setModalOpen(false)}>
+        <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && (setModalOpen(false), resetEditor())}>
           <div className="modal" style={{ maxWidth: 680 }}>
             <div className="modal-header">
-              <h2>Nueva venta</h2>
-              <button className="btn btn-secondary btn-sm" onClick={() => setModalOpen(false)}>✕</button>
+              <h2>Editar venta</h2>
+              <button className="btn btn-secondary btn-sm" onClick={() => { setModalOpen(false); resetEditor() }}>✕</button>
             </div>
             <div className="modal-body">
               <div className="form-row">
@@ -743,8 +795,8 @@ export default function VentasPage() {
               )}
             </div>
             <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setModalOpen(false)}>Cancelar</button>
-              <button className="btn btn-primary" onClick={saveVenta} disabled={saving}>{saving ? 'Guardando...' : 'Registrar venta'}</button>
+              <button className="btn btn-secondary" onClick={() => { setModalOpen(false); resetEditor() }}>Cancelar</button>
+              <button className="btn btn-primary" onClick={saveVenta} disabled={saving}>{saving ? 'Guardando...' : 'Guardar cambios'}</button>
             </div>
           </div>
         </div>
@@ -770,6 +822,82 @@ export default function VentasPage() {
               )}
               <button className="btn btn-secondary" onClick={() => setModalFecha(null)}>Cancelar</button>
               <button className="btn btn-primary" onClick={() => confirmarFecha(false)}>Guardar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== MODAL DESPACHO ===== */}
+      {despachoVenta && (
+        <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && setDespachoVenta(null)}>
+          <div className="modal" style={{ maxWidth: 720 }}>
+            <div className="modal-header">
+              <h2>Despachar venta #{String(despachoVenta.numero || 0).padStart(6, '0')}</h2>
+              <button className="btn btn-secondary btn-sm" onClick={() => setDespachoVenta(null)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <div className="comp-datos" style={{ marginBottom: 12 }}>
+                <div><span>Cliente</span><strong>{despachoVenta.clientes ? nombreCliente(despachoVenta.clientes) : '—'}</strong></div>
+                <div><span>Fecha creación</span><strong>{despachoVenta.fecha || '—'}</strong></div>
+                <div><span>Total</span><strong>${parseFloat(despachoVenta.total || 0).toLocaleString('es-AR')}</strong></div>
+                <div><span>Observaciones</span><strong>{despachoVenta.notas || '—'}</strong></div>
+              </div>
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Código</th>
+                      <th>Producto</th>
+                      <th style={{ textAlign: 'center' }}>Cant.</th>
+                      <th style={{ textAlign: 'center' }}>Bonif.</th>
+                      <th style={{ textAlign: 'right' }}>P. Unit.</th>
+                      <th style={{ textAlign: 'right' }}>Subtotal</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(despachoVenta.venta_items || []).map(item => (
+                      <tr key={item.producto_id}>
+                        <td>{item.productos?.codigo || '—'}</td>
+                        <td>{item.productos?.nombre || '—'}</td>
+                        <td style={{ textAlign: 'center' }}>{item.cantidad}</td>
+                        <td style={{ textAlign: 'center' }}>{item.bonificado || 0}</td>
+                        <td style={{ textAlign: 'right' }}>${parseFloat(item.precio_unitario || 0).toLocaleString('es-AR')}</td>
+                        <td style={{ textAlign: 'right' }}>${(parseFloat(item.cantidad || 0) * parseFloat(item.precio_unitario || 0)).toLocaleString('es-AR')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div style={{ marginTop: 16 }}>
+                <label>¿Cómo se entrega la mercadería?</label>
+                <div style={{ display: 'flex', gap: 16, marginTop: 6 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 400 }}>
+                    <input
+                      type="radio"
+                      name="modalidadEntregaVenta"
+                      checked={modalidadEntregaVenta === MODALIDADES_ENTREGA.RETIRO_DEPOSITO}
+                      onChange={() => setModalidadEntregaVenta(MODALIDADES_ENTREGA.RETIRO_DEPOSITO)}
+                    />
+                    Retira en depósito
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontWeight: 400 }}>
+                    <input
+                      type="radio"
+                      name="modalidadEntregaVenta"
+                      checked={modalidadEntregaVenta === MODALIDADES_ENTREGA.REPARTO}
+                      onChange={() => setModalidadEntregaVenta(MODALIDADES_ENTREGA.REPARTO)}
+                    />
+                    Enviamos por flete/reparto
+                  </label>
+                </div>
+              </div>
+              <p style={{ marginTop: 12, color: 'var(--muted)', fontSize: 13 }}>
+                Al confirmar se generará el remito, se moverá stock y la venta quedará bloqueada para edición.
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => setDespachoVenta(null)}>Cancelar</button>
+              <button className="btn btn-primary" onClick={confirmarDespacho} disabled={saving || !modalidadEntregaVenta}>{saving ? 'Confirmando...' : 'Confirmar despacho'}</button>
             </div>
           </div>
         </div>

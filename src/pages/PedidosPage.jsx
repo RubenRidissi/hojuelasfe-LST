@@ -6,16 +6,19 @@ import { useToast } from '../hooks/useToast'
 import { useComprobante, ComprobanteModal } from '../hooks/useComprobante.jsx'
 import { ToastContainer } from '../components/Toast'
 
-const ESTADOS = ['pendiente', 'confirmado', 'entregado', 'cancelado']
+const ESTADOS = ['pendiente', 'confirmado', 'cancelado']
 
 const EMPTY_FORM = {
-  id: '', clienteId: '', fechaEntrega: '', notas: '', modalidad: 'sin_iva'
+  id: '',
+  clienteId: '',
+  notas: '',
+  modalidad: 'sin_iva'
 }
 
 export default function PedidosPage() {
   const { user, isAdmin } = useAuth()
   const { toasts, toast } = useToast()
-  const { comp, cerrarComp, imprimir, descargar, verComprobantePedido, verRemito, prepararEntregaRemito } = useComprobante()
+  const { comp, cerrarComp, imprimir, descargar, verComprobantePedido } = useComprobante()
 
   const [pedidos, setPedidos] = useState([])
   const [clientes, setClientes] = useState([])
@@ -23,71 +26,57 @@ export default function PedidosPage() {
   const [productos, setProductos] = useState([])
   const [loading, setLoading] = useState(true)
 
-  // Filtros
   const [filtroCliente, setFiltroCliente] = useState('')
   const [filtroEstado, setFiltroEstado] = useState('')
   const [filtroVendedor, setFiltroVendedor] = useState('')
 
-  // Modal pedido
   const [modalOpen, setModalOpen] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
   const [items, setItems] = useState([])
   const [saving, setSaving] = useState(false)
 
-  // Selector de producto
   const [prodSel, setProdSel] = useState('')
   const [cantidad, setCantidad] = useState(1)
   const [versionId, setVersionId] = useState('')
   const [usarListaHistorica, setUsarListaHistorica] = useState(false)
   const [precioEditable, setPrecioEditable] = useState('')
   const [descuentoItem, setDescuentoItem] = useState('')
-  const [promoInfo, setPromoInfo] = useState(null) // { texto, paga, lleva } del producto seleccionado
+  const [promoInfo, setPromoInfo] = useState(null)
   const [aplicarPromo, setAplicarPromo] = useState(false)
   const [versiones, setVersiones] = useState([])
-  const [versionItems, setVersionItems] = useState({}) // cache de items por version_id
   const [searchCliente, setSearchCliente] = useState('')
-  const [modalPromoCombi, setModalPromoCombi] = useState(null) // { familia, grupoItems, bonifPosible }
+  const [modalPromoCombi, setModalPromoCombi] = useState(null)
   const [promoCombiElegido, setPromoCombiElegido] = useState(null)
 
-  // Modal fecha entrega
-  const [modalFecha, setModalFecha] = useState(null) // { id, modo, tabla, fechaActual }
-  const [fechaInput, setFechaInput] = useState('')
-
-  // Modal convertir
-  const [modalConvertir, setModalConvertir] = useState(null) // pedido
+  const [modalConvertir, setModalConvertir] = useState(null)
   const [convirtiendo, setConvirtiendo] = useState(false)
-
-  // Cache remitos
-  const [origenesConRemito, setOrigenesConRemito] = useState(new Set())
-  const [remitosPorOrigen, setRemitosPorOrigen] = useState(new Map())
 
   useEffect(() => { loadAll() }, [])
 
   useEffect(() => {
-    const abrirDesdeFab = () => {
-      setForm(EMPTY_FORM)
-      setItems([])
-      setModalOpen(true)
-    }
+    const abrirDesdeFab = () => abrirNuevoPedido()
     window.addEventListener('fab:nuevo-pedido', abrirDesdeFab)
     return () => window.removeEventListener('fab:nuevo-pedido', abrirDesdeFab)
   }, [])
 
+  useEffect(() => { loadPedidos() }, [filtroEstado, filtroCliente, filtroVendedor])
 
   async function loadAll() {
     try {
-      const [{ data: v }, { data: c }, { data: p }] = await Promise.all([
+      const [{ data: v }, { data: c }, { data: p }, { data: vers }] = await Promise.all([
         supabase.from('user_roles').select('user_id,nombre').eq('rol', 'vendedor').order('nombre'),
         supabase.from('clientes').select('id,nombre,nombre_fantasia,tipo,vendedor_id,descuento_pct,modalidad_factura,estado_cliente').order('nombre'),
         supabase.from('productos').select('id,codigo,nombre,costo,descuento_costo,markup_representante,markup_distribuidor,markup_mayorista,markup_supermercado,markup_almacen,precio_representante,precio_distribuidor,precio_mayorista,precio_supermercado,precio_almacen,promo,precio_editable,familia').order('codigo'),
+        supabase.from('listas_precios_repo').select('id,nombre,created_at').order('created_at', { ascending: false })
       ])
       setVendedores(v || [])
       setClientes(c || [])
       setProductos(p || [])
-    // Cargar versiones de precios
-    const { data: vers } = await supabase.from('listas_precios_repo').select('id,nombre,created_at').order('created_at', { ascending: false })
-    setVersiones(vers || [])
-    } catch (e) { console.error(e) }
+      setVersiones(vers || [])
+    } catch (e) {
+      console.error(e)
+      toast('Error al cargar datos base', 'error')
+    }
     loadPedidos()
   }
 
@@ -95,51 +84,35 @@ export default function PedidosPage() {
     setLoading(true)
     try {
       let q = supabase.from('pedidos')
-        .select('id,numero,fecha,fecha_entrega,fecha_entrega_real,estado,total,vendedor_id,convertido_venta_id,cliente_id,notas,clientes(nombre,nombre_fantasia)')
+        .select('id,numero,fecha,created_at,fecha_confirmacion,fecha_cancelacion,estado,total,vendedor_id,convertido_venta_id,cliente_id,notas,modalidad_factura,clientes(nombre,nombre_fantasia)')
         .order('created_at', { ascending: false })
 
-      if (filtroEstado) q = q.eq('estado', filtroEstado)
+      if (filtroEstado === 'convertido') {
+        q = q.not('convertido_venta_id', 'is', null)
+      } else if (filtroEstado) {
+        q = q.eq('estado', filtroEstado)
+      }
       if (filtroCliente) q = q.eq('cliente_id', filtroCliente)
       if (isAdmin && filtroVendedor) q = q.eq('vendedor_id', filtroVendedor)
       if (!isAdmin) q = q.eq('vendedor_id', user)
 
-      const { data: peds } = await q
-
-      const ids = (peds || []).map(p => p.id)
-      const ventaIds = (peds || []).filter(p => p.convertido_venta_id).map(p => p.convertido_venta_id)
-      const todosIds = [...ids, ...ventaIds]
-      if (todosIds.length) {
-        const { data: remitos, error: remitosError } = await supabase
-          .from('remitos')
-          .select('id,numero,origen_tipo,origen_id,fecha_entrega_real')
-          .in('origen_id', todosIds)
-
-        if (remitosError) throw remitosError
-
-        const remitosMap = new Map(
-          (remitos || []).map(r => [`${r.origen_tipo}:${r.origen_id}`, r])
-        )
-
-        setOrigenesConRemito(new Set(remitosMap.keys()))
-        setRemitosPorOrigen(remitosMap)
-      } else {
-        setOrigenesConRemito(new Set())
-        setRemitosPorOrigen(new Map())
-      }
-
-      setPedidos(peds || [])
-    } catch (e) { console.error(e) } finally { setLoading(false) }
+      const { data, error } = await q
+      if (error) throw error
+      setPedidos(data || [])
+    } catch (e) {
+      console.error(e)
+      toast('Error al cargar pedidos: ' + e.message, 'error')
+    } finally {
+      setLoading(false)
+    }
   }
 
-  useEffect(() => { loadPedidos() }, [filtroEstado, filtroCliente, filtroVendedor])
-
-  // ===== PRECIO DE PRODUCTO por tipo de cliente =====
   const PRECIO_POR_TIPO = {
     'Representante': 'precio_representante',
-    'Distribuidor':  'precio_distribuidor',
-    'Mayorista':     'precio_mayorista',
-    'Supermercado':  'precio_supermercado',
-    'Almacén':       'precio_almacen',
+    'Distribuidor': 'precio_distribuidor',
+    'Mayorista': 'precio_mayorista',
+    'Supermercado': 'precio_supermercado',
+    'Almacén': 'precio_almacen'
   }
 
   function getTipoClienteActual() {
@@ -150,16 +123,9 @@ export default function PedidosPage() {
   function getPrecio(productoId) {
     const p = productos.find(x => x.id === productoId)
     if (!p) return 0
-
-    // Por ahora, aun si se eligió una lista histórica, usamos los precios actuales.
-    // La selección histórica queda como opción avanzada preparada para una segunda etapa.
     const tipoCliente = getTipoClienteActual()
     const colPrecio = PRECIO_POR_TIPO[tipoCliente] || 'precio_distribuidor'
     return parseFloat(p[colPrecio] || 0)
-  }
-
-  function getPrecioLabel(productoId) {
-    return getPrecio(productoId)
   }
 
   function cambiarVersion(nuevaVersionId) {
@@ -169,7 +135,6 @@ export default function PedidosPage() {
     }
   }
 
-  // Al seleccionar producto, mostrar info de promo
   function onProdSelChange(pid) {
     setProdSel(pid)
     setAplicarPromo(false)
@@ -183,18 +148,17 @@ export default function PedidosPage() {
     }
   }
 
-  // ===== ITEMS =====
   function addItem() {
     if (!prodSel) { toast('Elegí un producto', 'error'); return }
     const prod = productos.find(p => p.id === prodSel)
     if (!prod) return
+
     const cant = parseInt(cantidad) || 1
     const esEditable = prod.precio_editable
     const precioBase = esEditable ? (parseFloat(precioEditable) || 0) : getPrecio(prodSel)
     const descItem = parseFloat(descuentoItem) || 0
     const precio = descItem > 0 ? precioBase * (1 - descItem / 100) : precioBase
 
-    // Promo individual: solo si el vendedor tildó "Aplicar promo"
     let bonificado = 0
     if (prod.promo && aplicarPromo) {
       const [paga] = prod.promo.split('+').map(Number)
@@ -208,7 +172,16 @@ export default function PedidosPage() {
           ? { ...i, cantidad: i.cantidad + cant, bonificado: (i.bonificado || 0) + bonificado }
           : i)
       }
-      return [...items, { producto_id: prodSel, nombre: prod.nombre, familia: prod.familia || '', cantidad: cant, bonificado, precio_unitario: precio, descuento_item: descItem, promo: prod.promo || '' }]
+      return [...items, {
+        producto_id: prodSel,
+        nombre: prod.nombre,
+        familia: prod.familia || '',
+        cantidad: cant,
+        bonificado,
+        precio_unitario: precio,
+        descuento_item: descItem,
+        promo: prod.promo || ''
+      }]
     })()
 
     setItems(nuevosItems)
@@ -218,8 +191,6 @@ export default function PedidosPage() {
     setDescuentoItem('')
     setPromoInfo(null)
     setAplicarPromo(false)
-
-    // Verificar promo combinada por familia
     verificarPromoCombi(nuevosItems)
   }
 
@@ -227,7 +198,6 @@ export default function PedidosPage() {
     const conPromo = itemsActuales.filter(i => i.promo && i.familia)
     if (conPromo.length < 2) return
 
-    // Agrupar por familia
     const familiaMap = {}
     conPromo.forEach(item => {
       if (!familiaMap[item.familia]) familiaMap[item.familia] = []
@@ -259,51 +229,107 @@ export default function PedidosPage() {
     setPromoCombiElegido(null)
   }
 
-  function removeItem(idx) { setItems(prev => prev.filter((_, i) => i !== idx)) }
+  function removeItem(idx) {
+    setItems(prev => prev.filter((_, i) => i !== idx))
+  }
 
-  function calcTotal(itemsArr, clienteId) {
+  function calcTotal(itemsArr, clienteId, modalidadForzada = null) {
     const cliente = clientes.find(c => c.id === clienteId)
     const descPct = parseFloat(cliente?.descuento_pct || 0)
-    const modalidad = form.modalidad || cliente?.modalidad_factura || 'sin_iva'
+    const modalidad = modalidadForzada || form.modalidad || cliente?.modalidad_factura || 'sin_iva'
     const ivaFactor = modalidad === 'con_iva' ? 1.21 : 1
     return itemsArr.reduce((s, item) => s + item.cantidad * item.precio_unitario * (1 - descPct / 100) * ivaFactor, 0)
   }
 
-  // ===== GUARDAR PEDIDO =====
+  function limpiarNotasUsuario(notas = '') {
+    return notas
+      .split('|')
+      .map(s => s.trim())
+      .filter(s => s && !s.includes('Descuento aplicado') && !s.includes('Con IVA') && !s.includes('Incluye unidades bonificadas'))
+      .join(' | ')
+  }
+
+  function abrirNuevoPedido() {
+    setForm(EMPTY_FORM)
+    setItems([])
+    setProdSel('')
+    setCantidad(1)
+    setSearchCliente('')
+    setModalOpen(true)
+  }
+
   async function savePedido() {
     if (!form.clienteId) { toast('Seleccioná un cliente', 'error'); return }
     if (!items.length) { toast('Agregá al menos un producto', 'error'); return }
     setSaving(true)
+
     try {
       const cliente = clientes.find(c => c.id === form.clienteId)
       const descPct = parseFloat(cliente?.descuento_pct || 0)
       const modalidad = form.modalidad || cliente?.modalidad_factura || 'sin_iva'
       const ivaFactor = modalidad === 'con_iva' ? 1.21 : 1
-      const total = calcTotal(items, form.clienteId)
-
-      const notas = [form.notas, descPct > 0 ? `Descuento aplicado: ${descPct}%` : '', modalidad === 'con_iva' ? 'Con IVA 21%' : '', items.some(i => i.bonificado > 0) ? 'Incluye unidades bonificadas por promo' : ''].filter(Boolean).join(' | ')
+      const total = calcTotal(items, form.clienteId, modalidad)
+      const notas = [
+        form.notas,
+        descPct > 0 ? `Descuento aplicado: ${descPct}%` : '',
+        modalidad === 'con_iva' ? 'Con IVA 21%' : '',
+        items.some(i => i.bonificado > 0) ? 'Incluye unidades bonificadas por promo' : ''
+      ].filter(Boolean).join(' | ')
 
       let pedidoId = form.id
+
       if (form.id) {
-        await supabase.from('pedidos').update({ cliente_id: form.clienteId, fecha_entrega: form.fechaEntrega || null, notas, total, modalidad_factura: modalidad }).eq('id', form.id)
-        await supabase.from('pedido_items').delete().eq('pedido_id', form.id)
+        const pedidoActual = pedidos.find(p => p.id === form.id)
+        if (pedidoActual?.estado !== 'pendiente' || pedidoActual?.convertido_venta_id) {
+          toast('Solo se pueden editar pedidos Pendientes', 'error')
+          return
+        }
+
+        const { error: pedidoError } = await supabase
+          .from('pedidos')
+          .update({ cliente_id: form.clienteId, notas, total, modalidad_factura: modalidad })
+          .eq('id', form.id)
+        if (pedidoError) throw pedidoError
+
+        const { error: deleteError } = await supabase.from('pedido_items').delete().eq('pedido_id', form.id)
+        if (deleteError) throw deleteError
       } else {
         const vendedorId = cliente?.vendedor_id || user
-        const { data: [pedido] } = await supabase.from('pedidos').insert({ cliente_id: form.clienteId, fecha_entrega: form.fechaEntrega || null, notas, total, vendedor_id: vendedorId, modalidad_factura: modalidad }).select()
-        pedidoId = pedido.id
+        const hoy = new Date().toISOString().split('T')[0]
+        const { data, error: insertError } = await supabase
+          .from('pedidos')
+          .insert({
+            cliente_id: form.clienteId,
+            fecha: hoy,
+            estado: 'pendiente',
+            notas,
+            total,
+            vendedor_id: vendedorId,
+            modalidad_factura: modalidad
+          })
+          .select()
+        if (insertError) throw insertError
+        pedidoId = data?.[0]?.id
       }
 
-      await Promise.all(items.map(item => {
-        const precioConDesc = item.precio_unitario * (1 - descPct / 100) * ivaFactor
-        return supabase.from('pedido_items').insert({ pedido_id: pedidoId, producto_id: item.producto_id, cantidad: item.cantidad, bonificado: item.bonificado || 0, precio_unitario: precioConDesc })
-      }))
+      const { error: itemsError } = await supabase.from('pedido_items').insert(
+        items.map(item => {
+          const precioConDesc = item.precio_unitario * (1 - descPct / 100) * ivaFactor
+          return {
+            pedido_id: pedidoId,
+            producto_id: item.producto_id,
+            cantidad: item.cantidad,
+            bonificado: item.bonificado || 0,
+            precio_unitario: precioConDesc
+          }
+        })
+      )
+      if (itemsError) throw itemsError
 
-      // Si cliente sin asignar → asignar al vendedor que crea el pedido
       if (cliente && !cliente.vendedor_id && !isAdmin) {
         await supabase.from('clientes').update({ vendedor_id: user, estado_cliente: 'Activo' }).eq('id', form.clienteId)
         toast('✓ Cliente asignado a tu cartera y activado')
       } else if (cliente && cliente.estado_cliente !== 'Activo') {
-        // Activar cliente si estaba Pendiente/Inactivo
         await supabase.from('clientes').update({ estado_cliente: 'Activo' }).eq('id', form.clienteId)
       }
 
@@ -312,109 +338,124 @@ export default function PedidosPage() {
       setForm(EMPTY_FORM)
       setItems([])
       loadPedidos()
-    } catch (e) { toast('Error: ' + e.message, 'error') } finally { setSaving(false) }
+    } catch (e) {
+      toast('Error: ' + e.message, 'error')
+    } finally {
+      setSaving(false)
+    }
   }
 
-  // ===== EDITAR PEDIDO =====
   async function editPedido(p) {
-    if (p.estado !== 'pendiente') { toast('Solo se pueden editar pedidos en estado Pendiente', 'error'); return }
-    try {
-      const { data: its } = await supabase.from('pedido_items').select('producto_id,cantidad,bonificado,precio_unitario,productos(nombre,promo)').eq('pedido_id', p.id)
-      setForm({ id: p.id, clienteId: p.cliente_id, fechaEntrega: p.fecha_entrega || '', notas: (p.notas || '').split('|').map(s => s.trim()).filter(s => s && !s.includes('Descuento') && !s.includes('bonificadas')).join(' | '), modalidad: 'sin_iva' })
-      setItems((its || []).map(i => ({ producto_id: i.producto_id, nombre: i.productos?.nombre || '—', cantidad: i.cantidad, bonificado: i.bonificado || 0, precio_unitario: parseFloat(i.precio_unitario), promo: i.productos?.promo || '' })))
-      setModalOpen(true)
-    } catch (e) { toast('Error al cargar pedido', 'error') }
-  }
-
-  // ===== ELIMINAR PEDIDO =====
-  async function deletePedido(p) {
-    if (!isAdmin) {
-      toast('Solo el administrador puede borrar pedidos.', 'error')
+    if (p.estado !== 'pendiente' || p.convertido_venta_id) {
+      toast('Solo se pueden editar pedidos Pendientes', 'error')
+      return
+    }
+    if (!isAdmin && p.vendedor_id !== user) {
+      toast('No podés editar pedidos de otro vendedor', 'error')
       return
     }
 
     try {
-      if (p.convertido_venta_id) {
-        toast('Este pedido ya fue facturado. Anulá la venta desde Ventas.', 'error')
-        return
-      }
+      const { data: its, error } = await supabase
+        .from('pedido_items')
+        .select('producto_id,cantidad,bonificado,precio_unitario,productos(nombre,promo,familia)')
+        .eq('pedido_id', p.id)
+      if (error) throw error
 
-      // Protección RC1: no permitir borrar pedidos que ya tengan remito asociado.
-      // Evita dejar remitos huérfanos si el pedido ya inició el circuito logístico.
-      const { data: remitos, error: remitosError } = await supabase
-        .from('remitos')
-        .select('id,numero')
-        .eq('origen_tipo', 'pedido')
-        .eq('origen_id', p.id)
+      setForm({
+        id: p.id,
+        clienteId: p.cliente_id,
+        notas: limpiarNotasUsuario(p.notas || ''),
+        modalidad: p.modalidad_factura || 'sin_iva'
+      })
+      setItems((its || []).map(i => ({
+        producto_id: i.producto_id,
+        nombre: i.productos?.nombre || '—',
+        familia: i.productos?.familia || '',
+        cantidad: i.cantidad,
+        bonificado: i.bonificado || 0,
+        precio_unitario: parseFloat(i.precio_unitario || 0),
+        descuento_item: 0,
+        promo: i.productos?.promo || ''
+      })))
+      setModalOpen(true)
+    } catch (e) {
+      toast('Error al cargar pedido: ' + e.message, 'error')
+    }
+  }
 
-      if (remitosError) throw remitosError
+  async function confirmarPedido(p) {
+    if (p.estado !== 'pendiente' || p.convertido_venta_id) {
+      toast('Solo se pueden confirmar pedidos Pendientes', 'error')
+      return
+    }
+    if (!isAdmin && p.vendedor_id !== user) {
+      toast('No podés confirmar pedidos de otro vendedor', 'error')
+      return
+    }
+    if (!confirm(`¿Confirmar pedido Nº ${p.numero || '—'}?`)) return
 
-      if (remitos?.length > 0) {
-        const nroRemito = remitos[0]?.numero ? ` Nº ${remitos[0].numero}` : ''
-        toast(`Este pedido ya posee un remito${nroRemito}. No puede eliminarse.`, 'error')
-        return
-      }
-
-      if (!confirm(`¿Borrar pedido de ${nombreCliente(p.clientes)}?`)) return
-
-      await supabase.from('pedido_items').delete().eq('pedido_id', p.id)
-      await supabase.from('pedidos').delete().eq('id', p.id)
-      toast('Pedido eliminado')
+    try {
+      const hoy = new Date().toISOString().split('T')[0]
+      const { error } = await supabase
+        .from('pedidos')
+        .update({ estado: 'confirmado', fecha_confirmacion: hoy })
+        .eq('id', p.id)
+      if (error) throw error
+      toast('Pedido confirmado')
       loadPedidos()
     } catch (e) {
-      console.error('Error al eliminar pedido:', e)
-      toast('Error al eliminar: ' + e.message, 'error')
+      toast('Error al confirmar: ' + e.message, 'error')
     }
   }
 
-  // ===== ESTADO =====
-  async function updateEstado(id, estado) {
-    if (estado === 'entregado') {
-      const p = pedidos.find(x => x.id === id)
-      setModalFecha({ id, modo: 'estado', tabla: 'pedidos', fechaActual: p?.fecha_entrega_real || '' })
-      setFechaInput(p?.fecha_entrega_real || new Date().toISOString().split('T')[0])
+  async function cancelarPedido(p) {
+    if (p.convertido_venta_id) {
+      toast('No se puede cancelar un pedido convertido', 'error')
       return
     }
+    if (!['pendiente', 'confirmado'].includes(p.estado)) {
+      toast('Este pedido no puede cancelarse', 'error')
+      return
+    }
+    if (!isAdmin && p.vendedor_id !== user) {
+      toast('No podés cancelar pedidos de otro vendedor', 'error')
+      return
+    }
+    if (!confirm(`¿Cancelar pedido Nº ${p.numero || '—'}?`)) return
+
     try {
-      await supabase.from('pedidos').update({ estado }).eq('id', id)
-      toast('Estado actualizado')
+      const hoy = new Date().toISOString().split('T')[0]
+      const { error } = await supabase
+        .from('pedidos')
+        .update({ estado: 'cancelado', fecha_cancelacion: hoy })
+        .eq('id', p.id)
+      if (error) throw error
+      toast('Pedido cancelado')
       loadPedidos()
-    } catch (e) { toast('Error', 'error') }
+    } catch (e) {
+      toast('Error al cancelar: ' + e.message, 'error')
+    }
   }
 
-  // ===== FECHA ENTREGA =====
-  async function confirmarFecha(borrar = false) {
-    if (!modalFecha) return
-    const { id, modo, tabla } = modalFecha
-    const fecha = borrar ? null : fechaInput
-    if (!borrar && !fecha) { toast('Elegí una fecha', 'error'); return }
-    try {
-      const data = { fecha_entrega_real: fecha }
-      if (modo === 'estado' && tabla === 'pedidos') data.estado = 'entregado'
-      await supabase.from(tabla).update(data).eq('id', id)
-
-      // Sincronizar pedido <-> venta
-      if (tabla === 'pedidos') {
-        const pedido = pedidos.find(p => p.id === id)
-        if (pedido?.convertido_venta_id) {
-          await supabase.from('ventas').update({ fecha_entrega_real: fecha }).eq('id', pedido.convertido_venta_id)
-        }
-      }
-
-      toast(borrar ? 'Fecha borrada' : 'Fecha guardada')
-      setModalFecha(null)
-      loadPedidos()
-    } catch (e) { toast('Error: ' + e.message, 'error') }
-  }
-
-  // ===== CONVERTIR A VENTA =====
   function abrirConvertir(p) {
+    if (p.estado !== 'confirmado') {
+      toast('Solo se pueden convertir pedidos Confirmados', 'error')
+      return
+    }
+    if (p.convertido_venta_id) {
+      toast('Este pedido ya fue convertido', 'error')
+      return
+    }
+    if (!isAdmin && p.vendedor_id !== user) {
+      toast('No podés convertir pedidos de otro vendedor', 'error')
+      return
+    }
     setModalConvertir(p)
   }
 
   async function confirmarConvertir() {
     if (!modalConvertir) return
-
     const p = modalConvertir
     setConvirtiendo(true)
 
@@ -431,7 +472,6 @@ export default function PedidosPage() {
       }
 
       const hoy = new Date().toISOString().split('T')[0]
-
       const dataVenta = {
         cliente_id: p.cliente_id,
         fecha: hoy,
@@ -441,32 +481,30 @@ export default function PedidosPage() {
         estado_pago: 'pendiente'
       }
 
-      const { data: [venta], error: ventaError } = await supabase
+      const { data: ventaData, error: ventaError } = await supabase
         .from('ventas')
         .insert(dataVenta)
         .select()
-
       if (ventaError) throw ventaError
+
+      const venta = ventaData?.[0]
+      if (!venta?.id) throw new Error('No se pudo crear la venta')
 
       const { error: itemsVentaError } = await supabase
         .from('venta_items')
-        .insert(
-          its.map(item => ({
-            venta_id: venta.id,
-            producto_id: item.producto_id,
-            cantidad: item.cantidad,
-            bonificado: item.bonificado || 0,
-            precio_unitario: item.precio_unitario
-          }))
-        )
-
+        .insert(its.map(item => ({
+          venta_id: venta.id,
+          producto_id: item.producto_id,
+          cantidad: item.cantidad,
+          bonificado: item.bonificado || 0,
+          precio_unitario: item.precio_unitario
+        })))
       if (itemsVentaError) throw itemsVentaError
 
       const { error: pedidoError } = await supabase
         .from('pedidos')
         .update({ convertido_venta_id: venta.id })
         .eq('id', p.id)
-
       if (pedidoError) throw pedidoError
 
       toast('Pedido convertido en venta ✓')
@@ -479,15 +517,8 @@ export default function PedidosPage() {
     }
   }
 
-  // ===== COMPROBANTE / REMITO =====
   async function verComprobante(pedidoId) {
-    try { await verComprobantePedido(pedidoId) } catch(e) { toast('Error: ' + e.message, 'error') }
-  }
-  async function handleVerRemito(pedidoId) {
-    try { await verRemito('pedido', pedidoId) } catch(e) { toast('Error: ' + e.message, 'error') }
-  }
-  async function handlePrepararEntrega(pedidoId) {
-    try { await prepararEntregaRemito('pedido', pedidoId); loadPedidos() } catch(e) { toast('Error: ' + e.message, 'error') }
+    try { await verComprobantePedido(pedidoId) } catch (e) { toast('Error: ' + e.message, 'error') }
   }
 
   function irAVenta(ventaId) {
@@ -495,251 +526,222 @@ export default function PedidosPage() {
     sessionStorage.setItem('hojuelas_venta_id', ventaId)
     window.dispatchEvent(new CustomEvent('hojuelas:navigate', { detail: { page: 'ventas', ventaId } }))
     window.dispatchEvent(new CustomEvent('navigate:ventas', { detail: { ventaId } }))
-    window.location.hash = 'ventas'
-    toast('Pedido convertido: continuá la logística desde Ventas.', 'info')
+    window.location.href = '/ventas'
   }
 
-  // ===== RENDER =====
+  function estadoVisualPedido(p) {
+    return p.convertido_venta_id ? 'convertido' : p.estado
+  }
+
+  function fechaCreacionPedido(p) {
+    return p.fecha || (p.created_at ? p.created_at.split('T')[0] : '')
+  }
+
+  function estadoLabel(estado) {
+    const labels = {
+      pendiente: 'Pendiente',
+      confirmado: 'Confirmado',
+      cancelado: 'Cancelado',
+      convertido: 'Convertido'
+    }
+    return labels[estado] || estado
+  }
+
+  function estadoBadgeClass(estado) {
+    if (estado === 'convertido') return 'badge badge-blue'
+    if (estado === 'confirmado') return 'badge badge-green'
+    if (estado === 'cancelado') return 'badge badge-red'
+    return 'badge badge-yellow'
+  }
+
   const misClientes = isAdmin ? clientes : clientes.filter(c =>
-    (c.vendedor_id === user && c.estado_cliente === 'Activo') || // sus clientes activos
-    (!c.vendedor_id) // sin asignar (cualquier estado)
+    (c.vendedor_id === user && c.estado_cliente === 'Activo') || !c.vendedor_id
   )
+
+  const clientesFiltrados = misClientes.filter(c => {
+    const s = searchCliente.trim().toLowerCase()
+    if (!s) return true
+    return [c.nombre, c.nombre_fantasia].filter(Boolean).some(v => v.toLowerCase().includes(s))
+  })
 
   const clienteDelForm = clientes.find(c => c.id === form.clienteId)
   const descPct = parseFloat(clienteDelForm?.descuento_pct || 0)
   const ivaFactor = (form.modalidad || clienteDelForm?.modalidad_factura || 'sin_iva') === 'con_iva' ? 1.21 : 1
   const total = items.reduce((s, item) => s + item.cantidad * item.precio_unitario * (1 - descPct / 100) * ivaFactor, 0)
-
   const prodSelObj = productos.find(p => p.id === prodSel)
 
   return (
     <div>
-      <style data-rc1-mobile-hide>{`@media (max-width: 768px){ .mobile-hide{ display:none !important; } }`}</style>
+      <style>{`
+        .show-mobile {
+          display: none;
+        }
+
+        @media (max-width: 768px) {
+          .hide-mobile {
+            display: none !important;
+          }
+
+          .show-mobile {
+            display: block !important;
+          }
+        }
+      `}</style>
       <div className="page-header">
         <h1 className="page-title">Pedidos</h1>
-        <div className="page-header-actions">
-          <button className="btn btn-secondary hide-on-mobile" onClick={() => toast('Excel — próximamente', 'info')}>📥 Excel</button>
-          <button className="mobile-hide btn btn-primary" onClick={() => { setForm(EMPTY_FORM); setItems([]); setSearchCliente(''); setVersionId(''); setUsarListaHistorica(false); setPromoInfo(null); setAplicarPromo(false); setModalOpen(true) }}>+ Nuevo pedido</button>
+        <button className="btn btn-primary hide-mobile" onClick={abrirNuevoPedido}>+ Nuevo pedido</button>
+      </div>
+
+      <div className="card" style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+          <select value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)} style={{ minWidth: 150 }}>
+            <option value="">Todos los estados</option>
+            {ESTADOS.map(e => <option key={e} value={e}>{estadoLabel(e)}</option>)}
+            <option value="convertido">Convertido</option>
+          </select>
+
+          <select value={filtroCliente} onChange={e => setFiltroCliente(e.target.value)} style={{ minWidth: 220 }}>
+            <option value="">Todos los clientes</option>
+            {clientes.map(c => <option key={c.id} value={c.id}>{nombreCliente(c)}</option>)}
+          </select>
+
+          {isAdmin && (
+            <select value={filtroVendedor} onChange={e => setFiltroVendedor(e.target.value)} style={{ minWidth: 180 }}>
+              <option value="">Todos los vendedores</option>
+              {vendedores.map(v => <option key={v.user_id} value={v.user_id}>{v.nombre || v.user_id}</option>)}
+            </select>
+          )}
         </div>
       </div>
 
-      {/* Filtros */}
-      <div className="filter-bar">
-        <select value={filtroCliente} onChange={e => setFiltroCliente(e.target.value)} style={{ flex: 2, minWidth: 150 }}>
-          <option value="">Todos los clientes</option>
-          {misClientes.map(c => <option key={c.id} value={c.id}>{nombreCliente(c)}</option>)}
-        </select>
-        <select value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)} style={{ flex: 1, minWidth: 130 }}>
-          <option value="">Todos los estados</option>
-          {ESTADOS.map(e => <option key={e} value={e}>{e.charAt(0).toUpperCase() + e.slice(1)}</option>)}
-        </select>
-        {isAdmin && (
-          <select value={filtroVendedor} onChange={e => setFiltroVendedor(e.target.value)} style={{ flex: 1, minWidth: 130 }}>
-            <option value="">Todos los vendedores</option>
-            {vendedores.map(v => <option key={v.user_id} value={v.user_id}>{v.nombre}</option>)}
-          </select>
-        )}
-      </div>
-
-      {/* Tabla desktop */}
-      <div className="card desktop-table">
+      <div className="card">
         {loading ? (
-          <div className="empty"><div className="empty-icon">⏳</div><p>Cargando...</p></div>
+          <p>Cargando...</p>
         ) : pedidos.length === 0 ? (
-          <div className="empty"><div className="empty-icon">📋</div><p>No hay pedidos todavía</p></div>
+          <p style={{ color: 'var(--muted)', textAlign: 'center', padding: 24 }}>No hay pedidos.</p>
         ) : (
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>N°</th>
-                  <th>Cliente</th>
-                  <th>Entrega</th>
-                  <th>Estado</th>
-                  <th>Total</th>
-                  <th>Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pedidos.map(p => {
-                  const yaConvertido = !!p.convertido_venta_id
-                  const remitoPedido = remitosPorOrigen.get(`pedido:${p.id}`)
-                  const remitoVenta = yaConvertido ? remitosPorOrigen.get(`venta:${p.convertido_venta_id}`) : null
-                  const remitoLogistico = remitoPedido || remitoVenta
-                  const tieneRemito = !!remitoLogistico
-                  const fechaEntregaReal = p.fecha_entrega_real || remitoLogistico?.fecha_entrega_real || ''
-                  const estadoVisual = fechaEntregaReal ? 'entregado' : p.estado
-                  const puedeConvertir = !yaConvertido && !tieneRemito && (p.estado === 'confirmado' || p.estado === 'entregado')
-                  const puedeRemitir = !yaConvertido && !tieneRemito && (p.estado === 'confirmado' || p.estado === 'entregado')
-                  return (
-                    <tr key={p.id}>
-                      <td style={{ color: 'var(--muted)', fontSize: 12 }}>#{String(p.numero || 0).padStart(6, '0')}</td>
-                      <td>{p.clientes ? nombreCliente(p.clientes) : '—'}</td>
-                      <td style={{ fontSize: 12 }}>
-                        <div>📅 {p.fecha_entrega || 'Sin programar'}</div>
-                        <div style={{ color: fechaEntregaReal ? 'var(--success)' : 'var(--muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                          {fechaEntregaReal ? `✓ Entregado: ${fechaEntregaReal}` : (tieneRemito ? 'Remitido / pendiente de entrega' : 'Sin entregar')}
-                          <span style={{ cursor: 'pointer' }} onClick={() => { setModalFecha({ id: p.id, modo: 'editar', tabla: 'pedidos', fechaActual: fechaEntregaReal || '' }); setFechaInput(fechaEntregaReal || new Date().toISOString().split('T')[0]) }} title="Editar fecha">✏</span>
-                        </div>
-                      </td>
-                      <td>
-                        <span className={`badge ${{ pendiente: 'badge-yellow', confirmado: 'badge-blue', entregado: 'badge-green', cancelado: 'badge-red' }[estadoVisual] || 'badge-gray'}`}>
-                          {estadoVisual}
-                        </span>
-                      </td>
-                      <td>${parseFloat(p.total || 0).toLocaleString('es-AR')}</td>
-                      <td style={{ whiteSpace: 'nowrap' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                          {yaConvertido && !tieneRemito
-                            ? <button className="btn btn-sm btn-secondary" style={{ padding: '3px 6px', fontSize: 11 }} onClick={() => irAVenta(p.convertido_venta_id)}>👁 Ver venta</button>
-                            : (yaConvertido || tieneRemito)
-                              ? null
-                              : p.estado === 'entregado'
-                                ? <span className={`badge ${{ pendiente: 'badge-yellow', confirmado: 'badge-blue', entregado: 'badge-green', cancelado: 'badge-red' }[p.estado]}`}>{p.estado}</span>
-                                : <select style={{ fontSize: 11, padding: '3px 4px', border: '1px solid var(--border)', borderRadius: 6, maxWidth: 108 }}
-                                  value={p.estado} onChange={e => updateEstado(p.id, e.target.value)}>
-                                  {ESTADOS.filter(e => {
-                                      if (p.estado === 'pendiente') return e !== 'entregado' // pendiente → NO entregado directo
-                                      if (p.estado === 'confirmado') return e === 'confirmado' || e === 'entregado' || e === 'cancelado' // confirmado → NO volver a pendiente
-                                      return false // entregado → sin select
-                                    }).map(e => (
-                                    <option key={e} value={e}>{e.charAt(0).toUpperCase() + e.slice(1)}</option>
-                                  ))}
-                                </select>
-                          }
-                          {puedeConvertir && <button className="btn btn-sm btn-success" style={{ padding: '3px 6px', fontSize: 11 }} onClick={() => abrirConvertir(p)}>🧾 Conv.</button>}
-                          {p.estado === 'pendiente' && !yaConvertido && <button className="btn btn-sm btn-secondary" style={{ padding: '3px 6px' }} onClick={() => editPedido(p)}>✏</button>}
-                          <button className="btn btn-sm btn-secondary" style={{ padding: '3px 6px' }} onClick={() => verComprobante(p.id)}>📋</button>
-                          {tieneRemito
-                            ? <button className="btn btn-sm" style={{ padding: '3px 6px', background: '#F3F4F6', color: '#374151' }} onClick={() => handleVerRemito(p.id)}>👁</button>
-                            : puedeRemitir && <button className="btn btn-sm" style={{ padding: '3px 6px', background: '#FEF3C7', color: '#92400E' }} title="Preparar entrega" onClick={() => handlePrepararEntrega(p.id)}>🚚 Prep.</button>
-                          }
-                          {isAdmin && !yaConvertido && !tieneRemito && <button className="btn btn-sm btn-danger" style={{ padding: '3px 6px', fontSize: 11 }} onClick={() => deletePedido(p)}>✕</button>}
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
+          <>
+            <div className="hide-mobile">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Nº Pedido</th>
+                    <th>Fecha creación</th>
+                    <th>Cliente</th>
+                    <th>Estado</th>
+                    <th style={{ textAlign: 'right' }}>Total</th>
+                    <th style={{ textAlign: 'right' }}>Acciones</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pedidos.map(p => {
+                    const visual = estadoVisualPedido(p)
+                    return (
+                      <tr key={p.id}>
+                        <td><strong>{p.numero || '—'}</strong></td>
+                        <td>{fechaCreacionPedido(p)}</td>
+                        <td>{nombreCliente(p.clientes)}</td>
+                        <td><span className={estadoBadgeClass(visual)}>{estadoLabel(visual)}</span></td>
+                        <td style={{ textAlign: 'right' }}>${parseFloat(p.total || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</td>
+                        <td>
+                          <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                            <button className="btn btn-sm btn-secondary" onClick={() => verComprobante(p.id)}>Ver</button>
+
+                            {visual === 'pendiente' && (
+                              <>
+                                <button className="btn btn-sm btn-secondary" onClick={() => editPedido(p)}>Editar</button>
+                                <button className="btn btn-sm btn-primary" onClick={() => confirmarPedido(p)}>Confirmar</button>
+                                <button className="btn btn-sm btn-danger" onClick={() => cancelarPedido(p)}>Cancelar</button>
+                              </>
+                            )}
+
+                            {visual === 'confirmado' && (
+                              <>
+                                <button className="btn btn-sm btn-primary" onClick={() => abrirConvertir(p)}>Convertir</button>
+                                <button className="btn btn-sm btn-danger" onClick={() => cancelarPedido(p)}>Cancelar</button>
+                              </>
+                            )}
+
+                            {visual === 'convertido' && (
+                              <button className="btn btn-sm btn-primary" onClick={() => irAVenta(p.convertido_venta_id)}>Ver venta</button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="show-mobile">
+              {pedidos.map(p => {
+                const visual = estadoVisualPedido(p)
+                return (
+                  <div key={p.id} className="mobile-card" style={{ marginBottom: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
+                      <div>
+                        <div style={{ fontWeight: 700 }}>Pedido Nº {p.numero || '—'}</div>
+                        <div style={{ color: 'var(--muted)', fontSize: 13 }}>{fechaCreacionPedido(p)}</div>
+                      </div>
+                      <span className={estadoBadgeClass(visual)}>{estadoLabel(visual)}</span>
+                    </div>
+                    <div style={{ marginTop: 8 }}>{nombreCliente(p.clientes)}</div>
+                    <div style={{ marginTop: 6, fontWeight: 700 }}>${parseFloat(p.total || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</div>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 12 }}>
+                      <button className="btn btn-sm btn-secondary" onClick={() => verComprobante(p.id)}>Ver</button>
+
+                      {visual === 'pendiente' && (
+                        <>
+                          <button className="btn btn-sm btn-secondary" onClick={() => editPedido(p)}>Editar</button>
+                          <button className="btn btn-sm btn-primary" onClick={() => confirmarPedido(p)}>Confirmar</button>
+                          <button className="btn btn-sm btn-danger" onClick={() => cancelarPedido(p)}>Cancelar</button>
+                        </>
+                      )}
+
+                      {visual === 'confirmado' && (
+                        <>
+                          <button className="btn btn-sm btn-primary" onClick={() => abrirConvertir(p)}>Convertir</button>
+                          <button className="btn btn-sm btn-danger" onClick={() => cancelarPedido(p)}>Cancelar</button>
+                        </>
+                      )}
+
+                      {visual === 'convertido' && (
+                        <button className="btn btn-sm btn-primary" onClick={() => irAVenta(p.convertido_venta_id)}>Ver venta</button>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </>
         )}
       </div>
 
-      {/* Cards mobile */}
-      <div className="mobile-cards cards-grid">
-        {loading ? (
-          <div className="empty"><p>Cargando...</p></div>
-        ) : pedidos.length === 0 ? (
-          <div className="empty"><div className="empty-icon">📋</div><p>No hay pedidos todavía</p></div>
-        ) : pedidos.map(p => {
-          const yaConvertido = !!p.convertido_venta_id
-          const remitoPedido = remitosPorOrigen.get(`pedido:${p.id}`)
-          const remitoVenta = yaConvertido ? remitosPorOrigen.get(`venta:${p.convertido_venta_id}`) : null
-          const remitoLogistico = remitoPedido || remitoVenta
-          const tieneRemito = !!remitoLogistico
-          const fechaEntregaReal = p.fecha_entrega_real || remitoLogistico?.fecha_entrega_real || ''
-          const estadoVisual = fechaEntregaReal ? 'entregado' : p.estado
-          const puedeConvertir = !yaConvertido && !tieneRemito && (p.estado === 'confirmado' || p.estado === 'entregado')
-          const puedeRemitir = !yaConvertido && !tieneRemito && (p.estado === 'confirmado' || p.estado === 'entregado')
-          return (
-            <div key={p.id} className="op-card">
-              <div className="op-card-header">
-                <span className="op-card-num">#{String(p.numero || 0).padStart(6, '0')}</span>
-                <span className={`badge ${{ pendiente: 'badge-yellow', confirmado: 'badge-blue', entregado: 'badge-green', cancelado: 'badge-red' }[estadoVisual] || 'badge-gray'}`}>{estadoVisual}</span>
-                <span className="op-card-fecha">{p.fecha_entrega ? new Date(p.fecha_entrega + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' }) : 'Sin fecha'}</span>
-              </div>
-              <div className="op-card-cliente">{p.clientes ? nombreCliente(p.clientes) : '—'}</div>
-              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4, marginBottom: 8 }}>
-                <div>📅 Entrega: {p.fecha_entrega ? new Date(p.fecha_entrega + 'T00:00:00').toLocaleDateString('es-AR') : 'Sin programar'}</div>
-                <div style={{ color: fechaEntregaReal ? 'var(--success)' : 'var(--muted)' }}>
-                  {fechaEntregaReal ? `✓ Entregado: ${fechaEntregaReal}` : (tieneRemito ? 'Remitido / pendiente de entrega' : 'Sin entregar')}
-                </div>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div className="op-card-total">${parseFloat(p.total || 0).toLocaleString('es-AR', { maximumFractionDigits: 0 })}</div>
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                  {p.estado === 'pendiente' && !yaConvertido && <button className="btn btn-sm btn-secondary" onClick={() => editPedido(p)}>✏ Editar</button>}
-                  {puedeConvertir && <button className="btn btn-sm btn-success" onClick={() => abrirConvertir(p)}>🧾 Convertir</button>}
-                </div>
-              </div>
-              <div className="op-card-actions">
-                <button className="btn btn-secondary" onClick={() => verComprobante(p.id)}>📋 Ver</button>
-                {yaConvertido && !tieneRemito
-                  ? <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => irAVenta(p.convertido_venta_id)}>👁 Ver venta</button>
-                  : (yaConvertido || tieneRemito)
-                    ? null
-                    : p.estado === 'entregado'
-                      ? <span className="badge badge-green" style={{ flex: 1, textAlign: 'center' }}>Entregado</span>
-                      : <select style={{ flex: 1, padding: '8px 6px', border: '1px solid var(--border)', borderRadius: 10, fontSize: 12 }}
-                          value={p.estado} onChange={e => updateEstado(p.id, e.target.value)}>
-                          {ESTADOS.filter(e => {
-                            if (p.estado === 'pendiente') return e !== 'entregado'
-                            if (p.estado === 'confirmado') return e === 'confirmado' || e === 'entregado' || e === 'cancelado'
-                            return false
-                          }).map(e => (
-                            <option key={e} value={e}>{e.charAt(0).toUpperCase() + e.slice(1)}</option>
-                          ))}
-                        </select>
-                }
-                {tieneRemito
-                  ? <button className="btn btn-secondary" onClick={() => handleVerRemito(p.id)}>👁 Remito</button>
-                  : puedeRemitir && <button className="btn btn-secondary" onClick={() => handlePrepararEntrega(p.id)}>🚚 Preparar entrega</button>
-                }
-              </div>
-            </div>
-          )
-        })}
-      </div>
-
-      {/* ===== MODAL PEDIDO ===== */}
       {modalOpen && (
-        <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && setModalOpen(false)}>
-          <div className="modal" style={{ maxWidth: 680 }}>
+        <div className="modal-backdrop">
+          <div className="modal" style={{ maxWidth: 760 }}>
             <div className="modal-header">
               <h2>{form.id ? 'Editar pedido' : 'Nuevo pedido'}</h2>
               <button className="btn btn-secondary btn-sm" onClick={() => setModalOpen(false)}>✕</button>
             </div>
             <div className="modal-body">
-              {/* Cliente y fecha */}
-              <div className="form-row">
+              <div className="form-grid" style={{ marginBottom: 12 }}>
                 <div className="form-group">
-                  <label>Cliente *</label>
-                  <input
-                    type="text" placeholder="Buscar cliente..."
-                    value={searchCliente} onChange={e => setSearchCliente(e.target.value)}
-                    style={{ marginBottom: 4, borderRadius: 'var(--radius) var(--radius) 0 0', borderBottom: 'none' }}
-                  />
-                  <select value={form.clienteId} onChange={e => setForm(f => ({ ...f, clienteId: e.target.value }))}
-                    style={{ borderRadius: '0 0 var(--radius) var(--radius)' }}>
+                  <label>Cliente</label>
+                  <input value={searchCliente} onChange={e => setSearchCliente(e.target.value)} placeholder="Buscar cliente..." style={{ marginBottom: 6 }} />
+                  <select value={form.clienteId} onChange={e => setForm(f => ({ ...f, clienteId: e.target.value }))}>
                     <option value="">— Elegí un cliente —</option>
-                    {misClientes
-                      .filter(c => !searchCliente || nombreCliente(c).toLowerCase().includes(searchCliente.toLowerCase()))
-                      .map(c => <option key={c.id} value={c.id}>{nombreCliente(c)}{c.tipo ? ` — ${c.tipo}` : ''}</option>)}
+                    {clientesFiltrados.map(c => <option key={c.id} value={c.id}>{nombreCliente(c)}{c.tipo ? ` (${c.tipo})` : ''}</option>)}
                   </select>
                 </div>
-                <div className="form-group">
-                  <label>Fecha programada</label>
-                  <input type="date" value={form.fechaEntrega} onChange={e => setForm(f => ({ ...f, fechaEntrega: e.target.value }))} />
-                </div>
-              </div>
-              <div className="form-row">
+
                 <div className="form-group">
                   <label>Lista de precios</label>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                    <input
-                      type="checkbox"
-                      id="usar-lista-historica"
-                      checked={usarListaHistorica}
-                      onChange={e => {
-                        setUsarListaHistorica(e.target.checked)
-                        if (!e.target.checked) setVersionId('')
-                      }}
-                    />
-                    <label htmlFor="usar-lista-historica" style={{ margin: 0, fontWeight: 500, cursor: 'pointer' }}>
-                      Usar lista histórica / especial
-                    </label>
-                  </div>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, marginBottom: 6, color: 'var(--muted)' }}>
+                    <input type="checkbox" checked={usarListaHistorica} onChange={e => setUsarListaHistorica(e.target.checked)} />
+                    Usar lista histórica
+                  </label>
                   {usarListaHistorica ? (
                     <select value={versionId} onChange={e => cambiarVersion(e.target.value)}>
                       <option value="">Precios actuales</option>
@@ -749,6 +751,7 @@ export default function PedidosPage() {
                     <input readOnly value={`Actual automática: ${getTipoClienteActual()}`} style={{ background: 'var(--bg)', color: 'var(--muted)' }} />
                   )}
                 </div>
+
                 <div className="form-group">
                   <label>Modalidad de factura</label>
                   <select value={form.modalidad} onChange={e => setForm(f => ({ ...f, modalidad: e.target.value }))}>
@@ -757,18 +760,22 @@ export default function PedidosPage() {
                   </select>
                 </div>
               </div>
+
               <div className="form-group" style={{ marginBottom: 12 }}>
                 <label>Notas</label>
                 <input value={form.notas} onChange={e => setForm(f => ({ ...f, notas: e.target.value }))} placeholder="Observaciones..." />
               </div>
 
-              {/* Agregar producto */}
               <div style={{ background: 'var(--bg)', borderRadius: 8, padding: 12, marginBottom: 12 }}>
                 <div style={{ fontWeight: 600, fontSize: 12, color: 'var(--muted)', marginBottom: 8, textTransform: 'uppercase' }}>Agregar producto</div>
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                   <select value={prodSel} onChange={e => onProdSelChange(e.target.value)} style={{ flex: 3, minWidth: 180 }}>
                     <option value="">— Elegí un producto —</option>
-                    {productos.map(p => <option key={p.id} value={p.id}>{p.codigo ? `${p.codigo} — ` : ''}{p.nombre} — $${getPrecio(p.id).toLocaleString('es-AR', { maximumFractionDigits: 2 })}{p.promo ? ` 🎁${p.promo}` : ''}</option>)}
+                    {productos.map(p => (
+                      <option key={p.id} value={p.id}>
+                        {p.codigo ? `${p.codigo} — ` : ''}{p.nombre} — ${getPrecio(p.id).toLocaleString('es-AR', { maximumFractionDigits: 2 })}{p.promo ? ` 🎁${p.promo}` : ''}
+                      </option>
+                    ))}
                   </select>
                   <input type="number" min="1" value={cantidad} onChange={e => setCantidad(e.target.value)} style={{ width: 70 }} placeholder="Cant." />
                   {prodSelObj?.precio_editable && (
@@ -788,7 +795,6 @@ export default function PedidosPage() {
                 )}
               </div>
 
-              {/* Lista de items */}
               {items.length > 0 && (
                 <div style={{ marginBottom: 12 }}>
                   {items.map((item, i) => (
@@ -820,32 +826,6 @@ export default function PedidosPage() {
         </div>
       )}
 
-      {/* ===== MODAL FECHA ENTREGA ===== */}
-      {modalFecha && (
-        <div className="modal-backdrop">
-          <div className="modal" style={{ maxWidth: 380 }}>
-            <div className="modal-header">
-              <h2>{modalFecha.modo === 'estado' ? 'Marcar como entregado' : 'Editar fecha de entrega'}</h2>
-              <button className="btn btn-secondary btn-sm" onClick={() => setModalFecha(null)}>✕</button>
-            </div>
-            <div className="modal-body">
-              <div className="form-group">
-                <label>{modalFecha.modo === 'estado' ? '¿Qué fecha se entregó el pedido?' : 'Fecha real de entrega'}</label>
-                <input type="date" value={fechaInput} onChange={e => setFechaInput(e.target.value)} />
-              </div>
-            </div>
-            <div className="modal-footer">
-              {modalFecha.modo === 'editar' && modalFecha.fechaActual && (
-                <button className="btn btn-danger" onClick={() => confirmarFecha(true)}>Borrar fecha</button>
-              )}
-              <button className="btn btn-secondary" onClick={() => setModalFecha(null)}>Cancelar</button>
-              <button className="btn btn-primary" onClick={() => confirmarFecha(false)}>Guardar</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ===== MODAL CONVERTIR ===== */}
       {modalConvertir && (
         <div className="modal-backdrop">
           <div className="modal" style={{ maxWidth: 420 }}>
@@ -858,12 +838,8 @@ export default function PedidosPage() {
                 <strong>{nombreCliente(modalConvertir.clientes)}</strong><br />
                 <span style={{ color: 'var(--muted)' }}>Total: ${parseFloat(modalConvertir.total || 0).toLocaleString('es-AR')}</span>
               </div>
-              <p>
-                Se creará una <strong>Venta</strong> a partir de este pedido.
-              </p>
-              <p style={{ color: 'var(--muted)' }}>
-                La preparación de la entrega y la emisión del remito se realizarán posteriormente desde la venta.
-              </p>
+              <p>Se creará una <strong>Venta</strong> a partir de este pedido.</p>
+              <p style={{ color: 'var(--muted)' }}>La logística comenzará posteriormente desde la Venta.</p>
             </div>
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setModalConvertir(null)}>Cancelar</button>
@@ -877,7 +853,6 @@ export default function PedidosPage() {
 
       <ComprobanteModal comp={comp} onClose={cerrarComp} onPrint={imprimir} onDownload={descargar} />
 
-      {/* ===== MODAL PROMO COMBINADA ===== */}
       {modalPromoCombi && (
         <div className="modal-backdrop">
           <div className="modal" style={{ maxWidth: 420 }}>
