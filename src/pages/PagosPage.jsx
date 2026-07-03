@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { nombreCliente } from '../utils/helpers'
@@ -14,6 +15,14 @@ const MEDIOS = [
 ]
 
 const medioLabel = (value) => MEDIOS.find(m => m.value === value)?.label || value || '—'
+
+function numeroVentaLabel(pago) {
+  const numeros = (pago.pago_ventas || [])
+    .map(pv => pv.ventas?.numero)
+    .filter(Boolean)
+  if (!numeros.length) return '—'
+  return numeros.map(n => `#${String(n).padStart(6, '0')}`).join(', ')
+}
 
 function getEstadoCobro(pago) {
   const imputaciones = pago.pago_ventas || []
@@ -42,6 +51,8 @@ const EMPTY_EDIT = {
 
 export default function PagosPage() {
   const { user, isAdmin } = useAuth()
+  const location = useLocation()
+  const navigate = useNavigate()
   const { toasts, toast } = useToast()
   const { comp, cerrarComp, imprimir, descargar, verReciboPago } = useComprobante()
 
@@ -69,7 +80,23 @@ export default function PagosPage() {
   // Modal detalle de imputaciones
   const [detallePago, setDetallePago] = useState(null)
 
+  // Modal imputar cobro existente (a cuenta / con saldo) a una venta
+  const [modalImputar, setModalImputar] = useState(null) // pago
+  const [ventasParaImputar, setVentasParaImputar] = useState([])
+  const [nuevasImputaciones, setNuevasImputaciones] = useState({}) // { venta_id: { checked, monto, saldo } }
+  const [imputando, setImputando] = useState(false)
+
   useEffect(() => { loadAll() }, [])
+
+  // Llegada desde "💰 Cobrar" en Ventas: abre el modal con el cliente y la venta preseleccionados
+  useEffect(() => {
+    const { clienteId, ventaId } = location.state || {}
+    if (!clienteId) return
+    setForm(f => ({ ...EMPTY_FORM, clienteId }))
+    cargarVentasPendientes(clienteId, ventaId)
+    setModalOpen(true)
+    navigate(location.pathname, { replace: true, state: null })
+  }, [location.state])
 
   useEffect(() => {
     const abrirDesdeFab = () => {
@@ -114,7 +141,7 @@ export default function PagosPage() {
   useEffect(() => { loadPagos() }, [filtroCliente, filtroVendedor])
 
   // ===== CARGAR VENTAS PENDIENTES AL SELECCIONAR CLIENTE =====
-  async function cargarVentasPendientes(clienteId) {
+  async function cargarVentasPendientes(clienteId, preseleccionarVentaId = null) {
     if (!clienteId) { setVentasPendientes([]); setImputaciones({}); return }
     try {
       const { data } = await supabase.from('ventas')
@@ -128,9 +155,13 @@ export default function PagosPage() {
       const imp = {}
       ;(data || []).forEach(v => {
         const saldo = parseFloat(v.total || 0) - parseFloat(v.monto_pagado || 0)
-        imp[v.id] = { checked: false, monto: saldo.toFixed(2), saldo }
+        imp[v.id] = { checked: v.id === preseleccionarVentaId, monto: saldo.toFixed(2), saldo }
       })
       setImputaciones(imp)
+
+      if (preseleccionarVentaId && imp[preseleccionarVentaId]) {
+        setForm(f => ({ ...f, monto: imp[preseleccionarVentaId].monto }))
+      }
     } catch (e) { console.error(e) }
   }
 
@@ -167,6 +198,36 @@ export default function PagosPage() {
   const medioPagoForzadoEfectivo = soloSinFactura || pagoACuentaSinFactura
 
   const mostrarCC = saldoCuenta > 0.01
+
+  // ===== RECALCULAR ESTADO DE PAGO DE UNA VENTA (según sus imputaciones vigentes) =====
+  async function recalcularEstadoVenta(ventaId) {
+    const { data: pagosVenta, error: pagosVentaError } = await supabase
+      .from('pago_ventas')
+      .select('monto_aplicado')
+      .eq('venta_id', ventaId)
+
+    if (pagosVentaError) throw pagosVentaError
+
+    const totalPagado = (pagosVenta || []).reduce((s, p) => s + parseFloat(p.monto_aplicado || 0), 0)
+
+    const { data: venta, error: ventaError } = await supabase
+      .from('ventas')
+      .select('total')
+      .eq('id', ventaId)
+      .single()
+
+    if (ventaError) throw ventaError
+
+    const totalVenta = parseFloat(venta?.total || 0)
+    const nuevoEstado = totalPagado >= totalVenta - 0.01 ? 'pagado' : totalPagado > 0 ? 'parcial' : 'pendiente'
+
+    const { error: updError } = await supabase
+      .from('ventas')
+      .update({ monto_pagado: totalPagado, estado_pago: nuevoEstado })
+      .eq('id', ventaId)
+
+    if (updError) throw updError
+  }
 
   // ===== GUARDAR PAGO =====
   async function savePago() {
@@ -239,32 +300,7 @@ export default function PagosPage() {
 
         if (impError) throw impError
 
-        const { data: pagosVenta, error: pagosVentaError } = await supabase
-          .from('pago_ventas')
-          .select('monto_aplicado')
-          .eq('venta_id', ventaId)
-
-        if (pagosVentaError) throw pagosVentaError
-
-        const totalPagado = (pagosVenta || []).reduce((s, p) => s + parseFloat(p.monto_aplicado || 0), 0)
-
-        const { data: venta, error: ventaError } = await supabase
-          .from('ventas')
-          .select('total')
-          .eq('id', ventaId)
-          .single()
-
-        if (ventaError) throw ventaError
-
-        const totalVenta = parseFloat(venta?.total || 0)
-        const nuevoEstado = totalPagado >= totalVenta - 0.01 ? 'pagado' : totalPagado > 0 ? 'parcial' : 'pendiente'
-
-        const { error: updError } = await supabase
-          .from('ventas')
-          .update({ monto_pagado: totalPagado, estado_pago: nuevoEstado })
-          .eq('id', ventaId)
-
-        if (updError) throw updError
+        await recalcularEstadoVenta(ventaId)
       }))
 
       toast(imputacionesActivas.length
@@ -342,36 +378,7 @@ export default function PagosPage() {
 
         if (delImpError) throw delImpError
 
-        const { data: pagosRestantes, error: pagosRestantesError } = await supabase
-          .from('pago_ventas')
-          .select('monto_aplicado')
-          .eq('venta_id', ventaId)
-
-        if (pagosRestantesError) throw pagosRestantesError
-
-        const totalPagado = (pagosRestantes || []).reduce((s, p) => s + parseFloat(p.monto_aplicado || 0), 0)
-
-        const { data: venta, error: ventaError } = await supabase
-          .from('ventas')
-          .select('total')
-          .eq('id', ventaId)
-          .single()
-
-        if (ventaError) throw ventaError
-
-        const totalVenta = parseFloat(venta?.total || 0)
-        const nuevoEstado = totalPagado >= totalVenta - 0.01
-          ? 'pagado'
-          : totalPagado > 0
-            ? 'parcial'
-            : 'pendiente'
-
-        const { error: updVentaError } = await supabase
-          .from('ventas')
-          .update({ monto_pagado: totalPagado, estado_pago: nuevoEstado })
-          .eq('id', ventaId)
-
-        if (updVentaError) throw updVentaError
+        await recalcularEstadoVenta(ventaId)
       }
 
       // Caso 3: pago a cuenta sin imputación, o ya desimputado arriba.
@@ -391,6 +398,80 @@ export default function PagosPage() {
 
   async function handleReciboPago(id) {
     try { await verReciboPago(id) } catch (e) { toast('Error al generar recibo: ' + e.message, 'error') }
+  }
+
+  // ===== IMPUTAR COBRO EXISTENTE A UNA VENTA =====
+  async function abrirImputar(p) {
+    const clienteId = p.clientes?.id
+    if (!clienteId) { toast('Este cobro no tiene cliente asociado.', 'error'); return }
+
+    try {
+      const { data } = await supabase.from('ventas')
+        .select('id,fecha,total,monto_pagado,estado_pago,notas,modalidad_factura')
+        .eq('cliente_id', clienteId)
+        .neq('estado_pago', 'pagado')
+        .order('fecha', { ascending: true })
+
+      // El cobro ya tiene un centro de costo fijo (CC1=con factura, CC2=sin factura/efectivo);
+      // solo se puede seguir imputando a ventas del mismo tipo para no mezclar.
+      const modalidadEsperada = p.centro_costo === 'CC1' ? 'con_iva' : 'sin_iva'
+      const filtradas = (data || []).filter(v => (v.modalidad_factura || 'sin_iva') === modalidadEsperada)
+
+      const imp = {}
+      filtradas.forEach(v => {
+        const saldo = parseFloat(v.total || 0) - parseFloat(v.monto_pagado || 0)
+        imp[v.id] = { checked: false, monto: saldo.toFixed(2), saldo }
+      })
+
+      setVentasParaImputar(filtradas)
+      setNuevasImputaciones(imp)
+      setModalImputar(p)
+    } catch (e) {
+      toast('Error al buscar ventas pendientes: ' + e.message, 'error')
+    }
+  }
+
+  const disponibleImputar = modalImputar ? parseFloat(modalImputar.monto || 0) - getEstadoCobro(modalImputar).totalImputado : 0
+  const nuevasImputacionesActivas = Object.entries(nuevasImputaciones).filter(([, v]) => v.checked)
+  const totalNuevasImputaciones = nuevasImputacionesActivas.reduce((s, [, v]) => s + parseFloat(v.monto || 0), 0)
+  const excedeDisponible = totalNuevasImputaciones > disponibleImputar + 0.01
+
+  function toggleNuevaImputacion(ventaId) {
+    setNuevasImputaciones(prev => ({ ...prev, [ventaId]: { ...prev[ventaId], checked: !prev[ventaId].checked } }))
+  }
+
+  function setMontoNuevaImputacion(ventaId, monto) {
+    setNuevasImputaciones(prev => ({ ...prev, [ventaId]: { ...prev[ventaId], monto } }))
+  }
+
+  async function confirmarImputar() {
+    if (!modalImputar) return
+    if (!nuevasImputacionesActivas.length) { toast('Seleccioná al menos una venta', 'error'); return }
+    if (excedeDisponible) { toast('El total a imputar supera el saldo disponible del cobro', 'error'); return }
+
+    setImputando(true)
+    try {
+      await Promise.all(nuevasImputacionesActivas.map(async ([ventaId, imp]) => {
+        const montoAplicado = parseFloat(imp.monto || 0)
+        if (montoAplicado <= 0) return
+
+        const { error } = await supabase
+          .from('pago_ventas')
+          .insert({ pago_id: modalImputar.id, venta_id: ventaId, monto_aplicado: montoAplicado })
+
+        if (error) throw error
+
+        await recalcularEstadoVenta(ventaId)
+      }))
+
+      toast('Imputación registrada ✓')
+      setModalImputar(null)
+      loadPagos()
+    } catch (e) {
+      toast('Error al imputar: ' + e.message, 'error')
+    } finally {
+      setImputando(false)
+    }
   }
 
   const misClientes = isAdmin ? clientes : clientes.filter(c => c.vendedor_id === user)
@@ -433,12 +514,12 @@ export default function PagosPage() {
               <thead>
                 <tr>
                   <th>Fecha</th>
+                  <th>Nº Venta</th>
                   <th>Cliente</th>
                   <th>Monto</th>
                   <th>Estado</th>
                   <th>Medio</th>
                   <th>CC</th>
-                  <th>Notas</th>
                   {isAdmin && <th>Vendedor</th>}
                   <th>Acciones</th>
                 </tr>
@@ -453,6 +534,7 @@ export default function PagosPage() {
                   return (
                     <tr key={p.id}>
                       <td>{p.fecha}</td>
+                      <td style={{ fontSize: 12, color: 'var(--muted)' }}>{numeroVentaLabel(p)}</td>
                       <td>{p.clientes ? nombreCliente(p.clientes) : '—'}</td>
                       <td><strong>${parseFloat(p.monto || 0).toLocaleString('es-AR')}</strong></td>
                       <td>
@@ -467,11 +549,13 @@ export default function PagosPage() {
                       </td>
                       <td><span className="badge badge-blue">{medioLabel(p.medio)}</span></td>
                       <td>{ccBadge}</td>
-                      <td style={{ color: 'var(--muted)', fontSize: 12 }}>{p.notas || '—'}</td>
                       {isAdmin && <td style={{ fontSize: 12, color: 'var(--muted)' }}>{vendedorNombre}</td>}
                       <td style={{ whiteSpace: 'nowrap' }}>
                         <div style={{ display: 'flex', gap: 4 }}>
                           <button className="btn btn-sm btn-secondary" onClick={() => handleReciboPago(p.id)}>🧾 Recibo</button>
+                          {estadoCobro.key !== 'imputado' && (
+                            <button className="btn btn-sm" style={{ background: '#E0E7FF', color: '#4338CA' }} onClick={() => abrirImputar(p)}>🔗 Imputar</button>
+                          )}
                           {isAdmin && <>
                             <button className="btn btn-sm btn-secondary" onClick={() => abrirEdit(p)}>✏</button>
                             <button className="btn btn-sm btn-danger" onClick={() => deletePago(p.id)}>↩ Anular</button>
@@ -513,11 +597,13 @@ export default function PagosPage() {
                 </button>
                 {ccBadge}
               </div>
-              <div className="op-card-cliente">{p.clientes ? nombreCliente(p.clientes) : '—'}</div>
+              <div className="op-card-cliente">{p.clientes ? nombreCliente(p.clientes) : '—'} <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 400 }}>{numeroVentaLabel(p)}</span></div>
               <div className="op-card-total" style={{ color: 'var(--success)' }}>${parseFloat(p.monto || 0).toLocaleString('es-AR', { maximumFractionDigits: 0 })}</div>
-              {p.notas && <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>{p.notas}</div>}
               <div className="op-card-actions" style={{ marginTop: 8 }}>
                 <button className="btn btn-secondary" onClick={() => handleReciboPago(p.id)}>🧾 Recibo</button>
+                {estadoCobro.key !== 'imputado' && (
+                  <button className="btn" style={{ background: '#E0E7FF', color: '#4338CA' }} onClick={() => abrirImputar(p)}>🔗 Imputar</button>
+                )}
                 {isAdmin && <>
                   <button className="btn btn-secondary" onClick={() => abrirEdit(p)}>✏ Editar</button>
                   <button className="btn btn-danger" onClick={() => deletePago(p.id)}>↩ Anular</button>
@@ -765,6 +851,65 @@ export default function PagosPage() {
             </div>
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setDetallePago(null)}>Cerrar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== MODAL IMPUTAR COBRO EXISTENTE ===== */}
+      {modalImputar && (
+        <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && setModalImputar(null)}>
+          <div className="modal" style={{ maxWidth: 560 }}>
+            <div className="modal-header">
+              <h2>Imputar cobro a ventas</h2>
+              <button className="btn btn-secondary btn-sm" onClick={() => setModalImputar(null)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <div style={{ background: 'var(--bg)', borderRadius: 8, padding: 12, marginBottom: 12, fontSize: 13 }}>
+                <div><strong>{modalImputar.clientes ? nombreCliente(modalImputar.clientes) : '—'}</strong></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4 }}>
+                  <span>Disponible para imputar</span>
+                  <strong>${disponibleImputar.toLocaleString('es-AR', { maximumFractionDigits: 2 })}</strong>
+                </div>
+              </div>
+
+              {ventasParaImputar.length === 0 ? (
+                <div className="empty" style={{ padding: 16 }}>
+                  <p>No hay ventas pendientes compatibles con este cobro (mismo tipo con/sin factura) para imputar.</p>
+                </div>
+              ) : (
+                <div>
+                  {ventasParaImputar.map(v => {
+                    const imp = nuevasImputaciones[v.id] || { checked: false, monto: '0.00', saldo: 0 }
+                    const fechaStr = new Date(v.fecha + 'T00:00:00').toLocaleDateString('es-AR')
+                    return (
+                      <div key={v.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                        <input type="checkbox" checked={imp.checked} onChange={() => toggleNuevaImputacion(v.id)} />
+                        <label style={{ flex: 1, cursor: 'pointer', fontWeight: 'normal' }} onClick={() => toggleNuevaImputacion(v.id)}>
+                          <span style={{ color: 'var(--muted)', fontSize: 11 }}>{fechaStr}</span>
+                          <br />
+                          Total: <strong>${parseFloat(v.total || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</strong>
+                          {' · '}<span style={{ color: '#DC2626', fontWeight: 600 }}>Saldo: ${imp.saldo.toLocaleString('es-AR', { maximumFractionDigits: 2 })}</span>
+                        </label>
+                        <input type="number" min="0" max={imp.saldo} step="0.01"
+                          value={imp.monto}
+                          onChange={e => setMontoNuevaImputacion(v.id, e.target.value)}
+                          style={{ width: 110, padding: '4px 6px', border: '1px solid var(--border)', borderRadius: 6, fontSize: 12 }} />
+                      </div>
+                    )
+                  })}
+                  <div style={{ marginTop: 8, fontSize: 13, display: 'flex', justifyContent: 'space-between' }}>
+                    <span>A imputar: <strong>${totalNuevasImputaciones.toLocaleString('es-AR', { maximumFractionDigits: 2 })}</strong></span>
+                    {excedeDisponible && <span style={{ color: 'var(--danger)' }}>⚠ Supera el disponible</span>}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => setModalImputar(null)}>Cancelar</button>
+              <button className="btn btn-primary" onClick={confirmarImputar} disabled={imputando || excedeDisponible || !nuevasImputacionesActivas.length}>
+                {imputando ? 'Imputando...' : 'Confirmar imputación'}
+              </button>
             </div>
           </div>
         </div>
