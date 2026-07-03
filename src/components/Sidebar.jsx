@@ -87,6 +87,11 @@ const NAV_VENDEDOR = [
       { to: '/ayuda',    icon: '❓', label: 'Ayuda' },
     ]
   },
+  {
+    group: 'Sistema', icon: '⚙️', defaultOpen: false, items: [
+      { to: '/config', icon: '⚙️', label: 'Mi cuenta' },
+    ]
+  },
 ]
 
 function NavGroup({ group, icon, defaultOpen, items }) {
