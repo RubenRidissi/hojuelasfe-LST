@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 
 function contextFromPath(path) {
-  if (['/clientes', '/mapa', '/ctacte'].some(p => path.startsWith(p))) return 'clientes'
+  if (['/clientes', '/mi-ruta', '/mapa', '/ctacte'].some(p => path.startsWith(p))) return 'clientes'
   if (['/productos', '/stock', '/listas', '/novedades'].some(p => path.startsWith(p))) return 'productos'
   if (['/remitos', '/mi-dia', '/reportes', '/ayuda', '/comunicados', '/config'].some(p => path.startsWith(p))) return 'mas'
   return 'operaciones'

@@ -9,6 +9,7 @@ const NAV_ADMIN = [
   {
     group: 'Clientes', icon: '👥', defaultOpen: true, items: [
       { to: '/clientes', icon: '👥', label: 'Listado' },
+      { to: '/mi-ruta',  icon: '🗓️', label: 'Mi Ruta' },
       { to: '/mapa',     icon: '🗺️', label: 'Mapa' },
       { to: '/ctacte',   icon: '📒', label: 'Cta. Corriente' },
     ]
@@ -59,6 +60,7 @@ const NAV_VENDEDOR = [
   {
     group: 'Clientes', icon: '👥', defaultOpen: true, items: [
       { to: '/clientes', icon: '👥', label: 'Listado' },
+      { to: '/mi-ruta',  icon: '🗓️', label: 'Mi Ruta' },
       { to: '/mapa',     icon: '🗺️', label: 'Mapa' },
       { to: '/ctacte',   icon: '📒', label: 'Cta. Corriente' },
     ]

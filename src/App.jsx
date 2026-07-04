@@ -3,6 +3,7 @@ import { useAuth } from './context/AuthContext'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import ClientesPage from './pages/ClientesPage'
+import MiRutaPage from './pages/MiRutaPage'
 import PedidosPage from './pages/PedidosPage'
 import VentasPage from './pages/VentasPage'
 import PagosPage from './pages/PagosPage'
@@ -42,6 +43,7 @@ function AppLayout() {
         <Routes>
           <Route path="/"         element={<DashboardPage />} />
           <Route path="/clientes" element={<ClientesPage />} />
+          <Route path="/mi-ruta"   element={<MiRutaPage />} />
           <Route path="/mapa"      element={<MapaPage />} />
           <Route path="/pedidos"  element={<PedidosPage />} />
           <Route path="/ventas"   element={<VentasPage />} />

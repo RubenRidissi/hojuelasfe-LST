@@ -7,13 +7,16 @@ import { ToastContainer } from '../components/Toast'
 
 const PROVINCIAS = ['Santa Fe','Buenos Aires','Córdoba','Entre Ríos','Mendoza','Tucumán','Salta','Misiones','Chaco','Corrientes','Santiago del Estero','San Juan','Jujuy','Río Negro','Neuquén','Formosa','San Luis','Catamarca','La Pampa','Chubut','La Rioja','Santa Cruz','Tierra del Fuego']
 const CONDICION_IVA = ['Responsable Inscripto','Monotributista','Exento','Consumidor Final','No Responsable']
+const DIAS_VISITA = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado']
+const FRECUENCIAS_VISITA = [{ value: 'semanal', label: 'Semanal' }, { value: 'quincenal', label: 'Quincenal' }, { value: 'mensual', label: 'Mensual' }]
 
 const EMPTY_FORM = {
   id: '', nombre: '', nombre_fantasia: '', telefono: '', email: '',
   localidad: '', provincia: 'Santa Fe', direccion: '',
   tipo: 'Minorista', descuento_pct: 0,
   modalidad_factura: 'sin_iva', cuit: '', condicion_iva: '',
-  estado_cliente: 'Pendiente', notas: '', latitud: '', longitud: ''
+  estado_cliente: 'Pendiente', notas: '', latitud: '', longitud: '',
+  zona_lst: '', dia_visita: '', frecuencia_visita: 'semanal'
 }
 
 export default function ClientesPage() {
@@ -30,10 +33,12 @@ export default function ClientesPage() {
   const [search, setSearch] = useState('')
   const [filtroEstado, setFiltroEstado] = useState('')
   const [filtroCartera, setFiltroCartera] = useState('')
+  const [filtroZona, setFiltroZona] = useState('')
 
   // Modal cliente
   const [modalOpen, setModalOpen] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
+  const [zonaManual, setZonaManual] = useState(false)
   const [saving, setSaving] = useState(false)
 
   // Modal asignar vendedor
@@ -46,6 +51,7 @@ export default function ClientesPage() {
     const abrirDesdeFab = () => {
       if (isInvitado) return
       setForm(EMPTY_FORM)
+      setZonaManual(false)
       setModalOpen(true)
     }
     window.addEventListener('fab:nuevo-cliente', abrirDesdeFab)
@@ -96,14 +102,17 @@ export default function ClientesPage() {
       const q = search.toLowerCase()
       const matchSearch = !q || (nombreCliente(c) + ' ' + (c.email || '') + ' ' + (c.localidad || '')).toLowerCase().includes(q)
       const matchEstado = !filtroEstado || c.estado_cliente === filtroEstado
+      const matchZona = !filtroZona || c.zona_lst === filtroZona
       let matchCartera = true
       if (filtroCartera === 'mis') matchCartera = c.vendedor_id === user
       else if (filtroCartera === 'sinasignar') matchCartera = !c.vendedor_id
       else if (filtroCartera === 'solicitados') matchCartera = solicitudes.some(s => s.cliente_id === c.id && s.vendedor_id === user)
       else if (filtroCartera) matchCartera = c.vendedor_id === filtroCartera
-      return matchSearch && matchEstado && matchCartera
+      return matchSearch && matchEstado && matchZona && matchCartera
     })
-  }, [clientes, search, filtroEstado, filtroCartera, solicitudes, user])
+  }, [clientes, search, filtroEstado, filtroZona, filtroCartera, solicitudes, user])
+
+  const zonasDisponibles = useMemo(() => [...new Set(clientes.map(c => c.zona_lst).filter(Boolean))].sort(), [clientes])
 
   // Guardar cliente
   async function saveCliente() {
@@ -128,6 +137,9 @@ export default function ClientesPage() {
         notas: form.notas.trim(),
         latitud: form.latitud ? parseFloat(form.latitud) : null,
         longitud: form.longitud ? parseFloat(form.longitud) : null,
+        zona_lst: form.zona_lst.trim() || null,
+        dia_visita: form.dia_visita || null,
+        frecuencia_visita: form.frecuencia_visita || 'semanal',
       }
 
       if (form.id) {
@@ -180,8 +192,10 @@ export default function ClientesPage() {
       modalidad_factura: c.modalidad_factura || 'sin_iva',
       cuit: c.cuit || '', condicion_iva: c.condicion_iva || '',
       estado_cliente: c.estado_cliente || 'Pendiente',
-      notas: c.notas || '', latitud: c.latitud || '', longitud: c.longitud || ''
+      notas: c.notas || '', latitud: c.latitud || '', longitud: c.longitud || '',
+      zona_lst: c.zona_lst || '', dia_visita: c.dia_visita || '', frecuencia_visita: c.frecuencia_visita || 'semanal'
     })
+    setZonaManual(!!c.zona_lst && !zonasDisponibles.includes(c.zona_lst))
     setModalOpen(true)
   }
 
@@ -313,7 +327,7 @@ export default function ClientesPage() {
             <span style={{ fontSize:13, color:'var(--muted)' }}>{clientesFiltrados.length} cliente{clientesFiltrados.length !== 1 ? 's' : ''}</span>
           )}
           {!isInvitado && (
-            <button className="mobile-hide btn btn-primary" onClick={() => { setForm(EMPTY_FORM); setModalOpen(true) }}>
+            <button className="mobile-hide btn btn-primary" onClick={() => { setForm(EMPTY_FORM); setZonaManual(false); setModalOpen(true) }}>
               + Nuevo cliente
             </button>
           )}
@@ -336,6 +350,12 @@ export default function ClientesPage() {
         <select value={filtroCartera} onChange={e => setFiltroCartera(e.target.value)} style={{ flex:1, minWidth:140 }}>
           {opcionesCartera}
         </select>
+        {zonasDisponibles.length > 0 && (
+          <select value={filtroZona} onChange={e => setFiltroZona(e.target.value)} style={{ flex:1, minWidth:130 }}>
+            <option value="">Todas las zonas</option>
+            {zonasDisponibles.map(z => <option key={z} value={z}>{z}</option>)}
+          </select>
+        )}
       </div>
 
       {/* Solicitudes pendientes (solo admin) */}
@@ -389,7 +409,6 @@ export default function ClientesPage() {
                   <th>Estado</th>
                   <th>Tipo</th>
                   <th>Cartera</th>
-                  <th>Factura</th>
                   <th>Saldo</th>
                   <th>Localidad</th>
                   <th></th>
@@ -399,17 +418,12 @@ export default function ClientesPage() {
                 {clientesFiltrados.map(c => (
                   <tr key={c.id}>
                     <td>
-                      <strong>{nombreCliente(c)}</strong>
-                      {c.email && <><br /><span style={{ fontSize:12, color:'var(--muted)' }}>{c.email}</span></>}
+                      <strong>{c.nombre_fantasia || c.nombre || '—'}</strong>
+                      {c.nombre_fantasia && c.nombre && <><br /><span style={{ fontSize:12, color:'var(--muted)' }}>{c.nombre}</span></>}
                     </td>
                     <td><span className={`badge ${estadoBadge[c.estado_cliente] || 'badge-yellow'}`}>{estadoIcon[c.estado_cliente] || '⏳'} {c.estado_cliente || 'Pendiente'}</span></td>
                     <td><span className={`badge ${tipoBadge[c.tipo] || 'badge-gray'}`}>{c.tipo || 'Minorista'}</span></td>
                     <td>{carteraBadge(c)}</td>
-                    <td>
-                      <span className={`badge ${c.modalidad_factura === 'con_iva' ? 'badge-blue' : 'badge-gray'}`}>
-                        {c.modalidad_factura === 'con_iva' ? 'c/IVA' : 's/IVA'}
-                      </span>
-                    </td>
                     <td>
                       {saldos[c.id] === undefined
                         ? <span style={{ color:'var(--muted)', fontSize:12 }}>...</span>
@@ -420,9 +434,11 @@ export default function ClientesPage() {
                     </td>
                     <td>
                       {c.localidad || '—'}
+                      {c.zona_lst && <span style={{ marginLeft:6, fontSize:11, color:'var(--muted)' }}>({c.zona_lst})</span>}
                       {c.latitud && c.longitud && (
                         <a href={`https://www.google.com/maps?q=${c.latitud},${c.longitud}`} target="_blank" rel="noreferrer" style={{ marginLeft:4, textDecoration:'none' }}>📍</a>
                       )}
+                      {c.dia_visita && <div style={{ fontSize:11, color:'var(--muted)' }}>🗓 {c.dia_visita}</div>}
                     </td>
                     <td style={{ whiteSpace:'nowrap' }}>{accionesDesktop(c)}</td>
                   </tr>
@@ -453,6 +469,7 @@ export default function ClientesPage() {
                   <div style={{ fontSize:12, color:'var(--muted)', marginTop:2 }}>
                     {c.tipo || 'Minorista'} · <span style={{ color:estadoColor, fontWeight:600 }}>{c.estado_cliente || 'Pendiente'}</span>
                   </div>
+                  <div style={{ marginTop:4 }}>{carteraBadge(c)}</div>
                 </div>
                 {c.latitud && c.longitud && (
                   <a href={`https://www.google.com/maps?q=${c.latitud},${c.longitud}`} target="_blank" rel="noreferrer" style={{ fontSize:20, textDecoration:'none' }}>📍</a>
@@ -464,7 +481,7 @@ export default function ClientesPage() {
                   💬 {c.telefono}
                 </a>
               )}
-              {c.localidad && <div style={{ fontSize:12, color:'var(--muted)' }}>📍 {c.localidad}</div>}
+              {c.localidad && <div style={{ fontSize:12, color:'var(--muted)' }}>📍 {c.localidad}{c.zona_lst ? ` (${c.zona_lst})` : ''}</div>}
               <div className="op-card-actions" style={{ marginTop:8 }}>
                 {accionesMobile(c)}
               </div>
@@ -545,6 +562,41 @@ export default function ClientesPage() {
                     <label>Estado</label>
                     <select value={form.estado_cliente} onChange={e => setForm(f => ({ ...f, estado_cliente: e.target.value }))}>
                       {['Activo','Pendiente','Inactivo'].map(e => <option key={e} value={e}>{e}</option>)}
+                    </select>
+                  </div>
+                </div>
+              )}
+              {isAdmin && (
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Zona LST</label>
+                    {zonaManual ? (
+                      <>
+                        <input value={form.zona_lst} onChange={e => setForm(f => ({ ...f, zona_lst: e.target.value }))} placeholder="Ej: SFE-NO" autoFocus />
+                        <span style={{ fontSize:11, color:'var(--primary)', cursor:'pointer' }} onClick={() => setZonaManual(false)}>← Elegir de la lista</span>
+                      </>
+                    ) : (
+                      <select value={form.zona_lst} onChange={e => {
+                        if (e.target.value === '__otra__') { setZonaManual(true); setForm(f => ({ ...f, zona_lst: '' })) }
+                        else setForm(f => ({ ...f, zona_lst: e.target.value }))
+                      }}>
+                        <option value="">— Sin asignar —</option>
+                        {zonasDisponibles.map(z => <option key={z} value={z}>{z}</option>)}
+                        <option value="__otra__">Otra...</option>
+                      </select>
+                    )}
+                  </div>
+                  <div className="form-group">
+                    <label>Día de visita</label>
+                    <select value={form.dia_visita} onChange={e => setForm(f => ({ ...f, dia_visita: e.target.value }))}>
+                      <option value="">— Sin asignar —</option>
+                      {DIAS_VISITA.map(d => <option key={d} value={d}>{d}</option>)}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Frecuencia</label>
+                    <select value={form.frecuencia_visita} onChange={e => setForm(f => ({ ...f, frecuencia_visita: e.target.value }))}>
+                      {FRECUENCIAS_VISITA.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
                     </select>
                   </div>
                 </div>
