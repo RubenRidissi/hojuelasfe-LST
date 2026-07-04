@@ -142,8 +142,8 @@ export default function RecepcionesPage() {
         notas: r.notas || '',
         adicionalDesc: r.costo_adicional_desc || '',
         adicionalMonto: r.costo_adicional_monto_bruto || '',
-        adicionalDescTipo: 'pct',
-        adicionalDescValor: ''
+        adicionalDescTipo: r.costo_adicional_desc_tipo || 'pct',
+        adicionalDescValor: r.costo_adicional_desc_valor || ''
       })
       setItems((its || []).map(i => ({
         producto_id: i.producto_id,
@@ -212,6 +212,7 @@ export default function RecepcionesPage() {
     setSaving(true)
     const { subtotal, fleteNeto, total } = calcTotales()
     const montoFlete = parseFloat(form.adicionalMonto) || 0
+    const dvFlete = parseFloat(form.adicionalDescValor) || 0
     try {
       let recepcionId = editandoId
       if (editandoId) {
@@ -223,7 +224,9 @@ export default function RecepcionesPage() {
           notas: form.notas, total,
           costo_adicional_desc: form.adicionalDesc || null,
           costo_adicional_monto: fleteNeto || 0,
-          costo_adicional_monto_bruto: montoFlete || 0
+          costo_adicional_monto_bruto: montoFlete || 0,
+          costo_adicional_desc_tipo: form.adicionalDescTipo || 'pct',
+          costo_adicional_desc_valor: dvFlete
         }).eq('id', editandoId)
       } else {
         const { data: [r] } = await supabase.from('recepciones').insert({
@@ -233,7 +236,9 @@ export default function RecepcionesPage() {
           notas: form.notas, total, estado: 'borrador',
           costo_adicional_desc: form.adicionalDesc || null,
           costo_adicional_monto: fleteNeto || 0,
-          costo_adicional_monto_bruto: montoFlete || 0
+          costo_adicional_monto_bruto: montoFlete || 0,
+          costo_adicional_desc_tipo: form.adicionalDescTipo || 'pct',
+          costo_adicional_desc_valor: dvFlete
         }).select()
         recepcionId = r.id
       }
