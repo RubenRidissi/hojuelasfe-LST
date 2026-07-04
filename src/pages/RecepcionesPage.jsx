@@ -5,16 +5,12 @@ import { useAuth } from '../context/AuthContext'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
 import { useComprobante, ComprobanteModal } from '../hooks/useComprobante.jsx'
+import { registrarPagoProveedor } from '../services/proveedorPagosService'
 
 const EMPTY_FORM = {
-  pedidoProveedorId: '', fecha: new Date().toISOString().split('T')[0],
+  pedidoProveedorId: '', proveedorId: '', fecha: new Date().toISOString().split('T')[0],
   remitoProveedor: '', notas: '',
   adicionalDesc: '', adicionalMonto: '', adicionalDescTipo: 'pct', adicionalDescValor: ''
-}
-
-const EMPTY_AJUSTE = {
-  tipo: 'NC', fecha: new Date().toISOString().split('T')[0],
-  numero: '', monto: '', recepcionId: '', concepto: ''
 }
 
 export default function RecepcionesPage() {
@@ -25,7 +21,7 @@ export default function RecepcionesPage() {
 
   const [recepciones, setRecepciones] = useState([])
   const [productos, setProductos] = useState([])
-  const [ajustes, setAjustes] = useState([])
+  const [proveedores, setProveedores] = useState([])
   const [loading, setLoading] = useState(true)
 
   // Modal recepción
@@ -51,11 +47,6 @@ export default function RecepcionesPage() {
   const [pagoCampos, setPagoCampos] = useState({ fecha: new Date().toISOString().split('T')[0], monto: '', medio: 'Transferencia', notas: '' })
   const [savingPago, setSavingPago] = useState(false)
 
-  // Modal ajuste NC/ND proveedor
-  const [modalAjuste, setModalAjuste] = useState(false)
-  const [ajusteForm, setAjusteForm] = useState(EMPTY_AJUSTE)
-  const [savingAjuste, setSavingAjuste] = useState(false)
-
   // Abrir modal automáticamente si se navega desde ProveedorPage con un pedidoId
   useEffect(() => {
     if (location.state?.pedidoProveedorId) {
@@ -66,28 +57,23 @@ export default function RecepcionesPage() {
   useEffect(() => {
     supabase.from('productos').select('id,codigo,nombre,costo').order('codigo')
       .then(({ data }) => setProductos(data || []))
+    supabase.from('proveedores').select('id,nombre').order('nombre')
+      .then(({ data }) => setProveedores(data || []))
     loadAll()
   }, [])
 
   async function loadAll() {
     setLoading(true)
     try {
-      await Promise.all([loadRecepciones(), loadAjustes()])
+      await loadRecepciones()
     } finally { setLoading(false) }
   }
 
   async function loadRecepciones() {
     const { data } = await supabase.from('recepciones')
-      .select('*,pedidos_proveedor(numero)')
+      .select('*,pedidos_proveedor(numero),proveedores(nombre)')
       .order('created_at', { ascending: false })
     setRecepciones(data || [])
-  }
-
-  async function loadAjustes() {
-    const { data } = await supabase.from('ajustes_proveedor')
-      .select('*,recepciones(numero)')
-      .order('fecha', { ascending: false })
-    setAjustes(data || [])
   }
 
   // ===== ABRIR NUEVA RECEPCIÓN =====
@@ -100,8 +86,9 @@ export default function RecepcionesPage() {
 
     if (pedidoProveedorId) {
       try {
-        const { data: pedido } = await supabase.from('pedidos_proveedor').select('numero,proveedor').eq('id', pedidoProveedorId).single()
-        setPedidoInfo(`Pedido #${String(pedido.numero).padStart(4, '0')} — ${pedido.proveedor}`)
+        const { data: pedido } = await supabase.from('pedidos_proveedor').select('numero,proveedor_id,proveedores(nombre)').eq('id', pedidoProveedorId).single()
+        setForm(f => ({ ...f, proveedorId: pedido.proveedor_id }))
+        setPedidoInfo(`Pedido #${String(pedido.numero).padStart(4, '0')} — ${pedido.proveedores?.nombre || '—'}`)
 
         // Calcular faltantes
         const { data: itemsPedido } = await supabase.from('pedido_proveedor_items')
@@ -139,6 +126,7 @@ export default function RecepcionesPage() {
       setEditandoId(r.id)
       setForm({
         pedidoProveedorId: r.pedido_proveedor_id || '',
+        proveedorId: r.proveedor_id || '',
         fecha: r.fecha || '',
         remitoProveedor: r.remito_proveedor || '',
         notas: r.notas || '',
@@ -211,6 +199,7 @@ export default function RecepcionesPage() {
   // ===== GUARDAR RECEPCIÓN (borrador) =====
   async function guardarRecepcion(fechaRecepcionReal) {
     if (!items.length) { toast('Agregá al menos un producto recibido', 'error'); return }
+    if (!form.proveedorId) { toast('Elegí el proveedor', 'error'); return }
     setSaving(true)
     const { subtotal, fleteNeto, total } = calcTotales()
     const montoFlete = parseFloat(form.adicionalMonto) || 0
@@ -221,6 +210,7 @@ export default function RecepcionesPage() {
         await supabase.from('recepcion_items').delete().eq('recepcion_id', editandoId)
         await supabase.from('recepciones').update({
           pedido_proveedor_id: form.pedidoProveedorId || null,
+          proveedor_id: form.proveedorId,
           fecha: form.fecha, fecha_recepcion_real: fechaRecepcionReal,
           remito_proveedor: form.remitoProveedor || null,
           notas: form.notas, total,
@@ -233,6 +223,7 @@ export default function RecepcionesPage() {
       } else {
         const { data: [r] } = await supabase.from('recepciones').insert({
           pedido_proveedor_id: form.pedidoProveedorId || null,
+          proveedor_id: form.proveedorId,
           fecha: form.fecha, fecha_recepcion_real: fechaRecepcionReal,
           remito_proveedor: form.remitoProveedor || null,
           notas: form.notas, total, estado: 'borrador',
@@ -325,49 +316,14 @@ export default function RecepcionesPage() {
     if (!pagoCampos.monto || parseFloat(pagoCampos.monto) <= 0) { toast('Ingresá un monto válido', 'error'); return }
     setSavingPago(true)
     try {
-      await supabase.from('pagos_proveedor').insert({
-        recepcion_id: modalPago.recepcionId, fecha: pagoCampos.fecha,
-        monto: parseFloat(pagoCampos.monto), medio: pagoCampos.medio, notas: pagoCampos.notas
+      const { nuevoEstado } = await registrarPagoProveedor({
+        recepcionId: modalPago.recepcionId, fecha: pagoCampos.fecha,
+        monto: pagoCampos.monto, medio: pagoCampos.medio, notas: pagoCampos.notas
       })
-      const { data: pagos } = await supabase.from('pagos_proveedor').select('monto').eq('recepcion_id', modalPago.recepcionId)
-      const totalPagado = (pagos || []).reduce((s, p) => s + parseFloat(p.monto || 0), 0)
-      const { data: r } = await supabase.from('recepciones').select('total').eq('id', modalPago.recepcionId).single()
-      const totalRecep = parseFloat(r?.total || 0)
-      const nuevoEstado = totalPagado >= totalRecep - 0.01 ? 'pagado' : totalPagado > 0 ? 'parcial' : 'pendiente'
-      await supabase.from('recepciones').update({ monto_pagado_prov: totalPagado, estado_pago_prov: nuevoEstado }).eq('id', modalPago.recepcionId)
       toast(`Pago registrado ✓ — ${nuevoEstado === 'pagado' ? 'Factura cancelada' : 'Saldo pendiente actualizado'}`)
       setModalPago(null)
       loadAll()
     } catch (e) { toast('Error: ' + e.message, 'error') } finally { setSavingPago(false) }
-  }
-
-  // ===== AJUSTE NC/ND PROVEEDOR =====
-  async function saveAjusteProveedor() {
-    if (!ajusteForm.fecha) { toast('Elegí la fecha', 'error'); return }
-    if (!ajusteForm.monto || parseFloat(ajusteForm.monto) <= 0) { toast('Ingresá un monto válido', 'error'); return }
-    setSavingAjuste(true)
-    try {
-      await supabase.from('ajustes_proveedor').insert({
-        tipo: ajusteForm.tipo, fecha: ajusteForm.fecha,
-        numero_comprobante: ajusteForm.numero || null,
-        monto: parseFloat(ajusteForm.monto),
-        recepcion_id: ajusteForm.recepcionId || null,
-        concepto: ajusteForm.concepto || null
-      })
-      toast(`${ajusteForm.tipo} registrada ✓`)
-      setModalAjuste(false)
-      setAjusteForm(EMPTY_AJUSTE)
-      loadAjustes()
-    } catch (e) { toast('Error: ' + e.message, 'error') } finally { setSavingAjuste(false) }
-  }
-
-  async function deleteAjusteProveedor(id) {
-    if (!confirm('¿Eliminar este ajuste?')) return
-    try {
-      await supabase.from('ajustes_proveedor').delete().eq('id', id)
-      toast('Ajuste eliminado')
-      loadAjustes()
-    } catch (e) { toast('Error: ' + e.message, 'error') }
   }
 
   // ===== RENDER HELPERS =====
@@ -394,7 +350,6 @@ export default function RecepcionesPage() {
       <div className="page-header">
         <h1 className="page-title">Recepciones</h1>
         <div className="page-header-actions">
-          <button className="btn btn-secondary" onClick={() => { setAjusteForm(EMPTY_AJUSTE); setModalAjuste(true) }}>± NC/ND Proveedor</button>
           <button className="btn btn-primary" onClick={() => abrirNuevaRecepcion()}>+ Nueva recepción</button>
         </div>
       </div>
@@ -409,7 +364,7 @@ export default function RecepcionesPage() {
           <div className="table-wrap">
             <table>
               <thead>
-                <tr><th>N°</th><th>Fecha</th><th>Pedido</th><th>Remito</th><th>Total</th><th>Estado</th><th>Pago prov.</th><th>Acciones</th></tr>
+                <tr><th>N°</th><th>Fecha</th><th>Proveedor</th><th>Pedido</th><th>Remito</th><th>Total</th><th>Estado</th><th>Pago prov.</th><th>Acciones</th></tr>
               </thead>
               <tbody>
                 {recepciones.map(r => {
@@ -419,6 +374,7 @@ export default function RecepcionesPage() {
                     <tr key={r.id}>
                       <td style={{ color: 'var(--muted)', fontSize: 12 }}>#{String(r.numero).padStart(4, '0')}</td>
                       <td style={{ fontSize: 12 }}>{r.fecha_recepcion_real ? new Date(r.fecha_recepcion_real + 'T00:00:00').toLocaleDateString('es-AR') : '—'}</td>
+                      <td>{r.proveedores?.nombre || '—'}</td>
                       <td>{r.pedidos_proveedor ? `Pedido #${String(r.pedidos_proveedor.numero).padStart(4, '0')}` : <span style={{ color: 'var(--muted)' }}>Suelta</span>}</td>
                       <td style={{ fontSize: 12 }}>{r.remito_proveedor || '—'}</td>
                       <td>${parseFloat(r.total || 0).toLocaleString('es-AR')}</td>
@@ -469,6 +425,7 @@ export default function RecepcionesPage() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div style={{ flex: 1 }}>
                   <div style={{ fontWeight: 600, fontSize: 14 }}>#{String(r.numero).padStart(4, '0')} · {fecha}</div>
+                  <div style={{ fontSize: 12, color: 'var(--muted)' }}>{r.proveedores?.nombre || '—'}</div>
                   {r.remito_proveedor && <div style={{ fontSize: 12, color: 'var(--muted)' }}>Remito: {r.remito_proveedor}</div>}
                   {r.pedidos_proveedor ? <div style={{ fontSize: 12, color: 'var(--muted)' }}>Pedido #{String(r.pedidos_proveedor.numero).padStart(4, '0')}</div> : <div style={{ fontSize: 12, color: 'var(--muted)' }}>Recepción suelta</div>}
                 </div>
@@ -500,58 +457,6 @@ export default function RecepcionesPage() {
         })}
       </div>
 
-      {/* Ajustes NC/ND proveedor */}
-      {(
-        <div className="card" style={{ marginBottom: 16 }}>
-          <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 13 }}>± Notas de Crédito / Débito del Proveedor</div>
-          <div className="table-wrap desktop-table">
-            <table>
-              <thead><tr><th>Tipo</th><th>Fecha</th><th>N° Comp.</th><th>Recepción</th><th>Monto</th><th>Concepto</th><th></th></tr></thead>
-              <tbody>
-                {ajustes.length === 0 ? (
-                  <tr><td colSpan={7} style={{ textAlign:'center', padding:16, color:'var(--muted)' }}>Sin ajustes registrados</td></tr>
-                ) : ajustes.map(a => (
-                  <tr key={a.id}>
-                    <td><span className={`badge ${a.tipo === 'NC' ? 'badge-green' : 'badge-red'}`}>{a.tipo}</span></td>
-                    <td style={{ fontSize: 12 }}>{new Date(a.fecha + 'T00:00:00').toLocaleDateString('es-AR')}</td>
-                    <td style={{ fontSize: 12, color: 'var(--muted)' }}>{a.numero_comprobante || '—'}</td>
-                    <td style={{ fontSize: 12 }}>{a.recepciones ? `#${String(a.recepciones.numero).padStart(4, '0')}` : '—'}</td>
-                    <td><strong style={{ color: a.tipo === 'NC' ? 'var(--success)' : '#DC2626' }}>{a.tipo === 'NC' ? '-' : '+'}${parseFloat(a.monto).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</strong></td>
-                    <td style={{ fontSize: 12, color: 'var(--muted)' }}>{a.concepto || '—'}</td>
-                    <td><button className="btn btn-sm btn-danger" onClick={() => deleteAjusteProveedor(a.id)}>🗑</button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="mobile-cards cards-grid" style={{ padding: 12 }}>
-            {ajustes.map(a => {
-              const esNC = a.tipo === 'NC'
-              return (
-                <div key={a.id} className="op-card" style={{ marginBottom: 8 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                        <span className={`badge ${esNC ? 'badge-green' : 'badge-red'}`}>{a.tipo}</span>
-                        <span style={{ fontSize: 12, color: 'var(--muted)' }}>{new Date(a.fecha + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' })}</span>
-                      </div>
-                      {a.recepciones && <div style={{ fontSize: 12, color: 'var(--muted)' }}>Recepción #{String(a.recepciones.numero).padStart(4, '0')}</div>}
-                      {a.concepto && <div style={{ fontSize: 12, color: 'var(--muted)' }}>{a.concepto}</div>}
-                    </div>
-                    <div style={{ fontSize: 20, fontWeight: 700, color: esNC ? 'var(--success)' : '#DC2626' }}>
-                      {esNC ? '−' : '+'}${parseFloat(a.monto).toLocaleString('es-AR', { maximumFractionDigits: 0 })}
-                    </div>
-                  </div>
-                  <div className="op-card-actions" style={{ marginTop: 8 }}>
-                    <button className="btn btn-danger" style={{ flex: 1 }} onClick={() => deleteAjusteProveedor(a.id)}>🗑 Eliminar</button>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
       {/* ===== MODAL RECEPCIÓN ===== */}
       {modalOpen && (
         <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && setModalOpen(false)}>
@@ -562,6 +467,16 @@ export default function RecepcionesPage() {
             </div>
             <div className="modal-body">
               {pedidoInfo && <div style={{ background: 'var(--bg)', padding: '8px 12px', borderRadius: 8, marginBottom: 12, fontSize: 13, color: 'var(--muted)' }}>{pedidoInfo}</div>}
+
+              {!form.pedidoProveedorId && (
+                <div className="form-group" style={{ marginBottom: 12 }}>
+                  <label>Proveedor *</label>
+                  <select value={form.proveedorId} onChange={e => setForm(f => ({ ...f, proveedorId: e.target.value }))}>
+                    <option value="">— Elegí un proveedor —</option>
+                    {proveedores.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                  </select>
+                </div>
+              )}
 
               {/* Faltantes */}
               {faltantes.length > 0 && (
@@ -722,58 +637,6 @@ export default function RecepcionesPage() {
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setModalPago(null)}>Cancelar</button>
               <button className="btn btn-primary" onClick={savePagoProveedor} disabled={savingPago}>{savingPago ? 'Guardando...' : 'Registrar pago'}</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ===== MODAL AJUSTE NC/ND PROVEEDOR ===== */}
-      {modalAjuste && (
-        <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && setModalAjuste(false)}>
-          <div className="modal" style={{ maxWidth: 480 }}>
-            <div className="modal-header">
-              <h2>{ajusteForm.tipo === 'NC' ? 'Nueva Nota de Crédito' : 'Nueva Nota de Débito'} — Proveedor</h2>
-              <button className="btn btn-secondary btn-sm" onClick={() => setModalAjuste(false)}>✕</button>
-            </div>
-            <div className="modal-body">
-              <div className="form-group" style={{ marginBottom: 12 }}>
-                <label>Tipo</label>
-                <select value={ajusteForm.tipo} onChange={e => setAjusteForm(f => ({ ...f, tipo: e.target.value }))}>
-                  <option value="NC">NC — Nota de Crédito (reduce deuda)</option>
-                  <option value="ND">ND — Nota de Débito (aumenta deuda)</option>
-                </select>
-              </div>
-              <div className="form-group" style={{ marginBottom: 12 }}>
-                <label>Recepción asociada</label>
-                <select value={ajusteForm.recepcionId} onChange={e => setAjusteForm(f => ({ ...f, recepcionId: e.target.value }))}>
-                  <option value="">Sin recepción asociada</option>
-                  {recepciones.filter(r => r.estado === 'confirmada').map(r => (
-                    <option key={r.id} value={r.id}>#{String(r.numero).padStart(4, '0')} — {r.fecha_recepcion_real || ''}{r.remito_proveedor ? ` (${r.remito_proveedor})` : ''}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Fecha *</label>
-                  <input type="date" value={ajusteForm.fecha} onChange={e => setAjusteForm(f => ({ ...f, fecha: e.target.value }))} />
-                </div>
-                <div className="form-group">
-                  <label>Monto *</label>
-                  <input type="number" min="0" step="0.01" value={ajusteForm.monto} onChange={e => setAjusteForm(f => ({ ...f, monto: e.target.value }))} placeholder="0.00" />
-                </div>
-              </div>
-              <div className="form-group" style={{ marginBottom: 12 }}>
-                <label>N° Comprobante</label>
-                <input value={ajusteForm.numero} onChange={e => setAjusteForm(f => ({ ...f, numero: e.target.value }))} placeholder="Ej: NC-0001-00012345" />
-              </div>
-              <div className="form-group">
-                <label>Concepto</label>
-                <input value={ajusteForm.concepto} onChange={e => setAjusteForm(f => ({ ...f, concepto: e.target.value }))} placeholder="Motivo del ajuste..." />
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setModalAjuste(false)}>Cancelar</button>
-              <button className="btn btn-primary" onClick={saveAjusteProveedor} disabled={savingAjuste}>{savingAjuste ? 'Registrando...' : 'Registrar'}</button>
             </div>
           </div>
         </div>

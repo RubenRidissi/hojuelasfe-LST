@@ -9,7 +9,10 @@ import PagosPage from './pages/PagosPage'
 import RemitosPage from './pages/RemitosPage'
 import CtaCorrientePage from './pages/CtaCorrientePage'
 import ProveedorPage from './pages/ProveedorPage'
+import ProveedoresPage from './pages/ProveedoresPage'
+import CtaCorrienteProveedoresPage from './pages/CtaCorrienteProveedoresPage'
 import RecepcionesPage from './pages/RecepcionesPage'
+import PagosProveedoresPage from './pages/PagosProveedoresPage'
 import ProductosPage from './pages/ProductosPage'
 import StockPage from './pages/StockPage'
 import ListasPage from './pages/ListasPage'
@@ -45,12 +48,15 @@ function AppLayout() {
           <Route path="/pagos"    element={<PagosPage />} />
           <Route path="/remitos"  element={<RemitosPage />} />
           <Route path="/ctacte"   element={<CtaCorrientePage />} />
-          <Route path="/proveedor" element={<ProveedorPage />} />
-          <Route path="/recepciones" element={<RecepcionesPage />} />
+          <Route path="/proveedores" element={<AdminRoute><ProveedoresPage /></AdminRoute>} />
+          <Route path="/proveedor" element={<AdminRoute><ProveedorPage /></AdminRoute>} />
+          <Route path="/recepciones" element={<AdminRoute><RecepcionesPage /></AdminRoute>} />
+          <Route path="/pagos-proveedores" element={<AdminRoute><PagosProveedoresPage /></AdminRoute>} />
+          <Route path="/ctacte-proveedores" element={<AdminRoute><CtaCorrienteProveedoresPage /></AdminRoute>} />
           <Route path="/productos"   element={<ProductosPage />} />
           <Route path="/stock"       element={<StockPage />} />
           <Route path="/listas"      element={<ListasPage />} />
-          <Route path="/finanzas"    element={<FinanzasPage />} />
+          <Route path="/finanzas"    element={<AdminRoute><FinanzasPage /></AdminRoute>} />
           <Route path="/reportes"    element={<ReportesPage />} />
           <Route path="/config"      element={<ConfigPage />} />
           <Route path="/mi-dia"      element={<InfoPage type="/mi-dia" />} />
@@ -78,6 +84,11 @@ function ProtectedRoute({ children }) {
     </div>
   )
   return user ? children : <Navigate to="/login" replace />
+}
+
+function AdminRoute({ children }) {
+  const { isAdmin } = useAuth()
+  return isAdmin ? children : <Navigate to="/" replace />
 }
 
 function PublicRoute({ children }) {

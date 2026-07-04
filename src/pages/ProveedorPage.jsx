@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
+import { useComprobante, ComprobanteModal } from '../hooks/useComprobante.jsx'
 
 const ESTADOS_BADGE = {
   borrador: 'badge-gray', pendiente: 'badge-yellow', confirmado: 'badge-green',
@@ -16,7 +17,7 @@ const ESTADO_LABEL = {
 const getLabel = e => ESTADO_LABEL[e] || (e.charAt(0).toUpperCase() + e.slice(1))
 
 const EMPTY_FORM = {
-  id: '', proveedor: 'Hojuelas Tucumán',
+  id: '', proveedorId: '',
   fecha: new Date().toISOString().split('T')[0], notas: ''
 }
 
@@ -24,9 +25,11 @@ export default function ProveedorPage() {
   const { isAdmin } = useAuth()
   const navigate = useNavigate()
   const { toasts, toast } = useToast()
+  const { comp, cerrarComp, imprimir, descargar, verComprobantePedidoProveedor } = useComprobante()
 
   const [pedidos, setPedidos] = useState([])
   const [productos, setProductos] = useState([])
+  const [proveedores, setProveedores] = useState([])
   const [loading, setLoading] = useState(true)
   const [filtroEstado, setFiltroEstado] = useState('')
 
@@ -48,6 +51,8 @@ export default function ProveedorPage() {
   useEffect(() => {
     supabase.from('productos').select('id,codigo,nombre,costo').order('codigo')
       .then(({ data }) => setProductos(data || []))
+    supabase.from('proveedores').select('id,nombre').order('nombre')
+      .then(({ data }) => setProveedores(data || []))
     loadPedidos()
   }, [])
 
@@ -56,7 +61,7 @@ export default function ProveedorPage() {
   async function loadPedidos() {
     setLoading(true)
     try {
-      let q = supabase.from('pedidos_proveedor').select('*').order('created_at', { ascending: false })
+      let q = supabase.from('pedidos_proveedor').select('*,proveedores(id,nombre)').order('created_at', { ascending: false })
       if (filtroEstado) q = q.eq('estado', filtroEstado)
       const { data } = await q
       setPedidos(data || [])
@@ -65,17 +70,17 @@ export default function ProveedorPage() {
 
   // ===== GUARDAR PEDIDO =====
   async function savePedido() {
-    if (!form.proveedor.trim()) { toast('Ingresá el proveedor', 'error'); return }
+    if (!form.proveedorId) { toast('Elegí el proveedor', 'error'); return }
     if (!items.length) { toast('Agregá al menos un producto', 'error'); return }
     const total = items.reduce((s, i) => s + i.cantidad * i.costo_unitario, 0)
     setSaving(true)
     try {
       let pedidoId = form.id
       if (form.id) {
-        await supabase.from('pedidos_proveedor').update({ proveedor: form.proveedor, fecha: form.fecha, notas: form.notas, total_estimado: total }).eq('id', form.id)
+        await supabase.from('pedidos_proveedor').update({ proveedor_id: form.proveedorId, fecha: form.fecha, notas: form.notas, total_estimado: total }).eq('id', form.id)
         await supabase.from('pedido_proveedor_items').delete().eq('pedido_proveedor_id', form.id)
       } else {
-        const { data: [pedido] } = await supabase.from('pedidos_proveedor').insert({ proveedor: form.proveedor, fecha: form.fecha, notas: form.notas, total_estimado: total, estado: 'pendiente' }).select()
+        const { data: [pedido] } = await supabase.from('pedidos_proveedor').insert({ proveedor_id: form.proveedorId, fecha: form.fecha, notas: form.notas, total_estimado: total, estado: 'pendiente' }).select()
         pedidoId = pedido.id
       }
       await Promise.all(items.map(item =>
@@ -98,7 +103,7 @@ export default function ProveedorPage() {
       const { data: its } = await supabase.from('pedido_proveedor_items')
         .select('producto_id,cantidad,costo_unitario,productos(nombre)')
         .eq('pedido_proveedor_id', p.id)
-      setForm({ id: p.id, proveedor: p.proveedor, fecha: p.fecha, notas: p.notas || '' })
+      setForm({ id: p.id, proveedorId: p.proveedor_id, fecha: p.fecha, notas: p.notas || '' })
       setItems((its || []).map(i => ({ producto_id: i.producto_id, nombre: i.productos?.nombre || '—', cantidad: i.cantidad, costo_unitario: parseFloat(i.costo_unitario || 0) })))
       setModalOpen(true)
     } catch (e) { toast('Error al cargar: ' + e.message, 'error') }
@@ -149,6 +154,8 @@ export default function ProveedorPage() {
 
   // ===== GENERAR BORRADOR AUTOMÁTICO =====
   async function generarBorrador() {
+    const proveedorInterno = proveedores.find(p => p.nombre === 'Hojuelas Tucumán')
+    if (!proveedorInterno) { toast('No existe el proveedor "Hojuelas Tucumán". Crealo en Proveedores primero.', 'error'); return }
     setGenerando(true)
     try {
       const hoy = new Date()
@@ -192,7 +199,7 @@ export default function ProveedorPage() {
 
       const total = itemsBorrador.reduce((s, i) => s + i.cantidad * i.costo_unitario, 0)
       const { data: [pedido] } = await supabase.from('pedidos_proveedor').insert({
-        proveedor: 'Hojuelas Tucumán', estado: 'borrador', fecha: hoyStr,
+        proveedor_id: proveedorInterno.id, estado: 'borrador', fecha: hoyStr,
         notas: `Generado automáticamente (demanda a ${diasBorrador} días)`, total_estimado: total
       }).select()
 
@@ -204,7 +211,7 @@ export default function ProveedorPage() {
       setModalBorrador(false)
       loadPedidos()
       // Abrir el pedido para editar
-      setForm({ id: pedido.id, proveedor: 'Hojuelas Tucumán', fecha: hoyStr, notas: `Generado automáticamente (demanda a ${diasBorrador} días)` })
+      setForm({ id: pedido.id, proveedorId: proveedorInterno.id, fecha: hoyStr, notas: `Generado automáticamente (demanda a ${diasBorrador} días)` })
       setItems(itemsBorrador)
       setModalOpen(true)
     } catch (e) { toast('Error al generar borrador: ' + e.message, 'error') } finally { setGenerando(false) }
@@ -248,7 +255,7 @@ export default function ProveedorPage() {
                 {pedidos.map(p => (
                   <tr key={p.id}>
                     <td style={{ color: 'var(--muted)', fontSize: 12 }}>#{String(p.numero).padStart(4, '0')}</td>
-                    <td>{p.proveedor}</td>
+                    <td>{p.proveedores?.nombre || '—'}</td>
                     <td style={{ fontSize: 12 }}>{new Date(p.fecha + 'T00:00:00').toLocaleDateString('es-AR')}</td>
                     <td><span className={`badge ${ESTADOS_BADGE[p.estado] || 'badge-gray'}`}>{getLabel(p.estado)}</span></td>
                     <td>${parseFloat(p.total_estimado || 0).toLocaleString('es-AR')}</td>
@@ -265,7 +272,7 @@ export default function ProveedorPage() {
                           <button className="btn btn-sm btn-success" onClick={() => navigate('/recepciones', { state: { pedidoProveedorId: p.id } })}>📥 Recibir</button>
                         )}
                         {['confirmado','enviado','recibido_completo','recibido_incompleto','cancelado'].includes(p.estado) && (
-                          <button className="btn btn-sm btn-secondary" onClick={() => toast('Ver pedido — próximamente', 'info')}>👁 Ver</button>
+                          <button className="btn btn-sm btn-secondary" onClick={async () => { try { await verComprobantePedidoProveedor(p.id) } catch (e) { toast('Error: ' + e.message, 'error') } }}>👁 Ver</button>
                         )}
                         {!['cancelado','recibido_completo','recibido_incompleto'].includes(p.estado) && (
                           <button className="btn btn-sm btn-danger" onClick={() => deletePedido(p)}>Borrar</button>
@@ -292,7 +299,7 @@ export default function ProveedorPage() {
             <div key={p.id} className="op-card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, fontSize: 15 }}>{p.proveedor}</div>
+                  <div style={{ fontWeight: 600, fontSize: 15 }}>{p.proveedores?.nombre || '—'}</div>
                   <div style={{ fontSize: 12, color: 'var(--muted)' }}>#{String(p.numero).padStart(4, '0')} · {fecha}</div>
                 </div>
                 <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 12 }}>
@@ -312,7 +319,7 @@ export default function ProveedorPage() {
                   <button className="btn btn-success" style={{ flex: 1 }} onClick={() => navigate('/recepciones', { state: { pedidoProveedorId: p.id } })}>📥 Recibir</button>
                 )}
                 {['confirmado','enviado','recibido_completo','recibido_incompleto','cancelado'].includes(p.estado) && (
-                  <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => toast('Ver — próximamente', 'info')}>👁 Ver</button>
+                  <button className="btn btn-secondary" style={{ flex: 1 }} onClick={async () => { try { await verComprobantePedidoProveedor(p.id) } catch (e) { toast('Error: ' + e.message, 'error') } }}>👁 Ver</button>
                 )}
                 {!['cancelado','recibido_completo','recibido_incompleto'].includes(p.estado) && (
                   <button className="btn btn-danger" style={{ flex: 1 }} onClick={() => deletePedido(p)}>✕</button>
@@ -335,7 +342,10 @@ export default function ProveedorPage() {
               <div className="form-row">
                 <div className="form-group">
                   <label>Proveedor *</label>
-                  <input value={form.proveedor} onChange={e => setForm(f => ({ ...f, proveedor: e.target.value }))} placeholder="Nombre del proveedor" />
+                  <select value={form.proveedorId} onChange={e => setForm(f => ({ ...f, proveedorId: e.target.value }))}>
+                    <option value="">— Elegí un proveedor —</option>
+                    {proveedores.map(p => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                  </select>
                 </div>
                 <div className="form-group">
                   <label>Fecha</label>
@@ -420,6 +430,7 @@ export default function ProveedorPage() {
         </div>
       )}
 
+      <ComprobanteModal comp={comp} onClose={cerrarComp} onPrint={imprimir} onDownload={descargar} />
       <ToastContainer toasts={toasts} />
     </div>
   )

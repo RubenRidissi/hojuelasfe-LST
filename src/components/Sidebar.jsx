@@ -34,6 +34,7 @@ const NAV_ADMIN = [
   },
   {
     group: 'Proveedores', icon: '🏭', defaultOpen: false, items: [
+      { to: '/proveedores',        icon: '🏭', label: 'Listado' },
       { to: '/proveedor',          icon: '📋', label: 'Pedidos proveedor' },
       { to: '/recepciones',        icon: '📥', label: 'Recepciones' },
       { to: '/ctacte-proveedores', icon: '💳', label: 'Ctas. Ctes.' },

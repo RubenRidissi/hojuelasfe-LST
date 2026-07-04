@@ -182,7 +182,7 @@ function buildComprobanteVenta(v, num) {
 
 function buildComprobanteRecepcion(r, num) {
   const items = r.recepcion_items || []
-  const proveedorNombre = r.pedidos_proveedor?.proveedor || 'Recepción suelta'
+  const proveedorNombre = r.proveedores?.nombre || 'Recepción suelta'
   const fechaRecep = r.fecha_recepcion_real
     ? new Date(r.fecha_recepcion_real + 'T00:00:00').toLocaleDateString('es-AR')
     : '<span style="color:#A8A29E">Pendiente de confirmar</span>'
@@ -218,6 +218,38 @@ function buildComprobanteRecepcion(r, num) {
 
   html += `</tbody><tfoot><tr><td colspan="4" style="text-align:right">TOTAL</td><td style="text-align:right">$${parseFloat(r.total || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</td></tr></tfoot></table>`
   html += buildFooter(r.notas)
+  return html
+}
+
+function buildComprobantePedidoProveedor(p, num) {
+  const items = p.pedido_proveedor_items || []
+  const proveedorNombre = p.proveedores?.nombre || '—'
+  const estadoLabel = {
+    borrador: 'Borrador', pendiente: 'Pendiente', confirmado: 'Confirmado', enviado: 'Enviado',
+    recibido_incompleto: 'Recibido incompleto', recibido_completo: 'Recibido completo', cancelado: 'Cancelado'
+  }[p.estado] || p.estado
+  const fechaEnviado = p.fecha_enviado ? new Date(p.fecha_enviado + 'T00:00:00').toLocaleDateString('es-AR') : '—'
+
+  let html = buildHeader('PEDIDO PROV.', num || 0, p.fecha || new Date().toISOString().split('T')[0])
+  html += `<div class="comp-datos">
+    <div><span>Proveedor</span><strong>${proveedorNombre}</strong></div>
+    <div><span>Estado</span><strong>${estadoLabel}</strong></div>
+    <div><span>Fecha de envío</span><strong>${fechaEnviado}</strong></div>
+  </div>`
+  html += `<table class="comp-table"><thead><tr><th>Código</th><th>Producto</th><th style="text-align:center">Cant.</th><th style="text-align:right">Costo unit.</th><th style="text-align:right">Subtotal</th></tr></thead><tbody>`
+
+  items.forEach(item => {
+    html += `<tr>
+      <td style="color:#78716C;font-size:12px">${item.productos?.codigo || '—'}</td>
+      <td>${item.productos?.nombre || '—'}</td>
+      <td style="text-align:center">${item.cantidad}</td>
+      <td style="text-align:right">$${parseFloat(item.costo_unitario).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</td>
+      <td style="text-align:right">$${(item.cantidad * item.costo_unitario).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</td>
+    </tr>`
+  })
+
+  html += `</tbody><tfoot><tr><td colspan="4" style="text-align:right">TOTAL ESTIMADO</td><td style="text-align:right">$${parseFloat(p.total_estimado || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</td></tr></tfoot></table>`
+  html += buildFooter(p.notas)
   return html
 }
 
@@ -387,10 +419,21 @@ export function useComprobante() {
     } catch (e) { throw e }
   }
 
+  async function verComprobantePedidoProveedor(id) {
+    try {
+      const { data: p } = await supabase.from('pedidos_proveedor')
+        .select('*,proveedores(nombre),pedido_proveedor_items(producto_id,cantidad,costo_unitario,productos(id,nombre,codigo))')
+        .eq('id', id).single()
+      if (!p) throw new Error('No se encontró el pedido')
+      const num = p.numero || 1
+      setComp({ titulo: 'Pedido a Proveedor', html: buildComprobantePedidoProveedor(p, num), filename: `PedidoProveedor_${String(num).padStart(4, '0')}` })
+    } catch (e) { throw e }
+  }
+
   async function verComprobanteRecepcion(id) {
     try {
       const { data: r } = await supabase.from('recepciones')
-        .select('*,pedidos_proveedor(numero,proveedor),recepcion_items(producto_id,cantidad,bonificado,costo_unitario,costo_lista,desc_label,productos(id,nombre,codigo))')
+        .select('*,pedidos_proveedor(numero),proveedores(nombre),recepcion_items(producto_id,cantidad,bonificado,costo_unitario,costo_lista,desc_label,productos(id,nombre,codigo))')
         .eq('id', id).single()
       if (!r) throw new Error('No se encontró la recepción')
       const num = r.numero || 1
@@ -549,6 +592,7 @@ export function useComprobante() {
     descargar,
     verComprobanteVenta,
     verComprobantePedido,
+    verComprobantePedidoProveedor,
     verComprobanteRecepcion,
     verRemito: verRemitoFunc,
     prepararEntregaRemito: prepararEntregaFunc,
