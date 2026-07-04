@@ -4,6 +4,7 @@ import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
+import { useComprobante, ComprobanteModal } from '../hooks/useComprobante.jsx'
 
 const EMPTY_FORM = {
   pedidoProveedorId: '', fecha: new Date().toISOString().split('T')[0],
@@ -20,6 +21,7 @@ export default function RecepcionesPage() {
   const { isAdmin } = useAuth()
   const location = useLocation()
   const { toasts, toast } = useToast()
+  const { comp, cerrarComp, imprimir, descargar, verComprobanteRecepcion } = useComprobante()
 
   const [recepciones, setRecepciones] = useState([])
   const [productos, setProductos] = useState([])
@@ -440,11 +442,11 @@ export default function RecepcionesPage() {
                           <div style={{ display: 'flex', gap: 4 }}>
                             <button className="btn btn-sm btn-success" onClick={() => confirmarRecepcion(r.id)}>✓ Confirmar</button>
                             <button className="btn btn-sm btn-secondary" onClick={() => editarRecepcion(r)}>✏ Editar</button>
-                            <button className="btn btn-sm btn-secondary" onClick={() => toast('Ver — próximamente', 'info')}>👁 Ver</button>
+                            <button className="btn btn-sm btn-secondary" onClick={async () => { try { await verComprobanteRecepcion(r.id) } catch (e) { toast('Error: ' + e.message, 'error') } }}>👁 Ver</button>
                             <button className="btn btn-sm btn-danger" onClick={() => deleteRecepcion(r.id)}>✕</button>
                           </div>
                         ) : (
-                          <button className="btn btn-sm btn-secondary" onClick={() => toast('Ver — próximamente', 'info')}>👁 Ver</button>
+                          <button className="btn btn-sm btn-secondary" onClick={async () => { try { await verComprobanteRecepcion(r.id) } catch (e) { toast('Error: ' + e.message, 'error') } }}>👁 Ver</button>
                         )}
                       </td>
                     </tr>
@@ -489,7 +491,7 @@ export default function RecepcionesPage() {
                       setModalPago({ recepcionId: r.id, total: r.total, montoPagado: r.monto_pagado_prov || 0, remito: r.remito_proveedor })
                       setPagoCampos({ fecha: new Date().toISOString().split('T')[0], monto: pago.saldo.toFixed(2), medio: 'Transferencia', notas: '' })
                     }}>💸 Pagar</button>}
-                    <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => toast('Ver — próximamente', 'info')}>👁 Ver</button>
+                    <button className="btn btn-secondary" style={{ flex: 1 }} onClick={async () => { try { await verComprobanteRecepcion(r.id) } catch (e) { toast('Error: ' + e.message, 'error') } }}>👁 Ver</button>
                   </>
                 )}
               </div>
@@ -777,6 +779,7 @@ export default function RecepcionesPage() {
         </div>
       )}
 
+      <ComprobanteModal comp={comp} onClose={cerrarComp} onPrint={imprimir} onDownload={descargar} />
       <ToastContainer toasts={toasts} />
     </div>
   )

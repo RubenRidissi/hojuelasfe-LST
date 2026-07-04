@@ -41,13 +41,14 @@ body{font-family:Arial,sans-serif;color:#1C1917;font-size:14px;}
 .comp-badge.venta{background:#DCFCE7;color:#15803D;}
 .comp-badge.pedido{background:#FEF9C3;color:#92400E;}
 .comp-badge.recibo{background:#F0FDF4;color:#15803D;}
+.comp-badge.recepcion{background:#EDE9FE;color:#6D28D9;}
 @media print{.no-print{display:none!important;}}
 `
 
 // ===== BUILD HELPERS =====
 
 function buildHeader(tipo, num, fecha) {
-  const tipoBadgeClass = tipo === 'REMITO' ? 'remito' : tipo === 'PEDIDO' ? 'pedido' : tipo === 'RECIBO' ? 'recibo' : 'venta'
+  const tipoBadgeClass = tipo === 'REMITO' ? 'remito' : tipo === 'PEDIDO' ? 'pedido' : tipo === 'RECIBO' ? 'recibo' : tipo === 'RECEPCION' ? 'recepcion' : 'venta'
   const tipoLabel = {
     REMITO: 'Remito de Entrega',
     PEDIDO: 'Comprobante de Pedido',
@@ -176,6 +177,47 @@ function buildComprobanteVenta(v, num) {
 
   const notaLimpia = (v.notas || '').split('|').map(s => s.trim()).filter(s => s && !s.includes('Descuento aplicado') && !s.includes('bonificadas') && !s.includes('muestras')).join(' | ')
   html += buildFooter(notaLimpia)
+  return html
+}
+
+function buildComprobanteRecepcion(r, num) {
+  const items = r.recepcion_items || []
+  const proveedorNombre = r.pedidos_proveedor?.proveedor || 'Recepción suelta'
+  const fechaRecep = r.fecha_recepcion_real
+    ? new Date(r.fecha_recepcion_real + 'T00:00:00').toLocaleDateString('es-AR')
+    : '<span style="color:#A8A29E">Pendiente de confirmar</span>'
+  const estadoLabel = r.estado === 'confirmada' ? 'Confirmada' : 'Borrador'
+
+  let html = buildHeader('RECEPCION', num || 0, r.fecha || new Date().toISOString().split('T')[0])
+  html += `<div class="comp-datos">
+    <div><span>Proveedor</span><strong>${proveedorNombre}</strong></div>
+    <div><span>Remito proveedor</span><strong>${r.remito_proveedor || '—'}</strong></div>
+    <div><span>Fecha de recepción</span><strong>${fechaRecep}</strong></div>
+    <div><span>Estado</span><strong>${estadoLabel}</strong></div>
+  </div>`
+  html += `<table class="comp-table"><thead><tr><th>Código</th><th>Producto</th><th style="text-align:center">Cant.</th><th style="text-align:right">Costo unit.</th><th style="text-align:right">Subtotal</th></tr></thead><tbody>`
+
+  items.forEach(item => {
+    const bonifTxt = item.bonificado > 0 ? ` <span style="color:#15803D;font-size:11px">+${item.bonificado} bonif.</span>` : ''
+    const descTxt = item.desc_label ? ` <span style="color:#78716C;font-size:11px">(${item.desc_label})</span>` : ''
+    const cantFacturada = item.cantidad - (item.bonificado || 0)
+    html += `<tr>
+      <td style="color:#78716C;font-size:12px">${item.productos?.codigo || '—'}</td>
+      <td>${item.productos?.nombre || '—'}</td>
+      <td style="text-align:center">${item.cantidad}${bonifTxt}</td>
+      <td style="text-align:right">$${parseFloat(item.costo_unitario).toLocaleString('es-AR', { maximumFractionDigits: 2 })}${descTxt}</td>
+      <td style="text-align:right">$${(cantFacturada * item.costo_unitario).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</td>
+    </tr>`
+  })
+
+  if (parseFloat(r.costo_adicional_monto_bruto || 0) > 0) {
+    const dv = parseFloat(r.costo_adicional_desc_valor || 0)
+    const descLabel = dv > 0 ? ` (${r.costo_adicional_desc_tipo === 'pct' ? '-' + dv + '%' : '-$' + dv})` : ''
+    html += `<tr><td colspan="3">${r.costo_adicional_desc || 'Costo adicional'}${descLabel}</td><td></td><td style="text-align:right">$${parseFloat(r.costo_adicional_monto || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</td></tr>`
+  }
+
+  html += `</tbody><tfoot><tr><td colspan="4" style="text-align:right">TOTAL</td><td style="text-align:right">$${parseFloat(r.total || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</td></tr></tfoot></table>`
+  html += buildFooter(r.notas)
   return html
 }
 
@@ -345,6 +387,17 @@ export function useComprobante() {
     } catch (e) { throw e }
   }
 
+  async function verComprobanteRecepcion(id) {
+    try {
+      const { data: r } = await supabase.from('recepciones')
+        .select('*,pedidos_proveedor(numero,proveedor),recepcion_items(producto_id,cantidad,bonificado,costo_unitario,costo_lista,desc_label,productos(id,nombre,codigo))')
+        .eq('id', id).single()
+      if (!r) throw new Error('No se encontró la recepción')
+      const num = r.numero || 1
+      setComp({ titulo: 'Comprobante de Recepción', html: buildComprobanteRecepcion(r, num), filename: `Recepcion_${String(num).padStart(4, '0')}` })
+    } catch (e) { throw e }
+  }
+
   async function verRemitoFunc(tipo, id) {
     try {
       const remito = await buscarRemitoExistente(tipo, id)
@@ -496,6 +549,7 @@ export function useComprobante() {
     descargar,
     verComprobanteVenta,
     verComprobantePedido,
+    verComprobanteRecepcion,
     verRemito: verRemitoFunc,
     prepararEntregaRemito: prepararEntregaFunc,
     confirmarDespachoVenta,
