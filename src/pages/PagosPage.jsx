@@ -7,6 +7,7 @@ import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
 import { useComprobante, ComprobanteModal } from '../hooks/useComprobante.jsx'
 import { fmtMonto } from '../utils/money'
+import { recalcularEstadoVenta } from '../services/ventasService'
 
 const MEDIOS = [
   { value: 'efectivo', label: 'Efectivo' },
@@ -141,22 +142,37 @@ export default function PagosPage() {
 
   useEffect(() => { loadPagos() }, [filtroCliente, filtroVendedor])
 
+  // Neteo de NC/ND por venta: NC resta al saldo adeudado, ND suma.
+  async function fetchAjustesNetos(clienteId) {
+    const { data } = await supabase.from('ajustes_cliente').select('venta_id,tipo,monto').eq('cliente_id', clienteId)
+    const map = {}
+    ;(data || []).forEach(a => {
+      const signo = a.tipo === 'NC' ? -1 : 1
+      map[a.venta_id] = (map[a.venta_id] || 0) + signo * parseFloat(a.monto || 0)
+    })
+    return map
+  }
+
   // ===== CARGAR VENTAS PENDIENTES AL SELECCIONAR CLIENTE =====
   async function cargarVentasPendientes(clienteId, preseleccionarVentaId = null) {
     if (!clienteId) { setVentasPendientes([]); setImputaciones({}); return }
     try {
-      const { data } = await supabase.from('ventas')
-        .select('id,fecha,total,monto_pagado,estado_pago,notas,modalidad_factura')
-        .eq('cliente_id', clienteId)
-        .neq('estado_pago', 'pagado')
-        .order('fecha', { ascending: true })
+      const [{ data }, ajustesNetos] = await Promise.all([
+        supabase.from('ventas')
+          .select('id,fecha,total,monto_pagado,estado_pago,notas,modalidad_factura')
+          .eq('cliente_id', clienteId)
+          .neq('estado_pago', 'pagado')
+          .order('fecha', { ascending: true }),
+        fetchAjustesNetos(clienteId)
+      ])
 
-      setVentasPendientes(data || [])
-      // Pre-cargar montos de imputación con el saldo de cada venta
+      const ventas = (data || []).map(v => ({ ...v, ajusteNeto: ajustesNetos[v.id] || 0 }))
+      setVentasPendientes(ventas)
+      // Pre-cargar montos de imputación con el saldo de cada venta (neto de NC/ND)
       const imp = {}
-      ;(data || []).forEach(v => {
-        const saldo = parseFloat(v.total || 0) - parseFloat(v.monto_pagado || 0)
-        imp[v.id] = { checked: v.id === preseleccionarVentaId, monto: saldo.toFixed(2), saldo }
+      ventas.forEach(v => {
+        const saldo = parseFloat(v.total || 0) + v.ajusteNeto - parseFloat(v.monto_pagado || 0)
+        imp[v.id] = { checked: v.id === preseleccionarVentaId, monto: Math.max(0, saldo).toFixed(2), saldo }
       })
       setImputaciones(imp)
 
@@ -199,36 +215,6 @@ export default function PagosPage() {
   const medioPagoForzadoEfectivo = soloSinFactura || pagoACuentaSinFactura
 
   const mostrarCC = saldoCuenta > 0.01
-
-  // ===== RECALCULAR ESTADO DE PAGO DE UNA VENTA (según sus imputaciones vigentes) =====
-  async function recalcularEstadoVenta(ventaId) {
-    const { data: pagosVenta, error: pagosVentaError } = await supabase
-      .from('pago_ventas')
-      .select('monto_aplicado')
-      .eq('venta_id', ventaId)
-
-    if (pagosVentaError) throw pagosVentaError
-
-    const totalPagado = (pagosVenta || []).reduce((s, p) => s + parseFloat(p.monto_aplicado || 0), 0)
-
-    const { data: venta, error: ventaError } = await supabase
-      .from('ventas')
-      .select('total')
-      .eq('id', ventaId)
-      .single()
-
-    if (ventaError) throw ventaError
-
-    const totalVenta = parseFloat(venta?.total || 0)
-    const nuevoEstado = totalPagado >= totalVenta - 0.01 ? 'pagado' : totalPagado > 0 ? 'parcial' : 'pendiente'
-
-    const { error: updError } = await supabase
-      .from('ventas')
-      .update({ monto_pagado: totalPagado, estado_pago: nuevoEstado })
-      .eq('id', ventaId)
-
-    if (updError) throw updError
-  }
 
   // ===== GUARDAR PAGO =====
   async function savePago() {
@@ -407,21 +393,26 @@ export default function PagosPage() {
     if (!clienteId) { toast('Este cobro no tiene cliente asociado.', 'error'); return }
 
     try {
-      const { data } = await supabase.from('ventas')
-        .select('id,fecha,total,monto_pagado,estado_pago,notas,modalidad_factura')
-        .eq('cliente_id', clienteId)
-        .neq('estado_pago', 'pagado')
-        .order('fecha', { ascending: true })
+      const [{ data }, ajustesNetos] = await Promise.all([
+        supabase.from('ventas')
+          .select('id,fecha,total,monto_pagado,estado_pago,notas,modalidad_factura')
+          .eq('cliente_id', clienteId)
+          .neq('estado_pago', 'pagado')
+          .order('fecha', { ascending: true }),
+        fetchAjustesNetos(clienteId)
+      ])
 
       // El cobro ya tiene un centro de costo fijo (CC1=con factura, CC2=sin factura/efectivo);
       // solo se puede seguir imputando a ventas del mismo tipo para no mezclar.
       const modalidadEsperada = p.centro_costo === 'CC1' ? 'con_iva' : 'sin_iva'
-      const filtradas = (data || []).filter(v => (v.modalidad_factura || 'sin_iva') === modalidadEsperada)
+      const filtradas = (data || [])
+        .map(v => ({ ...v, ajusteNeto: ajustesNetos[v.id] || 0 }))
+        .filter(v => (v.modalidad_factura || 'sin_iva') === modalidadEsperada)
 
       const imp = {}
       filtradas.forEach(v => {
-        const saldo = parseFloat(v.total || 0) - parseFloat(v.monto_pagado || 0)
-        imp[v.id] = { checked: false, monto: saldo.toFixed(2), saldo }
+        const saldo = parseFloat(v.total || 0) + v.ajusteNeto - parseFloat(v.monto_pagado || 0)
+        imp[v.id] = { checked: false, monto: Math.max(0, saldo).toFixed(2), saldo }
       })
 
       setVentasParaImputar(filtradas)
@@ -558,7 +549,9 @@ export default function PagosPage() {
                             <button className="btn btn-sm" style={{ background: '#E0E7FF', color: '#4338CA' }} onClick={() => abrirImputar(p)}>🔗 Imputar</button>
                           )}
                           {isAdmin && <>
-                            <button className="btn btn-sm btn-secondary" onClick={() => abrirEdit(p)}>✏</button>
+                            {estadoCobro.key === 'cuenta' && (
+                              <button className="btn btn-sm btn-secondary" onClick={() => abrirEdit(p)}>✏</button>
+                            )}
                             <button className="btn btn-sm btn-danger" onClick={() => deletePago(p.id)}>↩ Anular</button>
                           </>}
                         </div>
@@ -606,7 +599,9 @@ export default function PagosPage() {
                   <button className="btn" style={{ background: '#E0E7FF', color: '#4338CA' }} onClick={() => abrirImputar(p)}>🔗 Imputar</button>
                 )}
                 {isAdmin && <>
-                  <button className="btn btn-secondary" onClick={() => abrirEdit(p)}>✏ Editar</button>
+                  {estadoCobro.key === 'cuenta' && (
+                    <button className="btn btn-secondary" onClick={() => abrirEdit(p)}>✏ Editar</button>
+                  )}
                   <button className="btn btn-danger" onClick={() => deletePago(p.id)}>↩ Anular</button>
                 </>}
               </div>
@@ -676,8 +671,8 @@ export default function PagosPage() {
                     Imputar a facturas pendientes
                   </div>
                   {ventasPendientes.map(v => {
-                    const saldo = parseFloat(v.total || 0) - parseFloat(v.monto_pagado || 0)
-                    const imp = imputaciones[v.id] || { checked: false, monto: saldo.toFixed(2), saldo }
+                    const imp = imputaciones[v.id] || { checked: false, monto: '0.00', saldo: 0 }
+                    const saldo = imp.saldo
                     const fechaStr = new Date(v.fecha + 'T00:00:00').toLocaleDateString('es-AR')
                     return (
                       <div key={v.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
@@ -688,6 +683,8 @@ export default function PagosPage() {
                           <br />
                           Total: <strong>{fmtMonto(v.total, puedeVerMontos, { maximumFractionDigits: 2 })}</strong>
                           {parseFloat(v.monto_pagado || 0) > 0 && ` · Pagado: ${fmtMonto(v.monto_pagado, puedeVerMontos, { maximumFractionDigits: 2 })}`}
+                          {v.ajusteNeto < 0 && ` · NC: ${fmtMonto(Math.abs(v.ajusteNeto), puedeVerMontos, { maximumFractionDigits: 2 })}`}
+                          {v.ajusteNeto > 0 && ` · ND: ${fmtMonto(v.ajusteNeto, puedeVerMontos, { maximumFractionDigits: 2 })}`}
                           {' · '}<span style={{ color: '#DC2626', fontWeight: 600 }}>Saldo: {fmtMonto(saldo, puedeVerMontos, { maximumFractionDigits: 2 })}</span>
                         </label>
                         <input type="number" min="0" max={saldo} step="0.01"
@@ -890,6 +887,8 @@ export default function PagosPage() {
                           <span style={{ color: 'var(--muted)', fontSize: 11 }}>{fechaStr}</span>
                           <br />
                           Total: <strong>{fmtMonto(v.total, puedeVerMontos, { maximumFractionDigits: 2 })}</strong>
+                          {v.ajusteNeto < 0 && ` · NC: ${fmtMonto(Math.abs(v.ajusteNeto), puedeVerMontos, { maximumFractionDigits: 2 })}`}
+                          {v.ajusteNeto > 0 && ` · ND: ${fmtMonto(v.ajusteNeto, puedeVerMontos, { maximumFractionDigits: 2 })}`}
                           {' · '}<span style={{ color: '#DC2626', fontWeight: 600 }}>Saldo: {fmtMonto(imp.saldo, puedeVerMontos, { maximumFractionDigits: 2 })}</span>
                         </label>
                         <input type="number" min="0" max={imp.saldo} step="0.01"

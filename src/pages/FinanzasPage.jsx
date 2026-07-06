@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { nombreCliente } from '../utils/helpers'
@@ -8,6 +8,103 @@ import { ToastContainer } from '../components/Toast'
 const fmt = n => '$' + parseFloat(n || 0).toLocaleString('es-AR', { maximumFractionDigits: 0 })
 const sum = arr => arr.reduce((s, x) => s + parseFloat(x.monto || 0), 0)
 const sumCC = (arr, cc) => arr.filter(x => x.centro_costo === cc).reduce((s, x) => s + parseFloat(x.monto || 0), 0)
+
+const MESES_LABEL = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+
+function addMonths(date, n) {
+  const d = new Date(date)
+  d.setMonth(d.getMonth() + n)
+  return d
+}
+function isoDate(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+function niceMax(value) {
+  if (value <= 0) return 1000
+  const magnitud = Math.pow(10, Math.floor(Math.log10(value)))
+  for (const paso of [1, 2, 2.5, 5, 10]) {
+    const candidato = paso * magnitud
+    if (candidato >= value) return candidato
+  }
+  return 10 * magnitud
+}
+
+const ALTO_CHART = 160
+
+function FlujoCajaChart({ meses }) {
+  const [hover, setHover] = useState(null) // { label, tipo, valor, x, y }
+  const contRef = useRef(null)
+
+  const maxVal = Math.max(1, ...meses.flatMap(m => [m.ingresos, m.egresos]))
+  const techo = niceMax(maxVal)
+
+  function mostrarTooltip(e, mes, tipo, valor) {
+    const contRect = contRef.current.getBoundingClientRect()
+    const barRect = e.currentTarget.getBoundingClientRect()
+    setHover({
+      label: mes.label, tipo, valor,
+      x: barRect.left - contRect.left + barRect.width / 2,
+      y: barRect.top - contRect.top
+    })
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 16, marginBottom: 14, fontSize: 12, color: 'var(--muted)' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ width: 10, height: 10, borderRadius: 2, background: 'var(--success)', display: 'inline-block' }} /> Ingresos (cobros)
+        </span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ width: 10, height: 10, borderRadius: 2, background: 'var(--danger)', display: 'inline-block' }} /> Egresos (pagos a proveedor)
+        </span>
+      </div>
+
+      <div ref={contRef} style={{ position: 'relative', paddingLeft: 46 }}>
+        {/* Gridlines eje Y */}
+        <div style={{ position: 'absolute', left: 46, right: 0, top: 20, height: ALTO_CHART, pointerEvents: 'none' }}>
+          {[0, 0.5, 1].map(frac => (
+            <div key={frac} style={{ position: 'absolute', left: -46, right: 0, bottom: `${frac * ALTO_CHART}px`, borderTop: '1px solid var(--border)' }}>
+              <span style={{ position: 'absolute', left: 0, top: -7, fontSize: 10, color: 'var(--muted)' }}>{fmt(techo * frac)}</span>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ display: 'flex', gap: 14, overflowX: 'auto', paddingTop: 20 }}>
+          {meses.map(m => (
+            <div key={m.key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', minWidth: 48 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: m.saldo >= 0 ? 'var(--success)' : 'var(--danger)', marginBottom: 4, whiteSpace: 'nowrap' }}>
+                {m.saldo >= 0 ? '+' : ''}{fmt(m.saldo)}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 2, height: ALTO_CHART }}>
+                <div
+                  onMouseEnter={e => mostrarTooltip(e, m, 'Ingresos', m.ingresos)}
+                  onMouseLeave={() => setHover(null)}
+                  style={{ width: 16, height: Math.max(2, (m.ingresos / techo) * ALTO_CHART), background: 'var(--success)', borderRadius: '4px 4px 0 0', cursor: 'default' }}
+                />
+                <div
+                  onMouseEnter={e => mostrarTooltip(e, m, 'Egresos', m.egresos)}
+                  onMouseLeave={() => setHover(null)}
+                  style={{ width: 16, height: Math.max(2, (m.egresos / techo) * ALTO_CHART), background: 'var(--danger)', borderRadius: '4px 4px 0 0', cursor: 'default' }}
+                />
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 6 }}>{m.label}</div>
+            </div>
+          ))}
+        </div>
+
+        {hover && (
+          <div style={{
+            position: 'absolute', left: hover.x, top: hover.y - 10, transform: 'translate(-50%, -100%)',
+            background: 'var(--text)', color: '#fff', fontSize: 11, padding: '5px 8px', borderRadius: 6,
+            whiteSpace: 'nowrap', pointerEvents: 'none', zIndex: 5
+          }}>
+            <strong>{fmt(hover.valor)}</strong> · {hover.tipo} ({hover.label})
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
 
 export default function FinanzasPage() {
   const { toasts, toast } = useToast()
@@ -34,7 +131,51 @@ export default function FinanzasPage() {
   const [recepDeuda, setRecepDeuda] = useState([])
   const [vendedores, setVendedores] = useState([])
 
+  // Flujo de caja
+  const [periodoFlujo, setPeriodoFlujo] = useState(6)
+  const [flujoMensual, setFlujoMensual] = useState([])
+  const [loadingFlujo, setLoadingFlujo] = useState(true)
+
   useEffect(() => { loadFinanzas() }, [filtroCC])
+  useEffect(() => { loadFlujoCaja(periodoFlujo) }, [periodoFlujo])
+
+  async function loadFlujoCaja(periodoMeses) {
+    setLoadingFlujo(true)
+    try {
+      const hoy = new Date()
+      const desde = new Date(hoy.getFullYear(), hoy.getMonth() - (periodoMeses - 1), 1)
+      const hasta = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0)
+
+      const [{ data: cobros }, { data: pagosProv }] = await Promise.all([
+        supabase.from('pagos').select('monto,fecha').gte('fecha', isoDate(desde)).lte('fecha', isoDate(hasta)),
+        supabase.from('pagos_proveedor').select('monto,fecha').gte('fecha', isoDate(desde)).lte('fecha', isoDate(hasta))
+      ])
+
+      const porMes = {}
+      ;(cobros || []).forEach(c => {
+        const key = c.fecha.slice(0, 7)
+        if (!porMes[key]) porMes[key] = { ingresos: 0, egresos: 0 }
+        porMes[key].ingresos += parseFloat(c.monto || 0)
+      })
+      ;(pagosProv || []).forEach(p => {
+        const key = p.fecha.slice(0, 7)
+        if (!porMes[key]) porMes[key] = { ingresos: 0, egresos: 0 }
+        porMes[key].egresos += parseFloat(p.monto || 0)
+      })
+
+      const meses = []
+      let acumulado = 0
+      for (let i = 0; i < periodoMeses; i++) {
+        const d = addMonths(desde, i)
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+        const { ingresos = 0, egresos = 0 } = porMes[key] || {}
+        const saldo = ingresos - egresos
+        acumulado += saldo
+        meses.push({ key, label: `${MESES_LABEL[d.getMonth()]} '${String(d.getFullYear()).slice(2)}`, ingresos, egresos, saldo, acumulado })
+      }
+      setFlujoMensual(meses)
+    } catch (e) { console.error(e); toast('Error cargando flujo de caja', 'error') } finally { setLoadingFlujo(false) }
+  }
 
   async function loadFinanzas() {
     setLoading(true)
@@ -158,6 +299,72 @@ export default function FinanzasPage() {
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* FLUJO DE CAJA */}
+          <div className="card" style={{ marginBottom: 16, padding: 16 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 8 }}>
+              <div style={{ fontWeight: 700, fontSize: 13 }}>Flujo de caja</div>
+              <select value={periodoFlujo} onChange={e => setPeriodoFlujo(Number(e.target.value))}
+                style={{ padding: '8px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', fontSize: 13 }}>
+                <option value={3}>Últimos 3 meses</option>
+                <option value={6}>Últimos 6 meses</option>
+                <option value={12}>Últimos 12 meses</option>
+              </select>
+            </div>
+
+            {loadingFlujo ? (
+              <div className="empty"><p>Cargando...</p></div>
+            ) : (
+              <>
+                <FlujoCajaChart meses={flujoMensual} />
+
+                <div className="table-wrap desktop-table" style={{ marginTop: 20 }}>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Mes</th>
+                        <th style={{ textAlign: 'right' }}>Ingresos</th>
+                        <th style={{ textAlign: 'right' }}>Egresos</th>
+                        <th style={{ textAlign: 'right' }}>Saldo neto</th>
+                        <th style={{ textAlign: 'right' }}>Acumulado</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {flujoMensual.map(m => (
+                        <tr key={m.key}>
+                          <td>{m.label}</td>
+                          <td style={{ textAlign: 'right', color: 'var(--success)' }}>{fmt(m.ingresos)}</td>
+                          <td style={{ textAlign: 'right', color: 'var(--danger)' }}>{fmt(m.egresos)}</td>
+                          <td style={{ textAlign: 'right', fontWeight: 700, color: m.saldo >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+                            {m.saldo >= 0 ? '+' : ''}{fmt(m.saldo)}
+                          </td>
+                          <td style={{ textAlign: 'right' }}>{fmt(m.acumulado)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile */}
+                <div className="mobile-cards" style={{ marginTop: 16, display: 'grid', gap: 8 }}>
+                  {flujoMensual.map(m => (
+                    <div key={m.key} className="op-card">
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ fontWeight: 700 }}>{m.label}</div>
+                        <div style={{ fontWeight: 700, color: m.saldo >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+                          {m.saldo >= 0 ? '+' : ''}{fmt(m.saldo)}
+                        </div>
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+                        Ingresos: <span style={{ color: 'var(--success)' }}>{fmt(m.ingresos)}</span> · Egresos: <span style={{ color: 'var(--danger)' }}>{fmt(m.egresos)}</span>
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--muted)' }}>Acumulado: {fmt(m.acumulado)}</div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
 
           {/* 2. CUENTAS A COBRAR */}

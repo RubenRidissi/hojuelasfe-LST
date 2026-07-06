@@ -490,7 +490,7 @@ export default function VentasPage() {
   }
 
   function irACobrar(v) {
-    navigate('/cobros', { state: { clienteId: v.cliente_id, ventaId: v.id } })
+    navigate('/pagos', { state: { clienteId: v.cliente_id, ventaId: v.id } })
   }
 
   async function confirmarDespacho() {
@@ -619,8 +619,14 @@ export default function VentasPage() {
                           {estado === 'entregada' && puedeVerMontos && (
                             <button className="btn btn-sm btn-secondary" onClick={async () => { try { await verRemito('venta', v.id) } catch(e) { toast('Error', 'error') } }}>👁 Ver remito</button>
                           )}
-                          {(estado === 'remitida' || estado === 'entregada') && v.estado_pago !== 'pagado' && (
-                            <button className="btn btn-sm" style={{ background: '#FEF3C7', color: '#92400E' }} onClick={() => irACobrar(v)}>💰 Cobrar</button>
+                          {(estado === 'remitida' || estado === 'entregada') && (
+                            v.estado_pago === 'pagado' ? (
+                              <span className="badge badge-green">✅ Pagada</span>
+                            ) : v.estado_pago === 'parcial' ? (
+                              <button className="btn btn-sm" style={{ background: '#DBEAFE', color: '#1D4ED8' }} onClick={() => irACobrar(v)}>◐ Pago parcial</button>
+                            ) : (
+                              <button className="btn btn-sm" style={{ background: '#FEF3C7', color: '#92400E' }} onClick={() => irACobrar(v)}>💰 Cobrar</button>
+                            )
                           )}
                         </div>
                       </td>
@@ -669,8 +675,14 @@ export default function VentasPage() {
                 {estado === 'entregada' && puedeVerMontos && (
                   <button className="btn btn-secondary" onClick={async () => { try { await verRemito('venta', v.id) } catch(e) { toast('Error', 'error') } }}>👁 Remito</button>
                 )}
-                {(estado === 'remitida' || estado === 'entregada') && v.estado_pago !== 'pagado' && (
-                  <button className="btn" style={{ background: '#FEF3C7', color: '#92400E' }} onClick={() => irACobrar(v)}>💰 Cobrar</button>
+                {(estado === 'remitida' || estado === 'entregada') && (
+                  v.estado_pago === 'pagado' ? (
+                    <span className="badge badge-green">✅ Pagada</span>
+                  ) : v.estado_pago === 'parcial' ? (
+                    <button className="btn" style={{ background: '#DBEAFE', color: '#1D4ED8' }} onClick={() => irACobrar(v)}>◐ Pago parcial</button>
+                  ) : (
+                    <button className="btn" style={{ background: '#FEF3C7', color: '#92400E' }} onClick={() => irACobrar(v)}>💰 Cobrar</button>
+                  )
                 )}
               </div>
             </div>

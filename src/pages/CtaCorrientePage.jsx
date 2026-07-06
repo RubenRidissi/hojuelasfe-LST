@@ -5,6 +5,7 @@ import { nombreCliente } from '../utils/helpers'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
 import { fmtMonto } from '../utils/money'
+import { recalcularEstadoVenta } from '../services/ventasService'
 
 const EMPTY_AJUSTE = {
   tipo: 'NC', clienteId: '', ventaId: '',
@@ -95,6 +96,7 @@ export default function CtaCorrientePage() {
         monto: parseFloat(ajuste.monto),
         concepto: ajuste.concepto || null
       })
+      await recalcularEstadoVenta(ajuste.ventaId)
       toast(`${ajuste.tipo} registrada ✓`)
       setModalAjuste(false)
       setAjuste(EMPTY_AJUSTE)
