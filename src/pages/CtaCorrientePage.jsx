@@ -45,20 +45,28 @@ export default function CtaCorrientePage() {
     setLoading(true)
     try {
       const [{ data: ventas }, { data: pagos }, { data: ajustes }] = await Promise.all([
-        supabase.from('ventas').select('id,fecha,total,estado_pago,notas').eq('cliente_id', clienteId).order('fecha'),
+        supabase.from('ventas').select('id,fecha,total,estado,estado_pago,notas').eq('cliente_id', clienteId).order('fecha'),
         supabase.from('pagos').select('id,fecha,monto,medio,notas').eq('cliente_id', clienteId).order('fecha'),
         supabase.from('ajustes_cliente').select('id,fecha,tipo,monto,concepto,numero_comprobante').eq('cliente_id', clienteId).order('fecha')
       ])
 
-      const totalFacturado = (ventas || []).reduce((s, v) => s + parseFloat(v.total || 0), 0)
+      const ventasVigentes = (ventas || []).filter(v => v.estado !== 'anulada')
+      const totalFacturado = ventasVigentes.reduce((s, v) => s + parseFloat(v.total || 0), 0)
       const totalCobrado = (pagos || []).reduce((s, p) => s + parseFloat(p.monto || 0), 0)
       const totalNC = (ajustes || []).filter(a => a.tipo === 'NC').reduce((s, a) => s + parseFloat(a.monto || 0), 0)
       const totalND = (ajustes || []).filter(a => a.tipo === 'ND').reduce((s, a) => s + parseFloat(a.monto || 0), 0)
       const saldo = totalFacturado - totalCobrado - totalNC + totalND
 
-      // Combinar y ordenar por fecha
+      // Combinar y ordenar por fecha. Las ventas anuladas quedan como antecedente
+      // (monto 0 para no afectar el saldo), el resto de movimientos sin cambios.
       const movs = [
-        ...(ventas || []).map(v => ({ fecha: v.fecha, tipo: 'venta', id: v.id, monto: parseFloat(v.total || 0), estado: v.estado_pago, notas: v.notas })),
+        ...(ventas || []).map(v => ({
+          fecha: v.fecha, tipo: 'venta', id: v.id,
+          monto: v.estado === 'anulada' ? 0 : parseFloat(v.total || 0),
+          montoOriginal: parseFloat(v.total || 0),
+          anulada: v.estado === 'anulada',
+          estado: v.estado_pago, notas: v.notas
+        })),
         ...(pagos || []).map(p => ({ fecha: p.fecha, tipo: 'pago', id: p.id, monto: parseFloat(p.monto || 0), medio: p.medio, notas: p.notas })),
         ...(ajustes || []).map(a => ({ fecha: a.fecha, tipo: a.tipo === 'NC' ? 'nc' : 'nd', id: a.id, monto: parseFloat(a.monto || 0), notas: a.concepto, numero: a.numero_comprobante }))
       ].sort((a, b) => a.fecha.localeCompare(b.fecha))
@@ -76,7 +84,7 @@ export default function CtaCorrientePage() {
   // ===== AJUSTE NC/ND =====
   async function cargarVentasCliente(cliId) {
     if (!cliId) { setVentasCliente([]); return }
-    const { data } = await supabase.from('ventas').select('id,fecha,total,notas').eq('cliente_id', cliId).order('fecha', { ascending: false })
+    const { data } = await supabase.from('ventas').select('id,fecha,total,notas').eq('cliente_id', cliId).neq('estado', 'anulada').order('fecha', { ascending: false })
     setVentasCliente(data || [])
   }
 
@@ -196,9 +204,14 @@ export default function CtaCorrientePage() {
 
                       if (m.tipo === 'venta') {
                         debe = m.monto
-                        tipoBadge = m.estado === 'pagado' ? 'badge-green' : m.estado === 'parcial' ? 'badge-yellow' : 'badge-gray'
-                        tipoLabel = m.estado === 'pagado' ? 'Venta pagada' : m.estado === 'parcial' ? 'Venta parcial' : 'Venta'
-                        detalle = m.notas ? m.notas.split('|')[0].trim() : '—'
+                        if (m.anulada) {
+                          tipoBadge = 'badge-gray'; tipoLabel = 'Venta anulada'
+                          detalle = `Anulada · no afecta el saldo (${fmtMonto(m.montoOriginal, puedeVerMontos)})`
+                        } else {
+                          tipoBadge = m.estado === 'pagado' ? 'badge-green' : m.estado === 'parcial' ? 'badge-yellow' : 'badge-gray'
+                          tipoLabel = m.estado === 'pagado' ? 'Venta pagada' : m.estado === 'parcial' ? 'Venta parcial' : 'Venta'
+                          detalle = m.notas ? m.notas.split('|')[0].trim() : '—'
+                        }
                       } else if (m.tipo === 'nc') {
                         haber = m.monto; tipoBadge = 'badge-green'; tipoLabel = 'NC'
                         detalle = (m.numero ? m.numero + ' · ' : '') + (m.notas || '—')
@@ -240,9 +253,14 @@ export default function CtaCorrientePage() {
                 let debe = 0, haber = 0, tipoBadge = '', tipoLabel = '', detalle = ''
                 if (m.tipo === 'venta') {
                   debe = m.monto
-                  tipoBadge = m.estado === 'pagado' ? 'badge-green' : m.estado === 'parcial' ? 'badge-yellow' : 'badge-gray'
-                  tipoLabel = m.estado === 'pagado' ? 'Venta pagada' : m.estado === 'parcial' ? 'Venta parcial' : 'Venta'
-                  detalle = m.notas ? m.notas.split('|')[0].trim() : ''
+                  if (m.anulada) {
+                    tipoBadge = 'badge-gray'; tipoLabel = 'Venta anulada'
+                    detalle = `Anulada · no afecta el saldo (${fmtMonto(m.montoOriginal, puedeVerMontos)})`
+                  } else {
+                    tipoBadge = m.estado === 'pagado' ? 'badge-green' : m.estado === 'parcial' ? 'badge-yellow' : 'badge-gray'
+                    tipoLabel = m.estado === 'pagado' ? 'Venta pagada' : m.estado === 'parcial' ? 'Venta parcial' : 'Venta'
+                    detalle = m.notas ? m.notas.split('|')[0].trim() : ''
+                  }
                 } else if (m.tipo === 'nc') {
                   haber = m.monto; tipoBadge = 'badge-green'; tipoLabel = 'NC'
                   detalle = (m.numero ? m.numero + ' · ' : '') + (m.notas || '')

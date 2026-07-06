@@ -149,7 +149,7 @@ function buildComprobanteVenta(v, num) {
   let html = buildHeader('VENTA', num || 0, v.fecha)
   html += buildClienteInfo(v.clientes, 'Fecha facturación', fechaFacturacion, 'Fecha de entrega', entregaTxt)
   html += `<div class="comp-datos" style="margin-top:-8px">
-    <div><span>Estado de pago</span><strong>${v.estado_pago === 'pagado' ? '✓ Pagado' : 'Pendiente'}</strong></div>
+    <div><span>Estado de pago</span><strong>${v.estado === 'anulada' ? '❌ Anulada' : v.estado_pago === 'pagado' ? '✓ Pagado' : 'Pendiente'}</strong></div>
     <div><span>Descuento</span><strong>${descPct > 0 ? descPct + '%' : '—'}</strong></div>
   </div>`
   html += `<table class="comp-table"><thead><tr><th>Código</th><th>Producto</th><th style="text-align:center">Cant.</th><th style="text-align:right">P. Unit.</th><th style="text-align:right">Subtotal</th></tr></thead><tbody>`
@@ -398,7 +398,7 @@ export function useComprobante() {
   async function verComprobanteVenta(id) {
     try {
       const { data: v } = await supabase.from('ventas')
-        .select('id,numero,fecha,fecha_entrega_real,total,estado_pago,notas,clientes(nombre,nombre_fantasia,direccion,localidad,provincia,telefono,tipo),venta_items(producto_id,cantidad,bonificado,precio_unitario,productos(id,nombre,codigo,unidad))')
+        .select('id,numero,fecha,fecha_entrega_real,total,estado,estado_pago,notas,clientes(nombre,nombre_fantasia,direccion,localidad,provincia,telefono,tipo),venta_items(producto_id,cantidad,bonificado,precio_unitario,productos(id,nombre,codigo,unidad))')
         .eq('id', id).single()
       if (!v) throw new Error('No se encontró la venta')
       const num = v.numero || 1

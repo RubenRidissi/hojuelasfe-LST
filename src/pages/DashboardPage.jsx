@@ -339,7 +339,7 @@ export default function DashboardPage() {
     ] = await Promise.all([
       buildQ(supabase.from('pedidos').select('id',{count:'exact',head:true}), [q=>q.eq('estado','pendiente')]),
       buildQ(supabase.from('pagos').select('monto'), [q=>q.eq('fecha',today)]),
-      buildQ(supabase.from('ventas').select('total,monto_pagado'), [q=>q.neq('estado_pago','pagado')]),
+      buildQ(supabase.from('ventas').select('total,monto_pagado'), [q=>q.neq('estado_pago','pagado'),q=>q.neq('estado','anulada')]),
       buildQ(supabase.from('ventas').select('total'), [q=>q.eq('fecha',today)]),
       buildQ(supabase.from('pedidos').select('id',{count:'exact',head:true}), [q=>q.eq('fecha_entrega',today),q=>q.eq('estado','pendiente')]),
       buildQ(supabase.from('pedidos').select('id',{count:'exact',head:true}), [q=>q.eq('fecha_entrega',manana),q=>q.eq('estado','pendiente')])

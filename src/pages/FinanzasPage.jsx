@@ -207,7 +207,7 @@ export default function FinanzasPage() {
 
       // 2. CUENTAS A COBRAR
       const [{ data: ventasPend }, { data: ajustesClientes }] = await Promise.all([
-        supabase.from('ventas').select('total,monto_pagado,vendedor_id,cliente_id,clientes(nombre,nombre_fantasia)').neq('estado_pago', 'pagado'),
+        supabase.from('ventas').select('total,monto_pagado,vendedor_id,cliente_id,clientes(nombre,nombre_fantasia)').neq('estado_pago', 'pagado').neq('estado', 'anulada'),
         supabase.from('ajustes_cliente').select('tipo,monto,cliente_id')
       ])
 

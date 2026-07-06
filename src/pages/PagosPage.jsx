@@ -162,6 +162,7 @@ export default function PagosPage() {
           .select('id,fecha,total,monto_pagado,estado_pago,notas,modalidad_factura')
           .eq('cliente_id', clienteId)
           .neq('estado_pago', 'pagado')
+          .neq('estado', 'anulada')
           .order('fecha', { ascending: true }),
         fetchAjustesNetos(clienteId)
       ])
@@ -398,6 +399,7 @@ export default function PagosPage() {
           .select('id,fecha,total,monto_pagado,estado_pago,notas,modalidad_factura')
           .eq('cliente_id', clienteId)
           .neq('estado_pago', 'pagado')
+          .neq('estado', 'anulada')
           .order('fecha', { ascending: true }),
         fetchAjustesNetos(clienteId)
       ])

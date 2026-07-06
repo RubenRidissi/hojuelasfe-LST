@@ -81,7 +81,7 @@ export default function ClientesPage() {
   async function loadSaldos(lista) {
     try {
       const [{ data: ventas }, { data: pagos }] = await Promise.all([
-        supabase.from('ventas').select('cliente_id,total,estado_pago'),
+        supabase.from('ventas').select('cliente_id,total,estado_pago').neq('estado', 'anulada'),
         supabase.from('pagos').select('cliente_id,monto')
       ])
       const s = {}
