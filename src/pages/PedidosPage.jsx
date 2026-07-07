@@ -46,6 +46,7 @@ export default function PedidosPage() {
   const [descuentoItem, setDescuentoItem] = useState('')
   const [promoInfo, setPromoInfo] = useState(null)
   const [aplicarPromo, setAplicarPromo] = useState(false)
+  const [modoCarga, setModoCarga] = useState('unidad')
   const [versiones, setVersiones] = useState([])
   const [searchCliente, setSearchCliente] = useState('')
   const [modalPromoCombi, setModalPromoCombi] = useState(null)
@@ -69,7 +70,7 @@ export default function PedidosPage() {
       const [{ data: v }, { data: c }, { data: p }, { data: vers }] = await Promise.all([
         supabase.from('user_roles').select('user_id,nombre').eq('rol', 'vendedor').order('nombre'),
         supabase.from('clientes').select('id,nombre,nombre_fantasia,tipo,vendedor_id,descuento_pct,modalidad_factura,estado_cliente').order('nombre'),
-        supabase.from('productos').select('id,codigo,nombre,costo,descuento_costo,markup_representante,markup_distribuidor,markup_mayorista,markup_supermercado,markup_almacen,precio_representante,precio_distribuidor,precio_mayorista,precio_supermercado,precio_almacen,promo,precio_editable,familia').order('codigo'),
+        supabase.from('productos').select('id,codigo,nombre,costo,descuento_costo,markup_representante,markup_distribuidor,markup_mayorista,markup_supermercado,markup_almacen,precio_representante,precio_distribuidor,precio_mayorista,precio_supermercado,precio_almacen,promo,precio_editable,familia,pqxbj,descuento_bandeja').order('codigo'),
         supabase.from('listas_precios_repo').select('id,nombre,created_at').order('created_at', { ascending: false })
       ])
       setVendedores(v || [])
@@ -141,6 +142,8 @@ export default function PedidosPage() {
   function onProdSelChange(pid) {
     setProdSel(pid)
     setAplicarPromo(false)
+    setModoCarga('unidad')
+    setDescuentoItem('')
     if (!pid) { setPromoInfo(null); return }
     const prod = productos.find(p => p.id === pid)
     if (prod?.promo) {
@@ -151,19 +154,32 @@ export default function PedidosPage() {
     }
   }
 
+  function cambiarModoCarga(modo) {
+    setModoCarga(modo)
+    setAplicarPromo(false)
+    const prod = productos.find(p => p.id === prodSel)
+    if (modo === 'bandeja') {
+      setDescuentoItem(String(prod?.descuento_bandeja || 0))
+    } else {
+      setDescuentoItem('')
+    }
+  }
+
   function addItem() {
     if (!prodSel) { toast('Elegí un producto', 'error'); return }
     const prod = productos.find(p => p.id === prodSel)
     if (!prod) return
 
-    const cant = parseInt(cantidad) || 1
+    const esBandeja = modoCarga === 'bandeja'
+    const bandejas = parseInt(cantidad) || 1
+    const cant = esBandeja ? bandejas * (prod.pqxbj || 1) : bandejas
     const esEditable = prod.precio_editable
     const precioBase = esEditable ? (parseFloat(precioEditable) || 0) : getPrecio(prodSel)
     const descItem = parseFloat(descuentoItem) || 0
     const precio = descItem > 0 ? precioBase * (1 - descItem / 100) : precioBase
 
     let bonificado = 0
-    if (prod.promo && aplicarPromo) {
+    if (!esBandeja && prod.promo && aplicarPromo) {
       const [paga] = prod.promo.split('+').map(Number)
       bonificado = Math.floor(cant / paga)
     }
@@ -183,12 +199,15 @@ export default function PedidosPage() {
         bonificado,
         precio_unitario: precio,
         descuento_item: descItem,
-        promo: prod.promo || ''
+        promo: esBandeja ? '' : (prod.promo || ''),
+        modo: esBandeja ? 'bandeja' : 'unidad',
+        bandejas: esBandeja ? bandejas : 0
       }]
     })()
 
     setItems(nuevosItems)
     setCantidad(1)
+    setModoCarga('unidad')
     setProdSel('')
     setPrecioEditable('')
     setDescuentoItem('')
@@ -777,14 +796,25 @@ export default function PedidosPage() {
                       </option>
                     ))}
                   </select>
-                  <input type="number" min="1" value={cantidad} onChange={e => setCantidad(e.target.value)} style={{ width: 70 }} placeholder="Cant." />
+                  {prodSelObj?.pqxbj > 0 && (
+                    <div style={{ display: 'flex', gap: 4 }}>
+                      <button type="button" className={`btn btn-sm ${modoCarga === 'unidad' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => cambiarModoCarga('unidad')}>Por unidad</button>
+                      <button type="button" className={`btn btn-sm ${modoCarga === 'bandeja' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => cambiarModoCarga('bandeja')}>Por bandeja</button>
+                    </div>
+                  )}
+                  <input type="number" min="1" value={cantidad} onChange={e => setCantidad(e.target.value)} style={{ width: 90 }} placeholder={modoCarga === 'bandeja' ? 'Cant. bandejas' : 'Cant.'} />
+                  {modoCarga === 'bandeja' && prodSelObj?.pqxbj > 0 && (
+                    <span style={{ fontSize: 12, color: 'var(--muted)', alignSelf: 'center' }}>
+                      = {(parseInt(cantidad) || 1) * prodSelObj.pqxbj} u.
+                    </span>
+                  )}
                   {prodSelObj?.precio_editable && (
                     <input type="number" value={precioEditable} onChange={e => setPrecioEditable(e.target.value)} style={{ width: 100 }} placeholder="Precio" />
                   )}
                   <input type="number" min="0" max="100" step="0.1" value={descuentoItem} onChange={e => setDescuentoItem(e.target.value)} style={{ width: 80 }} placeholder="Dcto %" title="Descuento % sobre precio de lista" />
                   <button className="btn btn-primary" onClick={addItem}>+ Agregar</button>
                 </div>
-                {promoInfo && (
+                {modoCarga !== 'bandeja' && promoInfo && (
                   <div style={{ marginTop: 8, padding: '8px 10px', background: '#FEF9C3', borderRadius: 8, fontSize: 12, color: '#92400E', display: 'flex', alignItems: 'center', gap: 12 }}>
                     <span>{promoInfo.texto}</span>
                     <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', whiteSpace: 'nowrap', fontWeight: 600 }}>
@@ -803,6 +833,7 @@ export default function PedidosPage() {
                       <span style={{ flex: 1, textAlign: 'center' }}>
                         {item.cantidad}
                         {item.bonificado > 0 && <span style={{ color: 'var(--success)', fontSize: 11 }}> +{item.bonificado} bon.</span>}
+                        {item.modo === 'bandeja' && <span style={{ fontSize: 11, color: 'var(--muted)', display: 'block' }}>({item.bandejas} band.)</span>}
                       </span>
                       <span style={{ flex: 1, textAlign: 'right' }}>
                         {item.descuento_item > 0 && <span style={{ fontSize: 11, color: 'var(--success)', display: 'block' }}>-{item.descuento_item}% dcto</span>}

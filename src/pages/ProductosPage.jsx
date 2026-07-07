@@ -22,7 +22,7 @@ const EMPTY_FORM = {
   nombre: '', descripcion: '', costo: '', descuento_costo: '0',
   markup_representante: '0', markup_distribuidor: '0',
   markup_mayorista: '0', markup_supermercado: '0', markup_almacen: '0',
-  unidad: 'unidad', stock: 0, stock_minimo: 0,
+  unidad: 'unidad', stock: 0, stock_minimo: 0, pqxbj: 0, descuento_bandeja: '0',
   promo: false, promo_paga: '', promo_lleva: '',
   precio_editable: false, activo: true
 }
@@ -185,6 +185,8 @@ export default function ProductosPage() {
         unidad: form.unidad.trim() || 'unidad',
         stock: parseInt(form.stock) || 0,
         stock_minimo: parseInt(form.stock_minimo) || 0,
+        pqxbj: parseInt(form.pqxbj) || 0,
+        descuento_bandeja: parseFloat(form.descuento_bandeja) || 0,
         promo: form.promo ? `${parseInt(form.promo_paga) || 0}+${parseInt(form.promo_lleva) || 0}` : null,
         precio_editable: form.precio_editable,
         activo: form.activo
@@ -215,7 +217,8 @@ export default function ProductosPage() {
       markup_supermercado: p.markup_supermercado ?? '0',
       markup_almacen: p.markup_almacen ?? '0',
       unidad: p.unidad || 'unidad',
-      stock: p.stock || 0, stock_minimo: p.stock_minimo || 0,
+      stock: p.stock || 0, stock_minimo: p.stock_minimo || 0, pqxbj: p.pqxbj || 0,
+      descuento_bandeja: p.descuento_bandeja ?? '0',
       promo: !!p.promo, promo_paga: promoPaga || '', promo_lleva: promoLleva || '',
       precio_editable: !!p.precio_editable, activo: p.activo !== false
     })
@@ -286,7 +289,7 @@ export default function ProductosPage() {
             <table>
               <thead>
                 <tr>
-                  <th>Código</th><th>Nombre</th>{isAdmin && <><th>Costo</th><th>Costo neto</th></>}
+                  <th>Código</th><th>Nombre</th><th style={{ textAlign: 'center' }}>Pq x band.</th>{isAdmin && <><th>Costo</th><th>Costo neto</th></>}
                   {MARKUP_COLS.map(c => <th key={c.key} style={{ textAlign: 'right' }}>{c.label}</th>)}
                   <th>Stock</th>{isAdmin && <th></th>}
                 </tr>
@@ -294,7 +297,7 @@ export default function ProductosPage() {
               <tbody>
                 {Object.entries(grupos).map(([fam, prods]) => [
                   <tr key={`fam-${fam}`} style={{ background: 'var(--primary-light)' }}>
-                    <td colSpan={3 + (isAdmin ? 3 : 0) + MARKUP_COLS.length} style={{ padding: '6px 12px', fontSize: 11, fontWeight: 700, color: 'var(--primary-dark)', textTransform: 'uppercase' }}>{fam}</td>
+                    <td colSpan={4 + (isAdmin ? 3 : 0) + MARKUP_COLS.length} style={{ padding: '6px 12px', fontSize: 11, fontWeight: 700, color: 'var(--primary-dark)', textTransform: 'uppercase' }}>{fam}</td>
                   </tr>,
                   ...prods.map(p => (
                     <tr key={p.id}>
@@ -303,6 +306,7 @@ export default function ProductosPage() {
                         <strong>{p.nombre}</strong>
                         {p.variante && <><br /><span style={{ fontSize: 11, color: 'var(--muted)' }}>{p.variante}</span></>}
                       </td>
+                      <td style={{ textAlign: 'center', fontSize: 12 }}>{p.pqxbj || '—'}</td>
                       {isAdmin && (
                         <>
                           <td style={{ fontSize: 12 }}>${parseFloat(p.costo || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</td>
@@ -340,6 +344,7 @@ export default function ProductosPage() {
                   <div>
                     <div style={{ fontWeight: 600 }}>{p.nombre}</div>
                     {p.codigo && <code style={{ fontSize: 11 }}>{p.codigo}</code>}
+                    <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>Pq x bandeja: {p.pqxbj || '—'}</div>
                     {isAdmin && (
                       <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
                         Costo: ${parseFloat(p.costo || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}
@@ -570,6 +575,14 @@ export default function ProductosPage() {
                 <div className="form-group">
                   <label>Stock mínimo</label>
                   <input type="number" value={form.stock_minimo} onChange={e => setForm(f => ({ ...f, stock_minimo: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label>Paquetes x bandeja</label>
+                  <input type="number" min="0" value={form.pqxbj} onChange={e => setForm(f => ({ ...f, pqxbj: e.target.value }))} />
+                </div>
+                <div className="form-group">
+                  <label>Descuento por bandeja (%)</label>
+                  <input type="number" min="0" max="100" step="0.1" value={form.descuento_bandeja} onChange={e => setForm(f => ({ ...f, descuento_bandeja: e.target.value }))} title="Se aplica sobre el precio del tipo de cliente cuando se carga por bandeja en un pedido" />
                 </div>
               </div>
 
