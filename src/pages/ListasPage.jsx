@@ -29,7 +29,7 @@ export default function ListasPage() {
   // Config lista
   const [tipo, setTipo] = useState('Distribuidor')
   const [clienteId, setClienteId] = useState('')
-  const [familia, setFamilia] = useState('')
+  const [familiasSel, setFamiliasSel] = useState([])
   const [ivaOpcion, setIvaOpcion] = useState('siniva')
   const [mostrarPromo, setMostrarPromo] = useState(true)
   const [mostrarCodigo, setMostrarCodigo] = useState(true)
@@ -104,7 +104,7 @@ export default function ListasPage() {
     setGenerando(true)
     try {
       let prods = productos.filter(p => p.activo !== false)
-      if (familia) prods = prods.filter(p => p.familia === familia)
+      if (familiasSel.length) prods = prods.filter(p => familiasSel.includes(p.familia))
 
       if (soloConStock) {
         const { data: stockData } = await supabase.from('stock_actual').select('id,stock')
@@ -120,13 +120,17 @@ export default function ListasPage() {
         'Supermercado':  'precio_supermercado',
         'Almacén':       'precio_almacen',
       }
-      const colPrecio = tipo === 'cliente'
-        ? (PRECIO_POR_TIPO[clienteSeleccionado?.tipo] || 'precio_distribuidor')
-        : (PRECIO_POR_TIPO[tipo] || 'precio_distribuidor')
+      const tipoEfectivo = tipo === 'cliente' ? (clienteSeleccionado?.tipo || 'Distribuidor') : tipo
+      const colPrecio = PRECIO_POR_TIPO[tipoEfectivo] || 'precio_distribuidor'
 
       const descPct = tipo === 'cliente'
         ? parseFloat(clienteSeleccionado?.descuento_pct || 0)
         : 0
+
+      // Distribuidor/Mayorista compran por bandeja cerrada: no aplica la promo de volumen (10+1),
+      // en su lugar se informa el descuento por bandeja de los productos que lo tengan configurado.
+      const esListaBandeja = tipoEfectivo === 'Distribuidor' || tipoEfectivo === 'Mayorista'
+      let huboBandeja = false
 
       const grupos = {}
       prods.forEach(p => {
@@ -143,18 +147,31 @@ export default function ListasPage() {
           const precioBase = parseFloat(p[colPrecio] || 0)
           const precioFinal = descPct > 0 ? precioBase * (1 - descPct / 100) : precioBase
           const precioIVA = precioFinal * 1.21
-          const promoStr = p.promo && mostrarPromo ? `<span style="background:#DCFCE7;color:#15803D;font-size:10px;padding:2px 6px;border-radius:10px;margin-left:6px">${p.promo}</span>` : ''
+          const promoStr = p.promo && mostrarPromo && !esListaBandeja ? `<span style="background:#DCFCE7;color:#15803D;font-size:10px;padding:2px 6px;border-radius:10px;margin-left:6px">${p.promo}</span>` : ''
+
+          const tienePqxbj = esListaBandeja && parseInt(p.pqxbj || 0) > 0
+          const descBandejaPct = tienePqxbj ? parseFloat(p.descuento_bandeja || 0) : 0
+          const tieneBandeja = tienePqxbj && descBandejaPct > 0
+          if (tieneBandeja) huboBandeja = true
+
+          const pqxbjStr = tienePqxbj ? `<span style="color:#78716C;font-size:11px;margin-left:6px">(${p.pqxbj} u./bandeja)</span>` : ''
+          const bandejaStr = tieneBandeja ? `<span style="background:#DBEAFE;color:#1D4ED8;font-size:10px;padding:2px 6px;border-radius:10px;margin-left:6px">Bandeja -${p.descuento_bandeja}%</span>` : ''
+
+          const precioFinalMostrar = tieneBandeja ? precioFinal * (1 - descBandejaPct / 100) : precioFinal
+          const precioIVAMostrar = precioFinalMostrar * 1.21
+          const hayTachado = descPct > 0 || tieneBandeja
+
           tablaRows += `<tr>
             ${mostrarCodigo ? `<td style="color:#78716C;font-size:11px;font-family:monospace;text-align:center">${p.codigo || '—'}</td>` : ''}
-            <td style="font-weight:600;color:#292524">${p.nombre}${promoStr}</td>
+            <td style="font-weight:600;color:#292524">${p.nombre}${promoStr}${pqxbjStr}${bandejaStr}</td>
             <td style="text-align:center;color:#78716C;font-size:12px">${p.unidad || ''}</td>
             <td style="text-align:right;font-weight:700;color:#9A5F00">
-              ${descPct > 0 ? `<span style="text-decoration:line-through;color:#A8A29E;font-size:11px;font-weight:400">$${(ivaOpcion === 'coniva' ? precioBase * 1.21 : precioBase).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</span><br>` : ''}
+              ${hayTachado ? `<span style="text-decoration:line-through;color:#A8A29E;font-size:11px;font-weight:400">$${(ivaOpcion === 'coniva' ? precioBase * 1.21 : precioBase).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span><br>` : ''}
               ${ivaOpcion === 'ambos'
-                ? `$${precioFinal.toLocaleString('es-AR', { maximumFractionDigits: 2 })} <span style="color:#1D4ED8;font-size:11px">($${precioIVA.toLocaleString('es-AR', { maximumFractionDigits: 2 })})</span>`
+                ? `$${precioFinalMostrar.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span style="color:#1D4ED8;font-size:11px">($${precioIVAMostrar.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</span>`
                 : ivaOpcion === 'coniva'
-                  ? `$${precioIVA.toLocaleString('es-AR', { maximumFractionDigits: 2 })}`
-                  : `$${precioFinal.toLocaleString('es-AR', { maximumFractionDigits: 2 })}`
+                  ? `$${precioIVAMostrar.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                  : `$${precioFinalMostrar.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
               }
             </td>
           </tr>`
@@ -171,8 +188,12 @@ export default function ListasPage() {
         : ivaOpcion === 'coniva' ? 'Precios con IVA 21%'
         : 'Precios sin IVA y con IVA 21%'
 
-      const promocionTexto = mostrarPromo
+      const promocionTexto = mostrarPromo && !esListaBandeja
         ? 'Los productos identificados con etiqueta verde corresponden a promociones de volumen. Aplican al período de lanzamiento en Zona Santa Fe y están sujetas a modificación.'
+        : ''
+
+      const bandejaTexto = esListaBandeja && huboBandeja
+        ? 'Los productos identificados con etiqueta azul tienen un descuento adicional al comprar por bandeja cerrada.'
         : ''
 
       const precioLabelCondiciones = ivaOpcion === 'siniva'
@@ -226,6 +247,16 @@ export default function ListasPage() {
               <span style="background:#DCFCE7;color:#15803D;font-size:10px;padding:2px 7px;border-radius:10px;font-weight:700">10+1</span>
             </div>
             <div>${promocionTexto}</div>
+          </div>
+        ` : ''}
+
+        ${bandejaTexto ? `
+          <div style="margin-top:14px;background:#EFF6FF;color:#1D4ED8;border-radius:8px;padding:10px 12px;font-size:12px;line-height:1.45;border-left:4px solid #1D4ED8">
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+              <span style="font-weight:700">DESCUENTO POR BANDEJA</span>
+              <span style="background:#DBEAFE;color:#1D4ED8;font-size:10px;padding:2px 7px;border-radius:10px;font-weight:700">Bandeja cerrada</span>
+            </div>
+            <div>${bandejaTexto}</div>
           </div>
         ` : ''}
 
@@ -456,10 +487,18 @@ export default function ListasPage() {
           )}
           <div className="form-group">
             <label>Familia</label>
-            <select value={familia} onChange={e => setFamilia(e.target.value)}>
-              <option value="">Todas las familias</option>
+            <select
+              multiple
+              size={Math.min(Math.max(familias.length, 1), 5)}
+              value={familiasSel}
+              onChange={e => setFamiliasSel(Array.from(e.target.selectedOptions, o => o.value))}
+              style={{ width: '100%' }}
+            >
               {familias.map(f => <option key={f} value={f}>{f}</option>)}
             </select>
+            <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--muted)' }}>
+              {familiasSel.length === 0 ? 'Sin selección: todas las familias. Ctrl/Cmd + click para elegir una o varias.' : `${familiasSel.length} familia(s) seleccionada(s).`}
+            </p>
           </div>
           <div className="form-group">
             <label>IVA</label>
