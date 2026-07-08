@@ -18,16 +18,16 @@ function EspigaIcon({ size = 30 }) {
 
 const FAB_GROUPS = {
   operaciones: [
-    { label: 'Nuevo Cliente', icon: '👤', path: '/clientes', event: 'fab:nuevo-cliente' },
     { label: 'Nuevo Cobro', icon: '💰', path: '/pagos', event: 'fab:nuevo-cobro' },
     { label: 'Nuevo Pedido', icon: '📋', path: '/pedidos', event: 'fab:nuevo-pedido' },
+    { label: 'Ver Pedidos', icon: '📑', path: '/pedidos' },
     { label: 'Ver Ventas', icon: '🧾', path: '/ventas' },
   ],
   clientes: [
     { label: 'Listado', icon: '👥', path: '/clientes' },
     { label: 'Mapa', icon: '🗺️', path: '/mapa' },
     { label: 'Cuenta Corriente', icon: '💳', path: '/ctacte' },
-    { label: 'Favoritos', icon: '⭐', path: '/clientes' },
+    { label: 'Nuevo Cliente', icon: '👤', path: '/clientes', event: 'fab:nuevo-cliente' },
   ],
   productos: [
     { label: 'Listado', icon: '📦', path: '/productos' },
@@ -36,7 +36,7 @@ const FAB_GROUPS = {
     { label: 'Novedades', icon: '🆕', path: '/novedades' },
   ],
   mas: [
-{ label: 'Mi Día', icon: '📅', path: '/mi-dia' },
+{ label: 'Mi Ruta Diaria', icon: '🧭', path: '/mi-ruta' },
 { label: 'Reportes', icon: '📊', path: '/reportes' },
 { label: 'Comunicados Internos', icon: '📢', path: '/comunicados' },
 { label: 'Ayuda', icon: '❓', path: '/ayuda' },
@@ -46,7 +46,7 @@ const FAB_GROUPS = {
 
 function contextFromPath(path) {
   if (['/clientes', '/mapa', '/ctacte'].some(p => path.startsWith(p))) return 'clientes'
-  if (['/productos', '/stock', '/listas'].some(p => path.startsWith(p))) return 'productos'
+  if (['/productos', '/stock', '/listas', '/novedades'].some(p => path.startsWith(p))) return 'productos'
   if (['/remitos', '/mi-dia', '/reportes', '/ayuda', '/comunicados', '/config'].some(p => path.startsWith(p))) return 'mas'
   return 'operaciones'
 }

@@ -5,7 +5,7 @@ import { nombreCliente } from '../utils/helpers'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
 
-const DIAS = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
+const DIAS_SEMANA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
 const RESULTADOS = [
   { value: 'venta', label: '✅ Venta', badge: 'badge-green' },
   { value: 'sin_venta', label: '➖ Sin venta', badge: 'badge-yellow' },
@@ -21,11 +21,23 @@ function getISOWeek(d) {
   return Math.ceil((((date - yearStart) / 86400000) + 1) / 7)
 }
 
-function tocaEstaSemana(cliente, hoy) {
+function tocaEstaSemana(cliente, fecha) {
   const frecuencia = cliente.frecuencia_visita || 'semanal'
-  if (frecuencia === 'quincenal') return getISOWeek(hoy) % 2 === 0
-  if (frecuencia === 'mensual') return hoy.getDate() <= 7
+  if (frecuencia === 'quincenal') return getISOWeek(fecha) % 2 === 0
+  if (frecuencia === 'mensual') return fecha.getDate() <= 7
   return true
+}
+
+function getMonday(fecha) {
+  const d = new Date(fecha)
+  const dia = d.getDay()
+  d.setDate(d.getDate() + (dia === 0 ? -6 : 1 - dia))
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+function fmtCorta(d) {
+  return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })
 }
 
 export default function MiRutaPage() {
@@ -34,7 +46,7 @@ export default function MiRutaPage() {
 
   const [clientes, setClientes] = useState([])
   const [vendedores, setVendedores] = useState([])
-  const [visitasHoy, setVisitasHoy] = useState([])
+  const [visitasSel, setVisitasSel] = useState([])
   const [loading, setLoading] = useState(true)
   const [filtroVendedor, setFiltroVendedor] = useState('')
 
@@ -45,9 +57,28 @@ export default function MiRutaPage() {
 
   const hoy = new Date()
   const hoyStr = hoy.toISOString().split('T')[0]
-  const diaHoy = DIAS[hoy.getDay()]
+  const mondayHoy = getMonday(hoy)
 
-  useEffect(() => { load() }, [])
+  const [weekOffset, setWeekOffset] = useState(0)
+  const [selectedDow, setSelectedDow] = useState(() => (hoy.getDay() === 0 ? 0 : hoy.getDay() - 1))
+
+  const mondaySel = new Date(mondayHoy)
+  mondaySel.setDate(mondaySel.getDate() + weekOffset * 7)
+  const saturdaySel = new Date(mondaySel)
+  saturdaySel.setDate(saturdaySel.getDate() + 5)
+
+  const fechaSel = new Date(mondaySel)
+  fechaSel.setDate(fechaSel.getDate() + selectedDow)
+  const fechaSelStr = fechaSel.toISOString().split('T')[0]
+  const diaSel = DIAS_SEMANA[selectedDow]
+  const esHoy = fechaSelStr === hoyStr
+
+  function irAHoy() {
+    setWeekOffset(0)
+    setSelectedDow(hoy.getDay() === 0 ? 0 : hoy.getDay() - 1)
+  }
+
+  useEffect(() => { load() }, [diaSel, fechaSelStr])
 
   async function load() {
     setLoading(true)
@@ -55,23 +86,23 @@ export default function MiRutaPage() {
       const [{ data: c }, { data: v }, { data: vis }] = await Promise.all([
         supabase.from('clientes')
           .select('id,nombre,nombre_fantasia,direccion,localidad,zona_lst,tipo,telefono,vendedor_id,dia_visita,frecuencia_visita,estado_cliente,latitud,longitud')
-          .eq('dia_visita', diaHoy).eq('estado_cliente', 'Activo'),
+          .eq('dia_visita', diaSel).eq('estado_cliente', 'Activo'),
         supabase.from('user_roles').select('user_id,nombre').eq('rol', 'vendedor').order('nombre'),
-        supabase.from('visitas').select('cliente_id,resultado').eq('fecha', hoyStr)
+        supabase.from('visitas').select('cliente_id,resultado').eq('fecha', fechaSelStr)
       ])
       setClientes(c || [])
       setVendedores(v || [])
-      setVisitasHoy(vis || [])
+      setVisitasSel(vis || [])
     } catch (e) { toast('Error cargando la ruta', 'error') } finally { setLoading(false) }
   }
 
-  const rutaHoy = useMemo(() => {
+  const rutaSel = useMemo(() => {
     return clientes
-      .filter(c => tocaEstaSemana(c, hoy))
+      .filter(c => tocaEstaSemana(c, fechaSel))
       .filter(c => isAdmin ? (!filtroVendedor || c.vendedor_id === filtroVendedor) : c.vendedor_id === user)
-  }, [clientes, isAdmin, filtroVendedor, user])
+  }, [clientes, isAdmin, filtroVendedor, user, fechaSelStr])
 
-  function visitaDe(clienteId) { return visitasHoy.find(v => v.cliente_id === clienteId) }
+  function visitaDe(clienteId) { return visitasSel.find(v => v.cliente_id === clienteId) }
 
   function abrirVisita(c) {
     setModalVisita(c); setResultado('venta'); setNotas('')
@@ -83,7 +114,7 @@ export default function MiRutaPage() {
     try {
       await supabase.from('visitas').insert({
         cliente_id: modalVisita.id, vendedor_id: modalVisita.vendedor_id || user,
-        fecha: hoyStr, resultado, notas: notas || null
+        fecha: fechaSelStr, resultado, notas: notas || null
       })
       toast('Visita registrada ✓')
       setModalVisita(null)
@@ -91,13 +122,35 @@ export default function MiRutaPage() {
     } catch (e) { toast('Error: ' + e.message, 'error') } finally { setSaving(false) }
   }
 
-  const pendientes = rutaHoy.filter(c => !visitaDe(c.id))
-  const hechas = rutaHoy.filter(c => visitaDe(c.id))
+  const pendientes = rutaSel.filter(c => !visitaDe(c.id))
+  const hechas = rutaSel.filter(c => visitaDe(c.id))
 
   return (
     <div>
       <div className="page-header">
-        <h1 className="page-title">Mi Ruta — {diaHoy}</h1>
+        <h1 className="page-title">Mi Ruta — {diaSel}{esHoy ? ' (Hoy)' : ''}</h1>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+        <button className="btn btn-secondary btn-sm" onClick={() => setWeekOffset(w => w - 1)}>◀</button>
+        <div style={{ fontSize: 13, color: 'var(--muted)', textAlign: 'center', display: 'flex', alignItems: 'center', gap: 8 }}>
+          Semana del {fmtCorta(mondaySel)} al {fmtCorta(saturdaySel)}
+          {!esHoy && <button className="btn btn-secondary btn-sm" onClick={irAHoy}>Hoy</button>}
+        </div>
+        <button className="btn btn-secondary btn-sm" onClick={() => setWeekOffset(w => w + 1)}>▶</button>
+      </div>
+
+      <div style={{ display: 'flex', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+        {DIAS_SEMANA.map((d, i) => (
+          <button
+            key={d}
+            className={`btn btn-sm ${i === selectedDow ? 'btn-primary' : 'btn-secondary'}`}
+            style={{ flex: 1, minWidth: 44 }}
+            onClick={() => setSelectedDow(i)}
+          >
+            {d.slice(0, 3)}
+          </button>
+        ))}
       </div>
 
       {isAdmin && (
@@ -111,8 +164,8 @@ export default function MiRutaPage() {
 
       {loading ? (
         <div className="empty"><div className="empty-icon">⏳</div><p>Cargando...</p></div>
-      ) : rutaHoy.length === 0 ? (
-        <div className="empty"><div className="empty-icon">🗓</div><p>No hay clientes asignados a {diaHoy}.</p></div>
+      ) : rutaSel.length === 0 ? (
+        <div className="empty"><div className="empty-icon">🗓</div><p>No hay clientes asignados a {diaSel}.</p></div>
       ) : (
         <>
           <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 8 }}>
@@ -141,7 +194,7 @@ export default function MiRutaPage() {
                     {c.latitud && c.longitud && (
                       <a href={`https://www.google.com/maps?q=${c.latitud},${c.longitud}`} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ flex: 1, textDecoration: 'none', textAlign: 'center' }}>🗺 Mapa</a>
                     )}
-                    {!visita && <button className="btn btn-success" style={{ flex: 1 }} onClick={() => abrirVisita(c)}>✓ Visitado</button>}
+                    {!visita && esHoy && <button className="btn btn-success" style={{ flex: 1 }} onClick={() => abrirVisita(c)}>✓ Visitado</button>}
                   </div>
                 </div>
               )

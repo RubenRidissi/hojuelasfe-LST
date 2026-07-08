@@ -157,7 +157,8 @@ export default function ClientesPage() {
             direccion: data.direccion, localidad: data.localidad,
             provincia: data.provincia, notas: data.notas,
             latitud: data.latitud, longitud: data.longitud,
-            cuit: data.cuit, condicion_iva: data.condicion_iva
+            cuit: data.cuit, condicion_iva: data.condicion_iva,
+            zona_lst: data.zona_lst, dia_visita: data.dia_visita, frecuencia_visita: data.frecuencia_visita
           }).eq('id', form.id)
           if (error) throw error
         } else {
@@ -716,41 +717,40 @@ export default function ClientesPage() {
                       </div>
                     </div>
                   )}
-                  {isAdmin && (
-                    <div className="form-row">
-                      <div className="form-group">
-                        <label>Zona LST</label>
-                        {zonaManual ? (
-                          <>
-                            <input value={form.zona_lst} onChange={e => setForm(f => ({ ...f, zona_lst: e.target.value }))} placeholder="Ej: SFE-NO" autoFocus />
-                            <span style={{ fontSize:11, color:'var(--primary)', cursor:'pointer' }} onClick={() => setZonaManual(false)}>← Elegir de la lista</span>
-                          </>
-                        ) : (
-                          <select value={form.zona_lst} onChange={e => {
-                            if (e.target.value === '__otra__') { setZonaManual(true); setForm(f => ({ ...f, zona_lst: '' })) }
-                            else setForm(f => ({ ...f, zona_lst: e.target.value }))
-                          }}>
-                            <option value="">— Sin asignar —</option>
-                            {zonasDisponibles.map(z => <option key={z} value={z}>{z}</option>)}
-                            <option value="__otra__">Otra...</option>
-                          </select>
-                        )}
-                      </div>
-                      <div className="form-group">
-                        <label>Día de visita</label>
-                        <select value={form.dia_visita} onChange={e => setForm(f => ({ ...f, dia_visita: e.target.value }))}>
+                  {/* Temporalmente visible para vendedores (carga inicial de rutas); volver a isAdmin-only después */}
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Zona LST</label>
+                      {zonaManual ? (
+                        <>
+                          <input value={form.zona_lst} onChange={e => setForm(f => ({ ...f, zona_lst: e.target.value }))} placeholder="Ej: SFE-NO" autoFocus />
+                          <span style={{ fontSize:11, color:'var(--primary)', cursor:'pointer' }} onClick={() => setZonaManual(false)}>← Elegir de la lista</span>
+                        </>
+                      ) : (
+                        <select value={form.zona_lst} onChange={e => {
+                          if (e.target.value === '__otra__') { setZonaManual(true); setForm(f => ({ ...f, zona_lst: '' })) }
+                          else setForm(f => ({ ...f, zona_lst: e.target.value }))
+                        }}>
                           <option value="">— Sin asignar —</option>
-                          {DIAS_VISITA.map(d => <option key={d} value={d}>{d}</option>)}
+                          {zonasDisponibles.map(z => <option key={z} value={z}>{z}</option>)}
+                          <option value="__otra__">Otra...</option>
                         </select>
-                      </div>
-                      <div className="form-group">
-                        <label>Frecuencia</label>
-                        <select value={form.frecuencia_visita} onChange={e => setForm(f => ({ ...f, frecuencia_visita: e.target.value }))}>
-                          {FRECUENCIAS_VISITA.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-                        </select>
-                      </div>
+                      )}
                     </div>
-                  )}
+                    <div className="form-group">
+                      <label>Día de visita</label>
+                      <select value={form.dia_visita} onChange={e => setForm(f => ({ ...f, dia_visita: e.target.value }))}>
+                        <option value="">— Sin asignar —</option>
+                        {DIAS_VISITA.map(d => <option key={d} value={d}>{d}</option>)}
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Frecuencia</label>
+                      <select value={form.frecuencia_visita} onChange={e => setForm(f => ({ ...f, frecuencia_visita: e.target.value }))}>
+                        {FRECUENCIAS_VISITA.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+                      </select>
+                    </div>
+                  </div>
                   <div className="form-row">
                     <div className="form-group">
                       <label>% Descuento</label>
