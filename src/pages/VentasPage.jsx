@@ -298,6 +298,16 @@ export default function VentasPage() {
     return <span className={`badge ${cls}`}>{label}</span>
   }
 
+  function estadoAccentColor(estado) {
+    const map = {
+      abierta: '#92400E',
+      remitida: '#1D4ED8',
+      entregada: '#15803D',
+      anulada: '#374151',
+    }
+    return map[estado] || '#374151'
+  }
+
   function resetEditor() {
     setForm(EMPTY_FORM)
     setItems([])
@@ -647,15 +657,18 @@ export default function VentasPage() {
         ) : ventas.map(v => {
           const tieneRemito = origenesConRemito.has(`venta:${v.id}`) || (pedRelMap[v.id] && origenesConRemito.has(`pedido:${pedRelMap[v.id]}`))
           const estado = estadoFuncional(v, tieneRemito)
-          const fechaCorta = v.fecha ? new Date(v.fecha + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' }) : '—'
+          const fechaCorta = v.fecha || (v.created_at ? v.created_at.slice(0, 10) : '—')
           return (
-            <div key={v.id} className="op-card">
+            <div key={v.id} className="op-card op-card-elevated" style={{ borderLeftColor: estadoAccentColor(estado) }}>
               <div className="op-card-header">
-                <span className="op-card-num">#{String(v.numero || 0).padStart(6, '0')} · {fechaCorta}</span>
+                <span className="op-card-num">#{String(v.numero || 0).padStart(6, '0')}</span>
+                <span className="op-card-fecha">{fechaCorta}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                <div className="op-card-cliente" style={{ marginBottom: 0 }}>{v.clientes ? nombreCliente(v.clientes) : '—'}</div>
                 {badgeEstado(estado)}
               </div>
-              <div className="op-card-cliente">{v.clientes ? nombreCliente(v.clientes) : '—'}</div>
-              <div className="op-card-total">{fmtMonto(v.total, puedeVerMontos)}</div>
+              <div className="op-card-total" style={{ marginTop: 4 }}>{fmtMonto(v.total, puedeVerMontos)}</div>
               <div className="op-card-actions">
                 {puedeVerMontos && <button className="btn btn-secondary" onClick={async () => { try { await verComprobanteVenta(v.id) } catch(e) { toast('Error', 'error') } }}>👁 Ver</button>}
                 {estado === 'abierta' && (

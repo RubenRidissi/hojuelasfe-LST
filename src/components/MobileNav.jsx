@@ -60,16 +60,23 @@ export default function MobileNav() {
     <>
       {farewell && <FarewellOverlay />}
       {location.pathname !== '/' && (
+  <>
+  <style>{`
+    @media (max-width: 768px) {
+      .main-content { padding-top: 84px !important; }
+    }
+  `}</style>
   <button
     onClick={() => navigate('/')}
     aria-label="Volver al inicio"
     style={{
       position: 'fixed',
       top: 12,
-      right: 16,
+      left: '50%',
+      transform: 'translateX(-50%)',
       zIndex: 55,
-      width: 40,
-      height: 40,
+      width: 60,
+      height: 60,
       border: 0,
       borderRadius: 999,
       background: 'rgba(255,255,255,.92)',
@@ -77,15 +84,16 @@ export default function MobileNav() {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      padding: 6
+      padding: 9
     }}
   >
     <img
       src="/branding/logo-principal.png"
       alt="Inicio"
-      style={{ width: 36, height: 36, objectFit: 'contain' }}
+      style={{ width: 54, height: 54, objectFit: 'contain' }}
     />
   </button>
+  </>
 )}
       <nav style={{
         position: 'fixed', bottom: 0, left: 0, right: 0,

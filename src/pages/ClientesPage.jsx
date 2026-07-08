@@ -37,6 +37,7 @@ export default function ClientesPage() {
 
   // Modal cliente
   const [modalOpen, setModalOpen] = useState(false)
+  const [verCliente, setVerCliente] = useState(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const [zonaManual, setZonaManual] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -294,13 +295,13 @@ export default function ClientesPage() {
     const tieneSolicitud = solicitudes.some(s => s.cliente_id === c.id && s.vendedor_id === user)
     if (isAdmin) return (
       <>
-        <button className="btn btn-secondary" onClick={() => editCliente(c)}>✏ Editar</button>
-        <button className="btn btn-secondary" onClick={() => { setModalAsignar(c); setVendedorSel(c.vendedor_id || '') }}>👤 Asignar</button>
+        <button className="btn btn-secondary" onClick={e => { e.stopPropagation(); editCliente(c) }}>✏ Editar</button>
+        <button className="btn btn-secondary" onClick={e => { e.stopPropagation(); setModalAsignar(c); setVendedorSel(c.vendedor_id || '') }}>👤 Asignar</button>
       </>
     )
-    if (c.vendedor_id === user) return <button className="btn btn-secondary" onClick={() => editCliente(c)}>✏ Editar</button>
+    if (c.vendedor_id === user) return <button className="btn btn-secondary" onClick={e => { e.stopPropagation(); editCliente(c) }}>✏ Editar</button>
     if (tieneSolicitud) return <span style={{ fontSize:12, color:'var(--muted)', padding:8 }}>📬 Solicitud enviada</span>
-    return <button className="btn btn-secondary" style={{ background:'#FEF3DC', color:'#92400E' }} onClick={() => solicitarCliente(c.id)}>📬 Solicitar</button>
+    return <button className="btn btn-secondary" style={{ background:'#FEF3DC', color:'#92400E' }} onClick={e => { e.stopPropagation(); solicitarCliente(c.id) }}>📬 Solicitar</button>
   }
 
   const opcionesCartera = isAdmin
@@ -459,8 +460,8 @@ export default function ClientesPage() {
           const inicial = (c.nombre_fantasia || c.nombre || '?').charAt(0).toUpperCase()
           const estadoColor = { Activo:'var(--success)', Pendiente:'#D97706', Inactivo:'#DC2626' }[c.estado_cliente] || '#D97706'
           return (
-            <div key={c.id} className="op-card">
-              <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+            <div key={c.id} className="op-card op-card-elevated" style={{ borderLeftColor: estadoColor, cursor: 'pointer' }} onClick={() => setVerCliente(c)}>
+              <div style={{ display:'flex', alignItems:'flex-start', gap:12 }}>
                 <div style={{ width:44, height:44, borderRadius:'50%', background:'var(--honey-light)', display:'flex', alignItems:'center', justifyContent:'center', fontSize:18, fontWeight:700, color:'var(--primary-dark)', flexShrink:0 }}>
                   {inicial}
                 </div>
@@ -471,17 +472,26 @@ export default function ClientesPage() {
                   </div>
                   <div style={{ marginTop:4 }}>{carteraBadge(c)}</div>
                 </div>
-                {c.latitud && c.longitud && (
-                  <a href={`https://www.google.com/maps?q=${c.latitud},${c.longitud}`} target="_blank" rel="noreferrer" style={{ fontSize:20, textDecoration:'none' }}>📍</a>
+                {(c.direccion || c.localidad || (c.latitud && c.longitud)) && (
+                  <div style={{ textAlign:'right', flexShrink:0, maxWidth:130 }}>
+                    {(c.direccion || c.localidad) && (
+                      <div style={{ fontSize:11, color:'var(--muted)', lineHeight:1.35 }}>
+                        {c.direccion && <div>{c.direccion}</div>}
+                        {c.localidad && <div>{c.localidad}{c.zona_lst ? ` (${c.zona_lst})` : ''}</div>}
+                      </div>
+                    )}
+                    {c.latitud && c.longitud && (
+                      <a href={`https://www.google.com/maps?q=${c.latitud},${c.longitud}`} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize:20, textDecoration:'none', display:'inline-block', marginTop:4 }}>📍</a>
+                    )}
+                  </div>
                 )}
               </div>
               {c.telefono && (
-                <a href={`https://wa.me/549${c.telefono.replace(/\D/g, '')}`} target="_blank" rel="noreferrer"
+                <a href={`https://wa.me/549${c.telefono.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()}
                   style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 0', color:'#25D366', fontSize:14, fontWeight:500, textDecoration:'none', borderTop:'1px solid var(--border)', marginTop:8 }}>
                   💬 {c.telefono}
                 </a>
               )}
-              {c.localidad && <div style={{ fontSize:12, color:'var(--muted)' }}>📍 {c.localidad}{c.zona_lst ? ` (${c.zona_lst})` : ''}</div>}
               <div className="op-card-actions" style={{ marginTop:8 }}>
                 {accionesMobile(c)}
               </div>
@@ -489,6 +499,116 @@ export default function ClientesPage() {
           )
         })}
       </div>
+
+      {/* Modal detalle cliente (mobile) */}
+      {verCliente && (
+        <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && setVerCliente(null)}>
+          <div className="modal" style={{ maxWidth: 480 }}>
+            <div className="modal-header">
+              <h2>{nombreCliente(verCliente)}</h2>
+              <button className="btn btn-secondary btn-sm" onClick={() => setVerCliente(null)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+                <span className={`badge ${estadoBadge[verCliente.estado_cliente] || 'badge-yellow'}`}>{estadoIcon[verCliente.estado_cliente] || '⏳'} {verCliente.estado_cliente || 'Pendiente'}</span>
+                <span className={`badge ${tipoBadge[verCliente.tipo] || 'badge-gray'}`}>{verCliente.tipo || 'Minorista'}</span>
+                {carteraBadge(verCliente)}
+              </div>
+
+              {verCliente.nombre_fantasia && verCliente.nombre && (
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>Razón social: {verCliente.nombre}</div>
+              )}
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 12 }}>
+                <div style={{ background: 'var(--bg)', borderRadius: 8, padding: '8px 10px' }}>
+                  <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>Saldo</div>
+                  <div style={{ marginTop: 2, fontWeight: 600 }}>
+                    {saldos[verCliente.id] === undefined
+                      ? <span style={{ color: 'var(--muted)' }}>...</span>
+                      : saldos[verCliente.id] <= 0
+                        ? <span style={{ color: 'var(--success)' }}>Al día</span>
+                        : <span style={{ color: 'var(--danger)' }}>{formatMoney(saldos[verCliente.id])}</span>}
+                  </div>
+                </div>
+                {verCliente.descuento_pct > 0 && (
+                  <div style={{ background: 'var(--bg)', borderRadius: 8, padding: '8px 10px' }}>
+                    <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>Descuento</div>
+                    <div style={{ marginTop: 2, fontWeight: 600 }}>{verCliente.descuento_pct}%</div>
+                  </div>
+                )}
+                {verCliente.modalidad_factura && (
+                  <div style={{ background: 'var(--bg)', borderRadius: 8, padding: '8px 10px' }}>
+                    <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>Facturación</div>
+                    <div style={{ marginTop: 2, fontWeight: 600 }}>{verCliente.modalidad_factura === 'con_iva' ? 'Con IVA' : 'Sin IVA'}</div>
+                  </div>
+                )}
+                {verCliente.condicion_iva && (
+                  <div style={{ background: 'var(--bg)', borderRadius: 8, padding: '8px 10px' }}>
+                    <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>Cond. IVA</div>
+                    <div style={{ marginTop: 2, fontWeight: 600 }}>{verCliente.condicion_iva}</div>
+                  </div>
+                )}
+                {verCliente.cuit && (
+                  <div style={{ background: 'var(--bg)', borderRadius: 8, padding: '8px 10px' }}>
+                    <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>CUIT</div>
+                    <div style={{ marginTop: 2, fontWeight: 600 }}>{verCliente.cuit}</div>
+                  </div>
+                )}
+                {(verCliente.dia_visita || verCliente.frecuencia_visita) && (
+                  <div style={{ background: 'var(--bg)', borderRadius: 8, padding: '8px 10px' }}>
+                    <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>Visita</div>
+                    <div style={{ marginTop: 2, fontWeight: 600 }}>
+                      {verCliente.dia_visita || '—'}
+                      {verCliente.frecuencia_visita && <span style={{ fontWeight: 400, color: 'var(--muted)' }}> ({FRECUENCIAS_VISITA.find(f => f.value === verCliente.frecuencia_visita)?.label || verCliente.frecuencia_visita})</span>}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {(verCliente.direccion || verCliente.localidad || verCliente.provincia) && (
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Dirección</div>
+                  <div style={{ fontSize: 13 }}>
+                    {verCliente.direccion && <div>{verCliente.direccion}</div>}
+                    <div style={{ color: 'var(--muted)' }}>
+                      {[verCliente.localidad, verCliente.zona_lst ? `Zona ${verCliente.zona_lst}` : '', verCliente.provincia].filter(Boolean).join(' · ')}
+                    </div>
+                  </div>
+                  {verCliente.latitud && verCliente.longitud && (
+                    <a href={`https://www.google.com/maps?q=${verCliente.latitud},${verCliente.longitud}`} target="_blank" rel="noreferrer" className="btn btn-sm btn-secondary" style={{ marginTop: 6, textDecoration: 'none' }}>📍 Ver en el mapa</a>
+                  )}
+                </div>
+              )}
+
+              {(verCliente.telefono || verCliente.email) && (
+                <div style={{ marginBottom: 12 }}>
+                  <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Contacto</div>
+                  {verCliente.telefono && (
+                    <a href={`https://wa.me/549${verCliente.telefono.replace(/\D/g, '')}`} target="_blank" rel="noreferrer"
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#25D366', fontSize: 13, fontWeight: 500, textDecoration: 'none', marginBottom: 4 }}>
+                      💬 {verCliente.telefono}
+                    </a>
+                  )}
+                  {verCliente.email && <div style={{ fontSize: 13 }}>✉️ {verCliente.email}</div>}
+                </div>
+              )}
+
+              {verCliente.notas && (
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Notas</div>
+                  <div style={{ fontSize: 13, color: 'var(--muted)' }}>{verCliente.notas}</div>
+                </div>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => setVerCliente(null)}>Cerrar</button>
+              {!isInvitado && (isAdmin || verCliente.vendedor_id === user) && (
+                <button className="btn btn-primary" onClick={() => { editCliente(verCliente); setVerCliente(null) }}>✏ Editar</button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal cliente */}
       {modalOpen && (

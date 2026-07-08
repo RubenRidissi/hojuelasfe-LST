@@ -660,6 +660,13 @@ export default function PedidosPage() {
     return 'badge badge-yellow'
   }
 
+  function estadoAccentColor(estado) {
+    if (estado === 'convertido') return '#1D4ED8'
+    if (estado === 'confirmado') return '#15803D'
+    if (estado === 'cancelado') return '#991B1B'
+    return '#92400E'
+  }
+
   const misClientes = isAdmin ? clientes : clientes.filter(c =>
     (c.vendedor_id === user && c.estado_cliente === 'Activo') || !c.vendedor_id
   )
@@ -678,24 +685,9 @@ export default function PedidosPage() {
 
   return (
     <div>
-      <style>{`
-        .show-mobile {
-          display: none;
-        }
-
-        @media (max-width: 768px) {
-          .hide-mobile {
-            display: none !important;
-          }
-
-          .show-mobile {
-            display: block !important;
-          }
-        }
-      `}</style>
       <div className="page-header">
         <h1 className="page-title">Pedidos</h1>
-        <button className="btn btn-primary hide-mobile" onClick={abrirNuevoPedido}>+ Nuevo pedido</button>
+        <button className="btn btn-primary hide-on-mobile" onClick={abrirNuevoPedido}>+ Nuevo pedido</button>
       </div>
 
       <div className="card" style={{ marginBottom: 16 }}>
@@ -727,7 +719,7 @@ export default function PedidosPage() {
           <p style={{ color: 'var(--muted)', textAlign: 'center', padding: 24 }}>No hay pedidos.</p>
         ) : (
           <>
-            <div className="hide-mobile">
+            <div className="desktop-table">
               <table className="table">
                 <thead>
                   <tr>
@@ -751,7 +743,7 @@ export default function PedidosPage() {
                         <td style={{ textAlign: 'right' }}>{fmtMonto(p.total, puedeVerMontos, { maximumFractionDigits: 2 })}</td>
                         <td>
                           <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
-                            {puedeVerMontos && <button className="btn btn-sm btn-secondary" onClick={() => verComprobante(p.id)}>Ver</button>}
+                            {puedeVerMontos && <button className="btn btn-sm btn-secondary" onClick={() => verComprobante(p.id)}>👁 Ver</button>}
 
                             {visual === 'pendiente' && (
                               <>
@@ -784,22 +776,22 @@ export default function PedidosPage() {
               </table>
             </div>
 
-            <div className="show-mobile">
+            <div className="mobile-cards cards-grid">
               {pedidos.map(p => {
                 const visual = estadoVisualPedido(p)
                 return (
-                  <div key={p.id} className="mobile-card" style={{ marginBottom: 12 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'flex-start' }}>
-                      <div>
-                        <div style={{ fontWeight: 700 }}>Pedido Nº {p.numero || '—'}</div>
-                        <div style={{ color: 'var(--muted)', fontSize: 13 }}>{fechaCreacionPedido(p)}</div>
-                      </div>
+                  <div key={p.id} className="op-card op-card-elevated" style={{ borderLeftColor: estadoAccentColor(visual) }}>
+                    <div className="op-card-header">
+                      <span className="op-card-num">Pedido Nº {p.numero || '—'}</span>
+                      <span className="op-card-fecha">{fechaCreacionPedido(p)}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
+                      <div className="op-card-cliente" style={{ marginBottom: 0 }}>{nombreCliente(p.clientes)}</div>
                       <span className={estadoBadgeClass(visual)}>{estadoLabel(visual)}</span>
                     </div>
-                    <div style={{ marginTop: 8 }}>{nombreCliente(p.clientes)}</div>
-                    <div style={{ marginTop: 6, fontWeight: 700 }}>{fmtMonto(p.total, puedeVerMontos, { maximumFractionDigits: 2 })}</div>
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 12 }}>
-                      <button className="btn btn-sm btn-secondary" onClick={() => verComprobante(p.id)}>Ver</button>
+                    <div className="op-card-total" style={{ marginTop: 4 }}>{fmtMonto(p.total, puedeVerMontos, { maximumFractionDigits: 2 })}</div>
+                    <div className="op-card-actions">
+                      <button className="btn btn-sm btn-secondary" onClick={() => verComprobante(p.id)}>👁 Ver</button>
 
                       {visual === 'pendiente' && (
                         <>

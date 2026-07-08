@@ -56,6 +56,7 @@ export default function ProductosPage() {
   const [search, setSearch] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [priceModalOpen, setPriceModalOpen] = useState(false)
+  const [verProducto, setVerProducto] = useState(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const [bulkPriceForm, setBulkPriceForm] = useState(EMPTY_BULK_PRICE_FORM)
   const [saving, setSaving] = useState(false)
@@ -244,6 +245,13 @@ export default function ProductosPage() {
     return <span className="badge badge-green">{stock}</span>
   }
 
+  function stockAccentColor(p) {
+    const stock = p.stock_real ?? 0
+    if (stock <= 0) return '#991B1B'
+    if (p.stock_minimo > 0 && stock <= p.stock_minimo) return '#92400E'
+    return '#15803D'
+  }
+
   const grupos = useMemo(() => {
     const g = {}
     productosFiltrados.forEach(p => {
@@ -339,32 +347,21 @@ export default function ProductosPage() {
           <div key={fam}>
             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', padding: '8px 4px 4px' }}>{fam}</div>
             {prods.map(p => (
-              <div key={p.id} className="op-card" style={{ marginBottom: 8 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <div>
+              <div key={p.id} className="op-card op-card-elevated" style={{ marginBottom: 8, borderLeftColor: stockAccentColor(p), cursor: 'pointer' }} onClick={() => setVerProducto(p)}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div style={{ minWidth: 0 }}>
                     <div style={{ fontWeight: 600 }}>{p.nombre}</div>
-                    {p.codigo && <code style={{ fontSize: 11 }}>{p.codigo}</code>}
-                    <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>Pq x bandeja: {p.pqxbj || '—'}</div>
-                    {isAdmin && (
-                      <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
-                        Costo: ${parseFloat(p.costo || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}
-                        {parseFloat(p.descuento_costo || 0) > 0 && ` (neto: $${costoNeto(p).toLocaleString('es-AR', { maximumFractionDigits: 2 })})`}
-                      </div>
-                    )}
-                  </div>
-                  <div style={{ textAlign: 'right', fontSize: 12 }}>{stockBadge(p)}</div>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, marginTop: 8 }}>
-                  {MARKUP_COLS.map(col => (
-                    <div key={col.key} style={{ background: 'var(--bg)', borderRadius: 6, padding: '4px 6px', textAlign: 'center' }}>
-                      <div style={{ fontSize: 10, color: 'var(--muted)' }}>{col.label}</div>
-                      <div style={{ fontSize: 13, fontWeight: 600 }}>{fmtMonto(p[col.precio], puedeVerMontos)}</div>
+                    {p.variante && <div style={{ fontSize: 11, color: 'var(--muted)' }}>{p.variante}</div>}
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 4 }}>
+                      {p.codigo && <code style={{ fontSize: 11 }}>{p.codigo}</code>}
+                      {p.pqxbj > 0 && <span style={{ fontSize: 11, color: 'var(--muted)' }}>Pq x bandeja: {p.pqxbj}</span>}
                     </div>
-                  ))}
+                  </div>
+                  <div style={{ textAlign: 'right', fontSize: 12, flexShrink: 0, marginLeft: 8 }}>{stockBadge(p)}</div>
                 </div>
                 {isAdmin && (
                   <div className="op-card-actions" style={{ marginTop: 8 }}>
-                    <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => editProducto(p)}>✏ Editar</button>
+                    <button className="btn btn-secondary" style={{ flex: 1 }} onClick={e => { e.stopPropagation(); editProducto(p) }}>✏ Editar</button>
                   </div>
                 )}
               </div>
@@ -372,6 +369,77 @@ export default function ProductosPage() {
           </div>
         ))}
       </div>
+
+      {/* Modal detalle producto (mobile) */}
+      {verProducto && (
+        <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && setVerProducto(null)}>
+          <div className="modal" style={{ maxWidth: 480 }}>
+            <div className="modal-header">
+              <h2>{verProducto.nombre}</h2>
+              <button className="btn btn-secondary btn-sm" onClick={() => setVerProducto(null)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+                {verProducto.codigo && <code style={{ fontSize: 12, background: 'var(--bg)', padding: '2px 8px', borderRadius: 6 }}>{verProducto.codigo}</code>}
+                {verProducto.familia && <span className="badge badge-gray">{verProducto.familia}</span>}
+                {verProducto.variante && <span className="badge badge-gray">{verProducto.variante}</span>}
+                {verProducto.promo && <span className="badge badge-green">🎁 {verProducto.promo}</span>}
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 12 }}>
+                <div style={{ background: 'var(--bg)', borderRadius: 8, padding: '8px 10px' }}>
+                  <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>Stock</div>
+                  <div style={{ marginTop: 2 }}>{stockBadge(verProducto)}</div>
+                </div>
+                <div style={{ background: 'var(--bg)', borderRadius: 8, padding: '8px 10px' }}>
+                  <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>Unidad</div>
+                  <div style={{ marginTop: 2, fontWeight: 600 }}>{verProducto.unidad || '—'}</div>
+                </div>
+                {verProducto.pqxbj > 0 && (
+                  <div style={{ background: 'var(--bg)', borderRadius: 8, padding: '8px 10px' }}>
+                    <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>Pq x bandeja</div>
+                    <div style={{ marginTop: 2, fontWeight: 600 }}>{verProducto.pqxbj}</div>
+                  </div>
+                )}
+                {verProducto.pqxbj > 0 && parseFloat(verProducto.descuento_bandeja || 0) > 0 && (
+                  <div style={{ background: 'var(--bg)', borderRadius: 8, padding: '8px 10px' }}>
+                    <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>Dcto. bandeja</div>
+                    <div style={{ marginTop: 2, fontWeight: 600 }}>{verProducto.descuento_bandeja}%</div>
+                  </div>
+                )}
+                {isAdmin && (
+                  <div style={{ background: 'var(--bg)', borderRadius: 8, padding: '8px 10px' }}>
+                    <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>Costo</div>
+                    <div style={{ marginTop: 2, fontWeight: 600 }}>
+                      ${parseFloat(verProducto.costo || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}
+                      {parseFloat(verProducto.descuento_costo || 0) > 0 && (
+                        <span style={{ fontSize: 11, color: 'var(--success)', display: 'block', fontWeight: 400 }}>
+                          neto: ${costoNeto(verProducto).toLocaleString('es-AR', { maximumFractionDigits: 2 })} (-{verProducto.descuento_costo}%)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 8 }}>Precios por tipo de cliente</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 8 }}>
+                {MARKUP_COLS.map(col => (
+                  <div key={col.key} style={{ background: 'var(--bg)', borderRadius: 8, padding: '8px 10px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 11, color: 'var(--muted)' }}>{col.label}</div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--primary-dark)' }}>{fmtMonto(verProducto[col.precio], puedeVerMontos, { maximumFractionDigits: 2 })}</div>
+                    {isAdmin && <div style={{ fontSize: 10, color: 'var(--muted)' }}>markup {verProducto[col.key] || 0}%</div>}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => setVerProducto(null)}>Cerrar</button>
+              {isAdmin && <button className="btn btn-primary" onClick={() => { editProducto(verProducto); setVerProducto(null) }}>✏ Editar</button>}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal política de precios */}
       {priceModalOpen && (
