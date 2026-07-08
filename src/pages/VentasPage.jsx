@@ -55,7 +55,6 @@ export default function VentasPage() {
   const [descuentoItem, setDescuentoItem] = useState('')
   const [promoInfo, setPromoInfo] = useState(null)
   const [aplicarPromo, setAplicarPromo] = useState(false)
-  const [searchCliente, setSearchCliente] = useState('')
   const [modalPromoCombi, setModalPromoCombi] = useState(null)
   const [promoCombiElegido, setPromoCombiElegido] = useState(null)
 
@@ -701,17 +700,16 @@ export default function VentasPage() {
             <div className="modal-body">
               <div className="form-row">
                 <div className="form-group">
-                  <label>Cliente *</label>
-                  <input type="text" placeholder="Buscar cliente..." value={searchCliente}
-                    onChange={e => setSearchCliente(e.target.value)}
-                    style={{ marginBottom: 4, borderRadius: 'var(--radius) var(--radius) 0 0', borderBottom: 'none' }} />
-                  <select value={form.clienteId} onChange={e => setForm(f => ({ ...f, clienteId: e.target.value }))}
-                    style={{ borderRadius: '0 0 var(--radius) var(--radius)' }}>
-                    <option value="">— Elegí un cliente —</option>
-                    {misClientes
-                      .filter(c => !searchCliente || nombreCliente(c).toLowerCase().includes(searchCliente.toLowerCase()))
-                      .map(c => <option key={c.id} value={c.id}>{nombreCliente(c)}{c.tipo ? ` — ${c.tipo}` : ''}</option>)}
-                  </select>
+                  <label>Cliente</label>
+                  <input
+                    readOnly
+                    value={(() => {
+                      const c = clientes.find(x => x.id === form.clienteId)
+                      return c ? `${nombreCliente(c)}${c.tipo ? ` — ${c.tipo}` : ''}` : '—'
+                    })()}
+                    style={{ background: 'var(--bg)', color: 'var(--muted)' }}
+                    title="El cliente no se puede cambiar acá. Si está mal, anulá la venta y rehacé el pedido con el cliente correcto."
+                  />
                 </div>
                 <div className="form-group">
                   <label>Fecha</label>

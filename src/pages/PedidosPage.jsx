@@ -71,7 +71,7 @@ export default function PedidosPage() {
         supabase.from('user_roles').select('user_id,nombre').eq('rol', 'vendedor').order('nombre'),
         supabase.from('clientes').select('id,nombre,nombre_fantasia,tipo,vendedor_id,descuento_pct,modalidad_factura,estado_cliente').order('nombre'),
         supabase.from('productos').select('id,codigo,nombre,costo,descuento_costo,markup_representante,markup_distribuidor,markup_mayorista,markup_supermercado,markup_almacen,precio_representante,precio_distribuidor,precio_mayorista,precio_supermercado,precio_almacen,promo,precio_editable,familia,pqxbj,descuento_bandeja').order('codigo'),
-        supabase.from('listas_precios_repo').select('id,nombre,created_at').order('created_at', { ascending: false })
+        supabase.from('listas_precios_repo').select('id,nombre,created_at,precios').order('created_at', { ascending: false })
       ])
       setVendedores(v || [])
       setClientes(c || [])
@@ -124,19 +124,58 @@ export default function PedidosPage() {
     return cliente?.tipo || 'Distribuidor'
   }
 
-  function getPrecio(productoId) {
-    const p = productos.find(x => x.id === productoId)
-    if (!p) return 0
-    const tipoCliente = getTipoClienteActual()
+  // Precio base de un producto para un tipo de cliente, tomando el snapshot de una lista
+  // guardada (versionId) si hay una seleccionada, o el precio actual de productos si no.
+  function precioBaseProducto(productoId, tipoCliente, verId) {
+    if (verId) {
+      const version = versiones.find(v => v.id === verId)
+      const historico = version?.precios?.[productoId]
+      if (historico != null) return parseFloat(historico)
+    }
+    const prod = productos.find(p => p.id === productoId)
+    if (!prod) return 0
     const colPrecio = PRECIO_POR_TIPO[tipoCliente] || 'precio_distribuidor'
-    return parseFloat(p[colPrecio] || 0)
+    return parseFloat(prod[colPrecio] || 0)
+  }
+
+  function recalcularPreciosItems(tipoCliente, verId) {
+    if (!items.length) return
+    setItems(prev => prev.map(item => {
+      const prod = productos.find(p => p.id === item.producto_id)
+      if (!prod || prod.precio_editable) return item
+      const precioBase = precioBaseProducto(item.producto_id, tipoCliente, verId)
+      const descItem = parseFloat(item.descuento_item || 0)
+      const precioNuevo = descItem > 0 ? precioBase * (1 - descItem / 100) : precioBase
+      return { ...item, precio_unitario: precioNuevo }
+    }))
+    toast('Se actualizaron los precios de los productos ya cargados')
+  }
+
+  function onClienteChange(nuevoClienteId) {
+    setForm(f => ({ ...f, clienteId: nuevoClienteId }))
+    const cliente = clientes.find(c => c.id === nuevoClienteId)
+    const tipoCliente = cliente?.tipo || 'Distribuidor'
+    recalcularPreciosItems(tipoCliente, usarListaHistorica ? versionId : '')
+  }
+
+  // Distribuidor/Mayorista compran por bandeja cerrada: no aplica la promo de volumen (10+1)
+  function promoAplicaPorTipoCliente() {
+    return !['Distribuidor', 'Mayorista'].includes(getTipoClienteActual())
+  }
+
+  function getPrecio(productoId) {
+    const tipoCliente = getTipoClienteActual()
+    return precioBaseProducto(productoId, tipoCliente, usarListaHistorica ? versionId : '')
   }
 
   function cambiarVersion(nuevaVersionId) {
     setVersionId(nuevaVersionId)
-    if (nuevaVersionId) {
-      toast('Lista histórica seleccionada. En esta etapa los pedidos siguen usando precios actuales.', 'info')
-    }
+    recalcularPreciosItems(getTipoClienteActual(), nuevaVersionId)
+  }
+
+  function onToggleListaHistorica(checked) {
+    setUsarListaHistorica(checked)
+    recalcularPreciosItems(getTipoClienteActual(), checked ? versionId : '')
   }
 
   function onProdSelChange(pid) {
@@ -146,7 +185,7 @@ export default function PedidosPage() {
     setDescuentoItem('')
     if (!pid) { setPromoInfo(null); return }
     const prod = productos.find(p => p.id === pid)
-    if (prod?.promo) {
+    if (prod?.promo && promoAplicaPorTipoCliente()) {
       const [paga, lleva] = prod.promo.split('+').map(Number)
       setPromoInfo({ texto: 'Este producto tiene promo ' + prod.promo + ': comprando ' + paga + ' llevás ' + (paga + lleva) + '.', paga, lleva })
     } else {
@@ -179,16 +218,28 @@ export default function PedidosPage() {
     const precio = descItem > 0 ? precioBase * (1 - descItem / 100) : precioBase
 
     let bonificado = 0
-    if (!esBandeja && prod.promo && aplicarPromo) {
+    if (!esBandeja && prod.promo && aplicarPromo && promoAplicaPorTipoCliente()) {
       const [paga] = prod.promo.split('+').map(Number)
       bonificado = Math.floor(cant / paga)
     }
 
+    const modoNuevo = esBandeja ? 'bandeja' : 'unidad'
+    // Distribuidor/Mayorista no tienen promo de volumen (ni individual ni combinada entre productos)
+    const promoNuevo = (esBandeja || !promoAplicaPorTipoCliente()) ? '' : (prod.promo || '')
+
     const nuevosItems = (() => {
-      const existing = items.find(i => i.producto_id === prodSel)
+      // Solo se fusiona con una línea existente si tiene exactamente el mismo precio, modalidad y promo.
+      // Si cambiás de "por unidad" a "por bandeja" (u otro precio) para el mismo producto, se agrega
+      // como línea aparte para no mezclar precios distintos bajo una sola cantidad.
+      const existing = items.find(i =>
+        i.producto_id === prodSel &&
+        i.precio_unitario === precio &&
+        i.modo === modoNuevo &&
+        i.promo === promoNuevo
+      )
       if (existing) {
-        return items.map(i => i.producto_id === prodSel
-          ? { ...i, cantidad: i.cantidad + cant, bonificado: (i.bonificado || 0) + bonificado }
+        return items.map(i => i === existing
+          ? { ...i, cantidad: i.cantidad + cant, bonificado: (i.bonificado || 0) + bonificado, bandejas: esBandeja ? (i.bandejas || 0) + bandejas : i.bandejas }
           : i)
       }
       return [...items, {
@@ -199,8 +250,8 @@ export default function PedidosPage() {
         bonificado,
         precio_unitario: precio,
         descuento_item: descItem,
-        promo: esBandeja ? '' : (prod.promo || ''),
-        modo: esBandeja ? 'bandeja' : 'unidad',
+        promo: promoNuevo,
+        modo: modoNuevo,
         bandejas: esBandeja ? bandejas : 0
       }]
     })()
@@ -217,22 +268,32 @@ export default function PedidosPage() {
   }
 
   function verificarPromoCombi(itemsActuales) {
-    const conPromo = itemsActuales.filter(i => i.promo && i.familia)
+    // La combinación de promo 10+1 entre productos de una misma familia solo aplica a
+    // líneas cargadas "por unidad" (las de "por bandeja" ya vienen con promo: '' y quedan
+    // afuera). Además se agrupa por producto distinto: si el mismo producto quedó partido
+    // en varias líneas (por precio/modo), no debe contar como "combinación" entre productos.
+    const conPromo = itemsActuales.filter(i => i.promo && i.familia && i.modo !== 'bandeja')
     if (conPromo.length < 2) return
 
     const familiaMap = {}
     conPromo.forEach(item => {
-      if (!familiaMap[item.familia]) familiaMap[item.familia] = []
-      familiaMap[item.familia].push(item)
+      if (!familiaMap[item.familia]) familiaMap[item.familia] = {}
+      const porProducto = familiaMap[item.familia]
+      if (!porProducto[item.producto_id]) {
+        porProducto[item.producto_id] = { producto_id: item.producto_id, nombre: item.nombre, cantidad: 0, bonificado: 0, promo: item.promo }
+      }
+      porProducto[item.producto_id].cantidad += item.cantidad
+      porProducto[item.producto_id].bonificado += (item.bonificado || 0)
     })
 
-    Object.entries(familiaMap).forEach(([familia, grupo]) => {
+    Object.entries(familiaMap).forEach(([familia, porProducto]) => {
+      const grupo = Object.values(porProducto)
       if (grupo.length < 2) return
       const promo = grupo[0].promo
       if (!promo) return
       const [paga] = promo.split('+').map(Number)
       const totalCant = grupo.reduce((s, i) => s + i.cantidad, 0)
-      const totalBonif = grupo.reduce((s, i) => s + (i.bonificado || 0), 0)
+      const totalBonif = grupo.reduce((s, i) => s + i.bonificado, 0)
       const bonifPosible = Math.floor(totalCant / paga) - totalBonif
       if (bonifPosible <= 0) return
       setModalPromoCombi({ familia, grupoItems: grupo, bonifPosible, promo })
@@ -242,10 +303,14 @@ export default function PedidosPage() {
 
   function aplicarPromoCombi() {
     if (!modalPromoCombi || !promoCombiElegido) return
-    setItems(prev => prev.map(i => i.producto_id === promoCombiElegido
-      ? { ...i, bonificado: (i.bonificado || 0) + modalPromoCombi.bonifPosible }
-      : i
-    ))
+    let aplicado = false
+    setItems(prev => prev.map(i => {
+      if (!aplicado && i.producto_id === promoCombiElegido && i.modo !== 'bandeja') {
+        aplicado = true
+        return { ...i, bonificado: (i.bonificado || 0) + modalPromoCombi.bonifPosible }
+      }
+      return i
+    }))
     toast('✓ ' + modalPromoCombi.bonifPosible + ' unidad(es) bonificada(s) agregada(s)')
     setModalPromoCombi(null)
     setPromoCombiElegido(null)
@@ -277,6 +342,8 @@ export default function PedidosPage() {
     setProdSel('')
     setCantidad(1)
     setSearchCliente('')
+    setUsarListaHistorica(false)
+    setVersionId('')
     setModalOpen(true)
   }
 
@@ -400,6 +467,8 @@ export default function PedidosPage() {
         descuento_item: 0,
         promo: i.productos?.promo || ''
       })))
+      setUsarListaHistorica(false)
+      setVersionId('')
       setModalOpen(true)
     } catch (e) {
       toast('Error al cargar pedido: ' + e.message, 'error')
@@ -457,6 +526,24 @@ export default function PedidosPage() {
       loadPedidos()
     } catch (e) {
       toast('Error al cancelar: ' + e.message, 'error')
+    }
+  }
+
+  async function eliminarPedido(p) {
+    if (!isAdmin) return
+    if (p.estado !== 'cancelado' || p.convertido_venta_id) {
+      toast('Solo se pueden eliminar pedidos cancelados que no fueron convertidos', 'error')
+      return
+    }
+    if (!confirm(`¿Eliminar definitivamente el pedido Nº ${p.numero || '—'}? Esta acción no se puede deshacer.`)) return
+    try {
+      await supabase.from('pedido_items').delete().eq('pedido_id', p.id)
+      const { error } = await supabase.from('pedidos').delete().eq('id', p.id)
+      if (error) throw error
+      toast('Pedido eliminado')
+      loadPedidos()
+    } catch (e) {
+      toast('Error al eliminar: ' + e.message, 'error')
     }
   }
 
@@ -684,6 +771,10 @@ export default function PedidosPage() {
                             {visual === 'convertido' && (
                               <button className="btn btn-sm btn-primary" onClick={() => irAVenta(p.convertido_venta_id)}>Ver venta</button>
                             )}
+
+                            {visual === 'cancelado' && isAdmin && (
+                              <button className="btn btn-sm btn-danger" onClick={() => eliminarPedido(p)}>🗑 Eliminar</button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -728,6 +819,10 @@ export default function PedidosPage() {
                       {visual === 'convertido' && (
                         <button className="btn btn-sm btn-primary" onClick={() => irAVenta(p.convertido_venta_id)}>Ver venta</button>
                       )}
+
+                      {visual === 'cancelado' && isAdmin && (
+                        <button className="btn btn-sm btn-danger" onClick={() => eliminarPedido(p)}>🗑 Eliminar</button>
+                      )}
                     </div>
                   </div>
                 )
@@ -749,7 +844,7 @@ export default function PedidosPage() {
                 <div className="form-group">
                   <label>Cliente</label>
                   <input value={searchCliente} onChange={e => setSearchCliente(e.target.value)} placeholder="Buscar cliente..." style={{ marginBottom: 6 }} />
-                  <select value={form.clienteId} onChange={e => setForm(f => ({ ...f, clienteId: e.target.value }))}>
+                  <select value={form.clienteId} onChange={e => onClienteChange(e.target.value)}>
                     <option value="">— Elegí un cliente —</option>
                     {clientesFiltrados.map(c => <option key={c.id} value={c.id}>{nombreCliente(c)}{c.tipo ? ` (${c.tipo})` : ''}</option>)}
                   </select>
@@ -758,8 +853,8 @@ export default function PedidosPage() {
                 <div className="form-group">
                   <label>Lista de precios</label>
                   <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, marginBottom: 6, color: 'var(--muted)' }}>
-                    <input type="checkbox" checked={usarListaHistorica} onChange={e => setUsarListaHistorica(e.target.checked)} />
-                    Usar lista histórica
+                    <input type="checkbox" checked={usarListaHistorica} onChange={e => onToggleListaHistorica(e.target.checked)} />
+                    Seleccionar otra lista disponible
                   </label>
                   {usarListaHistorica ? (
                     <select value={versionId} onChange={e => cambiarVersion(e.target.value)}>
