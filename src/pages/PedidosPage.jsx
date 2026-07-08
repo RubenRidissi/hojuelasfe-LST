@@ -34,6 +34,7 @@ export default function PedidosPage() {
   const [filtroVendedor, setFiltroVendedor] = useState('')
 
   const [modalOpen, setModalOpen] = useState(false)
+  const [step, setStep] = useState(1)
   const [form, setForm] = useState(EMPTY_FORM)
   const [items, setItems] = useState([])
   const [saving, setSaving] = useState(false)
@@ -344,7 +345,13 @@ export default function PedidosPage() {
     setSearchCliente('')
     setUsarListaHistorica(false)
     setVersionId('')
+    setStep(1)
     setModalOpen(true)
+  }
+
+  function irAPaso2() {
+    if (!form.clienteId) { toast('Seleccioná un cliente', 'error'); return }
+    setStep(2)
   }
 
   async function savePedido() {
@@ -469,6 +476,7 @@ export default function PedidosPage() {
       })))
       setUsarListaHistorica(false)
       setVersionId('')
+      setStep(1)
       setModalOpen(true)
     } catch (e) {
       toast('Error al cargar pedido: ' + e.message, 'error')
@@ -828,117 +836,144 @@ export default function PedidosPage() {
         <div className="modal-backdrop">
           <div className="modal" style={{ maxWidth: 760 }}>
             <div className="modal-header">
-              <h2>{form.id ? 'Editar pedido' : 'Nuevo pedido'}</h2>
+              <div>
+                <h2>{form.id ? 'Editar pedido' : 'Nuevo pedido'}</h2>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
+                  Paso {step} de 2 — {step === 1 ? 'Datos generales' : 'Productos'}
+                </div>
+              </div>
               <button className="btn btn-secondary btn-sm" onClick={() => setModalOpen(false)}>✕</button>
             </div>
             <div className="modal-body">
-              <div className="form-grid" style={{ marginBottom: 12 }}>
-                <div className="form-group">
-                  <label>Cliente</label>
-                  <input value={searchCliente} onChange={e => setSearchCliente(e.target.value)} placeholder="Buscar cliente..." style={{ marginBottom: 6 }} />
-                  <select value={form.clienteId} onChange={e => onClienteChange(e.target.value)}>
-                    <option value="">— Elegí un cliente —</option>
-                    {clientesFiltrados.map(c => <option key={c.id} value={c.id}>{nombreCliente(c)}{c.tipo ? ` (${c.tipo})` : ''}</option>)}
-                  </select>
-                </div>
+              {step === 1 && (
+                <>
+                  <div className="form-grid" style={{ marginBottom: 12 }}>
+                    <div className="form-group">
+                      <label>Cliente</label>
+                      <input value={searchCliente} onChange={e => setSearchCliente(e.target.value)} placeholder="Buscar cliente..." style={{ marginBottom: 6 }} />
+                      <select value={form.clienteId} onChange={e => onClienteChange(e.target.value)}>
+                        <option value="">— Elegí un cliente —</option>
+                        {clientesFiltrados.map(c => <option key={c.id} value={c.id}>{nombreCliente(c)}{c.tipo ? ` (${c.tipo})` : ''}</option>)}
+                      </select>
+                    </div>
 
-                <div className="form-group">
-                  <label>Lista de precios</label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, marginBottom: 6, color: 'var(--muted)' }}>
-                    <input type="checkbox" checked={usarListaHistorica} onChange={e => onToggleListaHistorica(e.target.checked)} />
-                    Seleccionar otra lista disponible
-                  </label>
-                  {usarListaHistorica ? (
-                    <select value={versionId} onChange={e => cambiarVersion(e.target.value)}>
-                      <option value="">Precios actuales</option>
-                      {versiones.map(v => <option key={v.id} value={v.id}>{v.nombre}</option>)}
-                    </select>
-                  ) : (
-                    <input readOnly value={`Actual automática: ${getTipoClienteActual()}`} style={{ background: 'var(--bg)', color: 'var(--muted)' }} />
-                  )}
-                </div>
+                    <div className="form-group">
+                      <label>Lista de precios</label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, marginBottom: 6, color: 'var(--muted)' }}>
+                        <input type="checkbox" checked={usarListaHistorica} onChange={e => onToggleListaHistorica(e.target.checked)} />
+                        Seleccionar otra lista disponible
+                      </label>
+                      {usarListaHistorica ? (
+                        <select value={versionId} onChange={e => cambiarVersion(e.target.value)}>
+                          <option value="">Precios actuales</option>
+                          {versiones.map(v => <option key={v.id} value={v.id}>{v.nombre}</option>)}
+                        </select>
+                      ) : (
+                        <input readOnly value={`Actual automática: ${getTipoClienteActual()}`} style={{ background: 'var(--bg)', color: 'var(--muted)' }} />
+                      )}
+                    </div>
 
-                <div className="form-group">
-                  <label>Modalidad de factura</label>
-                  <select value={form.modalidad} onChange={e => setForm(f => ({ ...f, modalidad: e.target.value }))}>
-                    <option value="sin_iva">Sin IVA</option>
-                    <option value="con_iva">Con IVA 21%</option>
-                  </select>
-                </div>
-              </div>
+                    <div className="form-group">
+                      <label>Modalidad de factura</label>
+                      <select value={form.modalidad} onChange={e => setForm(f => ({ ...f, modalidad: e.target.value }))}>
+                        <option value="sin_iva">Sin IVA</option>
+                        <option value="con_iva">Con IVA 21%</option>
+                      </select>
+                    </div>
+                  </div>
 
-              <div className="form-group" style={{ marginBottom: 12 }}>
-                <label>Notas</label>
-                <input value={form.notas} onChange={e => setForm(f => ({ ...f, notas: e.target.value }))} placeholder="Observaciones..." />
-              </div>
+                  <div className="form-group" style={{ marginBottom: 12 }}>
+                    <label>Notas</label>
+                    <input value={form.notas} onChange={e => setForm(f => ({ ...f, notas: e.target.value }))} placeholder="Observaciones..." />
+                  </div>
+                </>
+              )}
 
-              <div style={{ background: 'var(--bg)', borderRadius: 8, padding: 12, marginBottom: 12 }}>
-                <div style={{ fontWeight: 600, fontSize: 12, color: 'var(--muted)', marginBottom: 8, textTransform: 'uppercase' }}>Agregar producto</div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  <select value={prodSel} onChange={e => onProdSelChange(e.target.value)} style={{ flex: 3, minWidth: 180 }}>
-                    <option value="">— Elegí un producto —</option>
-                    {productos.map(p => (
-                      <option key={p.id} value={p.id}>
-                        {p.codigo ? `${p.codigo} — ` : ''}{p.nombre} — {fmtMonto(getPrecio(p.id), puedeVerMontos, { maximumFractionDigits: 2 })}{p.promo ? ` 🎁${p.promo}` : ''}
-                      </option>
-                    ))}
-                  </select>
-                  {prodSelObj?.pqxbj > 0 && (
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      <button type="button" className={`btn btn-sm ${modoCarga === 'unidad' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => cambiarModoCarga('unidad')}>Por unidad</button>
-                      <button type="button" className={`btn btn-sm ${modoCarga === 'bandeja' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => cambiarModoCarga('bandeja')}>Por bandeja</button>
+              {step === 2 && (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'var(--bg)', borderRadius: 8, marginBottom: 12, fontSize: 13 }}>
+                    <strong>{form.clienteId ? nombreCliente(clientes.find(c => c.id === form.clienteId)) : '—'}</strong>
+                    <span style={{ color: 'var(--primary)', cursor: 'pointer', fontSize: 12 }} onClick={() => setStep(1)}>← Cambiar</span>
+                  </div>
+
+                  <div style={{ background: 'var(--bg)', borderRadius: 8, padding: 12, marginBottom: 12 }}>
+                    <div style={{ fontWeight: 600, fontSize: 12, color: 'var(--muted)', marginBottom: 8, textTransform: 'uppercase' }}>Agregar producto</div>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <select value={prodSel} onChange={e => onProdSelChange(e.target.value)} style={{ flex: 3, minWidth: 180 }}>
+                        <option value="">— Elegí un producto —</option>
+                        {productos.map(p => (
+                          <option key={p.id} value={p.id}>
+                            {p.codigo ? `${p.codigo} — ` : ''}{p.nombre} — {fmtMonto(getPrecio(p.id), puedeVerMontos, { maximumFractionDigits: 2 })}{p.promo ? ` 🎁${p.promo}` : ''}
+                          </option>
+                        ))}
+                      </select>
+                      {prodSelObj?.pqxbj > 0 && (
+                        <div style={{ display: 'flex', gap: 4 }}>
+                          <button type="button" className={`btn btn-sm ${modoCarga === 'unidad' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => cambiarModoCarga('unidad')}>Por unidad</button>
+                          <button type="button" className={`btn btn-sm ${modoCarga === 'bandeja' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => cambiarModoCarga('bandeja')}>Por bandeja</button>
+                        </div>
+                      )}
+                      <input type="number" min="1" value={cantidad} onChange={e => setCantidad(e.target.value)} style={{ width: 90 }} placeholder={modoCarga === 'bandeja' ? 'Cant. bandejas' : 'Cant.'} />
+                      {modoCarga === 'bandeja' && prodSelObj?.pqxbj > 0 && (
+                        <span style={{ fontSize: 12, color: 'var(--muted)', alignSelf: 'center' }}>
+                          = {(parseInt(cantidad) || 1) * prodSelObj.pqxbj} u.
+                        </span>
+                      )}
+                      {prodSelObj?.precio_editable && (
+                        <input type="number" value={precioEditable} onChange={e => setPrecioEditable(e.target.value)} style={{ width: 100 }} placeholder="Precio" />
+                      )}
+                      <input type="number" min="0" max="100" step="0.1" value={descuentoItem} onChange={e => setDescuentoItem(e.target.value)} style={{ width: 80 }} placeholder="Dcto %" title="Descuento % sobre precio de lista" />
+                      <button className="btn btn-primary" onClick={addItem}>+ Agregar</button>
+                    </div>
+                    {modoCarga !== 'bandeja' && promoInfo && (
+                      <div style={{ marginTop: 8, padding: '8px 10px', background: '#FEF9C3', borderRadius: 8, fontSize: 12, color: '#92400E', display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <span>{promoInfo.texto}</span>
+                        <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', whiteSpace: 'nowrap', fontWeight: 600 }}>
+                          <input type="checkbox" checked={aplicarPromo} onChange={e => setAplicarPromo(e.target.checked)} />
+                          Aplicar promo
+                        </label>
+                      </div>
+                    )}
+                  </div>
+
+                  {items.length > 0 && (
+                    <div style={{ marginBottom: 12 }}>
+                      {items.map((item, i) => (
+                        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
+                          <span style={{ flex: 2 }}>{item.nombre}</span>
+                          <span style={{ flex: 1, textAlign: 'center' }}>
+                            {item.cantidad}
+                            {item.bonificado > 0 && <span style={{ color: 'var(--success)', fontSize: 11 }}> +{item.bonificado} bon.</span>}
+                            {item.modo === 'bandeja' && <span style={{ fontSize: 11, color: 'var(--muted)', display: 'block' }}>({item.bandejas} band.)</span>}
+                          </span>
+                          <span style={{ flex: 1, textAlign: 'right' }}>
+                            {item.descuento_item > 0 && <span style={{ fontSize: 11, color: 'var(--success)', display: 'block' }}>-{item.descuento_item}% dcto</span>}
+                            {fmtMonto(item.cantidad * item.precio_unitario * (1 - descPct / 100) * ivaFactor, puedeVerMontos, { maximumFractionDigits: 2 })}
+                          </span>
+                          <button className="btn btn-sm btn-danger" onClick={() => removeItem(i)}>✕</button>
+                        </div>
+                      ))}
+                      <div style={{ marginTop: 8, textAlign: 'right' }}>
+                        {descPct > 0 && <div style={{ fontSize: 12, color: 'var(--muted)' }}>Descuento {descPct}%</div>}
+                        <div style={{ fontSize: 16, fontWeight: 600 }}>Total: {fmtMonto(total, puedeVerMontos, { maximumFractionDigits: 2 })}</div>
+                      </div>
                     </div>
                   )}
-                  <input type="number" min="1" value={cantidad} onChange={e => setCantidad(e.target.value)} style={{ width: 90 }} placeholder={modoCarga === 'bandeja' ? 'Cant. bandejas' : 'Cant.'} />
-                  {modoCarga === 'bandeja' && prodSelObj?.pqxbj > 0 && (
-                    <span style={{ fontSize: 12, color: 'var(--muted)', alignSelf: 'center' }}>
-                      = {(parseInt(cantidad) || 1) * prodSelObj.pqxbj} u.
-                    </span>
-                  )}
-                  {prodSelObj?.precio_editable && (
-                    <input type="number" value={precioEditable} onChange={e => setPrecioEditable(e.target.value)} style={{ width: 100 }} placeholder="Precio" />
-                  )}
-                  <input type="number" min="0" max="100" step="0.1" value={descuentoItem} onChange={e => setDescuentoItem(e.target.value)} style={{ width: 80 }} placeholder="Dcto %" title="Descuento % sobre precio de lista" />
-                  <button className="btn btn-primary" onClick={addItem}>+ Agregar</button>
-                </div>
-                {modoCarga !== 'bandeja' && promoInfo && (
-                  <div style={{ marginTop: 8, padding: '8px 10px', background: '#FEF9C3', borderRadius: 8, fontSize: 12, color: '#92400E', display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <span>{promoInfo.texto}</span>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', whiteSpace: 'nowrap', fontWeight: 600 }}>
-                      <input type="checkbox" checked={aplicarPromo} onChange={e => setAplicarPromo(e.target.checked)} />
-                      Aplicar promo
-                    </label>
-                  </div>
-                )}
-              </div>
-
-              {items.length > 0 && (
-                <div style={{ marginBottom: 12 }}>
-                  {items.map((item, i) => (
-                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderBottom: '1px solid var(--border)' }}>
-                      <span style={{ flex: 2 }}>{item.nombre}</span>
-                      <span style={{ flex: 1, textAlign: 'center' }}>
-                        {item.cantidad}
-                        {item.bonificado > 0 && <span style={{ color: 'var(--success)', fontSize: 11 }}> +{item.bonificado} bon.</span>}
-                        {item.modo === 'bandeja' && <span style={{ fontSize: 11, color: 'var(--muted)', display: 'block' }}>({item.bandejas} band.)</span>}
-                      </span>
-                      <span style={{ flex: 1, textAlign: 'right' }}>
-                        {item.descuento_item > 0 && <span style={{ fontSize: 11, color: 'var(--success)', display: 'block' }}>-{item.descuento_item}% dcto</span>}
-                        {fmtMonto(item.cantidad * item.precio_unitario * (1 - descPct / 100) * ivaFactor, puedeVerMontos, { maximumFractionDigits: 2 })}
-                      </span>
-                      <button className="btn btn-sm btn-danger" onClick={() => removeItem(i)}>✕</button>
-                    </div>
-                  ))}
-                  <div style={{ marginTop: 8, textAlign: 'right' }}>
-                    {descPct > 0 && <div style={{ fontSize: 12, color: 'var(--muted)' }}>Descuento {descPct}%</div>}
-                    <div style={{ fontSize: 16, fontWeight: 600 }}>Total: {fmtMonto(total, puedeVerMontos, { maximumFractionDigits: 2 })}</div>
-                  </div>
-                </div>
+                </>
               )}
             </div>
             <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setModalOpen(false)}>Cancelar</button>
-              <button className="btn btn-primary" onClick={savePedido} disabled={saving}>{saving ? 'Guardando...' : 'Guardar pedido'}</button>
+              {step === 1 ? (
+                <>
+                  <button className="btn btn-secondary" onClick={() => setModalOpen(false)}>Cancelar</button>
+                  <button className="btn btn-primary" onClick={irAPaso2}>Siguiente →</button>
+                </>
+              ) : (
+                <>
+                  <button className="btn btn-secondary" onClick={() => setStep(1)}>← Atrás</button>
+                  <button className="btn btn-primary" onClick={savePedido} disabled={saving}>{saving ? 'Guardando...' : 'Guardar pedido'}</button>
+                </>
+              )}
             </div>
           </div>
         </div>
