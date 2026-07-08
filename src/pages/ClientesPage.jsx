@@ -37,6 +37,7 @@ export default function ClientesPage() {
 
   // Modal cliente
   const [modalOpen, setModalOpen] = useState(false)
+  const [step, setStep] = useState(1)
   const [verCliente, setVerCliente] = useState(null)
   const [form, setForm] = useState(EMPTY_FORM)
   const [zonaManual, setZonaManual] = useState(false)
@@ -53,6 +54,7 @@ export default function ClientesPage() {
       if (isInvitado) return
       setForm(EMPTY_FORM)
       setZonaManual(false)
+      setStep(1)
       setModalOpen(true)
     }
     window.addEventListener('fab:nuevo-cliente', abrirDesdeFab)
@@ -197,7 +199,13 @@ export default function ClientesPage() {
       zona_lst: c.zona_lst || '', dia_visita: c.dia_visita || '', frecuencia_visita: c.frecuencia_visita || 'semanal'
     })
     setZonaManual(!!c.zona_lst && !zonasDisponibles.includes(c.zona_lst))
+    setStep(1)
     setModalOpen(true)
+  }
+
+  function irAPaso2Cliente() {
+    if (!form.nombre.trim()) { toast('El nombre es obligatorio', 'error'); return }
+    setStep(2)
   }
 
   async function deleteCliente(c) {
@@ -328,7 +336,7 @@ export default function ClientesPage() {
             <span style={{ fontSize:13, color:'var(--muted)' }}>{clientesFiltrados.length} cliente{clientesFiltrados.length !== 1 ? 's' : ''}</span>
           )}
           {!isInvitado && (
-            <button className="mobile-hide btn btn-primary" onClick={() => { setForm(EMPTY_FORM); setZonaManual(false); setModalOpen(true) }}>
+            <button className="mobile-hide btn btn-primary" onClick={() => { setForm(EMPTY_FORM); setZonaManual(false); setStep(1); setModalOpen(true) }}>
               + Nuevo cliente
             </button>
           )}
@@ -615,145 +623,168 @@ export default function ClientesPage() {
         <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && setModalOpen(false)}>
           <div className="modal">
             <div className="modal-header">
-              <h2>{form.id ? 'Editar cliente' : 'Nuevo cliente'}</h2>
+              <div>
+                <h2>{form.id ? 'Editar cliente' : 'Nuevo cliente'}</h2>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>
+                  Paso {step} de 2 — {step === 1 ? 'Datos del cliente' : 'Configuración comercial'}
+                </div>
+              </div>
               <button className="btn btn-secondary btn-sm" onClick={() => setModalOpen(false)}>✕</button>
             </div>
             <div className="modal-body">
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Nombre / Razón social *</label>
-                  <input value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} placeholder="Nombre" />
-                </div>
-                <div className="form-group">
-                  <label>Nombre fantasía</label>
-                  <input value={form.nombre_fantasia} onChange={e => setForm(f => ({ ...f, nombre_fantasia: e.target.value }))} placeholder="Nombre comercial" />
-                </div>
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Teléfono / WhatsApp</label>
-                  <input value={form.telefono} onChange={e => setForm(f => ({ ...f, telefono: e.target.value }))} placeholder="3412345678" />
-                </div>
-                <div className="form-group">
-                  <label>Email</label>
-                  <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="email@ejemplo.com" />
-                </div>
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>CUIT</label>
-                  <input value={form.cuit} onChange={e => setForm(f => ({ ...f, cuit: e.target.value }))} placeholder="20-12345678-9" />
-                </div>
-                <div className="form-group">
-                  <label>Condición IVA</label>
-                  <select value={form.condicion_iva} onChange={e => setForm(f => ({ ...f, condicion_iva: e.target.value }))}>
-                    <option value="">— Seleccionar —</option>
-                    {CONDICION_IVA.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Localidad</label>
-                  <input value={form.localidad} onChange={e => setForm(f => ({ ...f, localidad: e.target.value }))} placeholder="Ciudad" />
-                </div>
-                <div className="form-group">
-                  <label>Provincia</label>
-                  <select value={form.provincia} onChange={e => setForm(f => ({ ...f, provincia: e.target.value }))}>
-                    {PROVINCIAS.map(p => <option key={p} value={p}>{p}</option>)}
-                  </select>
-                </div>
-              </div>
-              <div className="form-row">
-                <div className="form-group" style={{ gridColumn:'1/-1' }}>
-                  <label>Dirección</label>
-                  <input value={form.direccion} onChange={e => setForm(f => ({ ...f, direccion: e.target.value }))} placeholder="Calle 123" />
-                </div>
-              </div>
-              {isAdmin && (
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Tipo</label>
-                    <select value={form.tipo} onChange={e => setForm(f => ({ ...f, tipo: e.target.value }))}>
-                      {['Representante','Distribuidor','Mayorista','Supermercado','Almacén'].map(t => <option key={t} value={t}>{t}</option>)}
-                    </select>
+              {step === 1 && (
+                <>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Nombre / Razón social *</label>
+                      <input value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} placeholder="Nombre" />
+                    </div>
+                    <div className="form-group">
+                      <label>Nombre fantasía</label>
+                      <input value={form.nombre_fantasia} onChange={e => setForm(f => ({ ...f, nombre_fantasia: e.target.value }))} placeholder="Nombre comercial" />
+                    </div>
                   </div>
-                  <div className="form-group">
-                    <label>Estado</label>
-                    <select value={form.estado_cliente} onChange={e => setForm(f => ({ ...f, estado_cliente: e.target.value }))}>
-                      {['Activo','Pendiente','Inactivo'].map(e => <option key={e} value={e}>{e}</option>)}
-                    </select>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Teléfono / WhatsApp</label>
+                      <input value={form.telefono} onChange={e => setForm(f => ({ ...f, telefono: e.target.value }))} placeholder="3412345678" />
+                    </div>
+                    <div className="form-group">
+                      <label>Email</label>
+                      <input type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="email@ejemplo.com" />
+                    </div>
                   </div>
-                </div>
-              )}
-              {isAdmin && (
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Zona LST</label>
-                    {zonaManual ? (
-                      <>
-                        <input value={form.zona_lst} onChange={e => setForm(f => ({ ...f, zona_lst: e.target.value }))} placeholder="Ej: SFE-NO" autoFocus />
-                        <span style={{ fontSize:11, color:'var(--primary)', cursor:'pointer' }} onClick={() => setZonaManual(false)}>← Elegir de la lista</span>
-                      </>
-                    ) : (
-                      <select value={form.zona_lst} onChange={e => {
-                        if (e.target.value === '__otra__') { setZonaManual(true); setForm(f => ({ ...f, zona_lst: '' })) }
-                        else setForm(f => ({ ...f, zona_lst: e.target.value }))
-                      }}>
-                        <option value="">— Sin asignar —</option>
-                        {zonasDisponibles.map(z => <option key={z} value={z}>{z}</option>)}
-                        <option value="__otra__">Otra...</option>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Localidad</label>
+                      <input value={form.localidad} onChange={e => setForm(f => ({ ...f, localidad: e.target.value }))} placeholder="Ciudad" />
+                    </div>
+                    <div className="form-group">
+                      <label>Provincia</label>
+                      <select value={form.provincia} onChange={e => setForm(f => ({ ...f, provincia: e.target.value }))}>
+                        {PROVINCIAS.map(p => <option key={p} value={p}>{p}</option>)}
                       </select>
-                    )}
+                    </div>
                   </div>
-                  <div className="form-group">
-                    <label>Día de visita</label>
-                    <select value={form.dia_visita} onChange={e => setForm(f => ({ ...f, dia_visita: e.target.value }))}>
-                      <option value="">— Sin asignar —</option>
-                      {DIAS_VISITA.map(d => <option key={d} value={d}>{d}</option>)}
-                    </select>
+                  <div className="form-row">
+                    <div className="form-group" style={{ gridColumn:'1/-1' }}>
+                      <label>Dirección</label>
+                      <input value={form.direccion} onChange={e => setForm(f => ({ ...f, direccion: e.target.value }))} placeholder="Calle 123" />
+                    </div>
                   </div>
-                  <div className="form-group">
-                    <label>Frecuencia</label>
-                    <select value={form.frecuencia_visita} onChange={e => setForm(f => ({ ...f, frecuencia_visita: e.target.value }))}>
-                      {FRECUENCIAS_VISITA.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-                    </select>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Latitud</label>
+                      <input value={form.latitud} onChange={e => setForm(f => ({ ...f, latitud: e.target.value }))} placeholder="-31.6333" />
+                    </div>
+                    <div className="form-group">
+                      <label>Longitud</label>
+                      <input value={form.longitud} onChange={e => setForm(f => ({ ...f, longitud: e.target.value }))} placeholder="-60.7000" />
+                    </div>
                   </div>
-                </div>
+                </>
               )}
-              <div className="form-row">
-                <div className="form-group">
-                  <label>% Descuento</label>
-                  <input type="number" min="0" max="100" value={form.descuento_pct} onChange={e => setForm(f => ({ ...f, descuento_pct: e.target.value }))} />
-                </div>
-                <div className="form-group">
-                  <label>Modalidad factura</label>
-                  <select value={form.modalidad_factura} onChange={e => setForm(f => ({ ...f, modalidad_factura: e.target.value }))}>
-                    <option value="sin_iva">Sin IVA</option>
-                    <option value="con_iva">Con IVA</option>
-                  </select>
-                </div>
-              </div>
-              <div className="form-row">
-                <div className="form-group">
-                  <label>Latitud</label>
-                  <input value={form.latitud} onChange={e => setForm(f => ({ ...f, latitud: e.target.value }))} placeholder="-31.6333" />
-                </div>
-                <div className="form-group">
-                  <label>Longitud</label>
-                  <input value={form.longitud} onChange={e => setForm(f => ({ ...f, longitud: e.target.value }))} placeholder="-60.7000" />
-                </div>
-              </div>
-              <div className="form-group">
-                <label>Notas</label>
-                <textarea rows={3} value={form.notas} onChange={e => setForm(f => ({ ...f, notas: e.target.value }))} placeholder="Observaciones..." style={{ resize:'vertical' }} />
-              </div>
+
+              {step === 2 && (
+                <>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>CUIT</label>
+                      <input value={form.cuit} onChange={e => setForm(f => ({ ...f, cuit: e.target.value }))} placeholder="20-12345678-9" />
+                    </div>
+                    <div className="form-group">
+                      <label>Condición IVA</label>
+                      <select value={form.condicion_iva} onChange={e => setForm(f => ({ ...f, condicion_iva: e.target.value }))}>
+                        <option value="">— Seleccionar —</option>
+                        {CONDICION_IVA.map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  {isAdmin && (
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>Tipo</label>
+                        <select value={form.tipo} onChange={e => setForm(f => ({ ...f, tipo: e.target.value }))}>
+                          {['Representante','Distribuidor','Mayorista','Supermercado','Almacén'].map(t => <option key={t} value={t}>{t}</option>)}
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label>Estado</label>
+                        <select value={form.estado_cliente} onChange={e => setForm(f => ({ ...f, estado_cliente: e.target.value }))}>
+                          {['Activo','Pendiente','Inactivo'].map(e => <option key={e} value={e}>{e}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                  )}
+                  {isAdmin && (
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label>Zona LST</label>
+                        {zonaManual ? (
+                          <>
+                            <input value={form.zona_lst} onChange={e => setForm(f => ({ ...f, zona_lst: e.target.value }))} placeholder="Ej: SFE-NO" autoFocus />
+                            <span style={{ fontSize:11, color:'var(--primary)', cursor:'pointer' }} onClick={() => setZonaManual(false)}>← Elegir de la lista</span>
+                          </>
+                        ) : (
+                          <select value={form.zona_lst} onChange={e => {
+                            if (e.target.value === '__otra__') { setZonaManual(true); setForm(f => ({ ...f, zona_lst: '' })) }
+                            else setForm(f => ({ ...f, zona_lst: e.target.value }))
+                          }}>
+                            <option value="">— Sin asignar —</option>
+                            {zonasDisponibles.map(z => <option key={z} value={z}>{z}</option>)}
+                            <option value="__otra__">Otra...</option>
+                          </select>
+                        )}
+                      </div>
+                      <div className="form-group">
+                        <label>Día de visita</label>
+                        <select value={form.dia_visita} onChange={e => setForm(f => ({ ...f, dia_visita: e.target.value }))}>
+                          <option value="">— Sin asignar —</option>
+                          {DIAS_VISITA.map(d => <option key={d} value={d}>{d}</option>)}
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label>Frecuencia</label>
+                        <select value={form.frecuencia_visita} onChange={e => setForm(f => ({ ...f, frecuencia_visita: e.target.value }))}>
+                          {FRECUENCIAS_VISITA.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                  )}
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>% Descuento</label>
+                      <input type="number" min="0" max="100" value={form.descuento_pct} onChange={e => setForm(f => ({ ...f, descuento_pct: e.target.value }))} />
+                    </div>
+                    <div className="form-group">
+                      <label>Modalidad factura</label>
+                      <select value={form.modalidad_factura} onChange={e => setForm(f => ({ ...f, modalidad_factura: e.target.value }))}>
+                        <option value="sin_iva">Sin IVA</option>
+                        <option value="con_iva">Con IVA</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="form-group">
+                    <label>Notas</label>
+                    <textarea rows={3} value={form.notas} onChange={e => setForm(f => ({ ...f, notas: e.target.value }))} placeholder="Observaciones..." style={{ resize:'vertical' }} />
+                  </div>
+                </>
+              )}
             </div>
             <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setModalOpen(false)}>Cancelar</button>
-              <button className="btn btn-primary" onClick={saveCliente} disabled={saving}>
-                {saving ? 'Guardando...' : 'Guardar'}
-              </button>
+              {step === 1 ? (
+                <>
+                  <button className="btn btn-secondary" onClick={() => setModalOpen(false)}>Cancelar</button>
+                  <button className="btn btn-primary" onClick={irAPaso2Cliente}>Siguiente →</button>
+                </>
+              ) : (
+                <>
+                  <button className="btn btn-secondary" onClick={() => setStep(1)}>← Atrás</button>
+                  <button className="btn btn-primary" onClick={saveCliente} disabled={saving}>
+                    {saving ? 'Guardando...' : 'Guardar'}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
