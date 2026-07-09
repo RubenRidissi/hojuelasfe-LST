@@ -308,78 +308,6 @@ export default function ListasPage() {
     } catch (e) { toast('Error: ' + e.message, 'error') } finally { setGenerando(false) }
   }
 
-  function verListaRepo(lista) {
-    if (!lista?.html) {
-      toast('La lista no tiene contenido HTML guardado.', 'error')
-      return
-    }
-
-    const win = window.open('', '_blank')
-    if (!win) {
-      toast('Permití ventanas emergentes para ver la lista.', 'error')
-      return
-    }
-
-    const toolbarCss = `
-      .print-toolbar{
-        display:flex;
-        gap:12px;
-        padding:12px 16px;
-        background:#f8f7f4;
-        border-bottom:2px solid #D4860A;
-        position:sticky;
-        top:0;
-        z-index:9999;
-        box-sizing:border-box;
-      }
-      .print-toolbar button{
-        border:none;
-        padding:10px 16px;
-        border-radius:8px;
-        font-size:14px;
-        cursor:pointer;
-        font-weight:600;
-      }
-      .print-toolbar .print-btn{
-        background:#D4860A;
-        color:white;
-        flex:1;
-      }
-      .print-toolbar .close-btn{
-        background:#78716C;
-        color:white;
-      }
-      @media print{
-        .print-toolbar{display:none!important;}
-      }
-      @media(max-width:768px){
-        .print-toolbar button{
-          font-size:15px;
-          padding:11px 14px;
-        }
-      }
-    `
-
-    win.document.write(`<!DOCTYPE html>
-      <html>
-        <head>
-          <title>${lista.nombre || 'Lista de precios'}</title>
-          <meta name="viewport" content="width=device-width, initial-scale=1">
-          <style>${COMP_CSS}</style>
-          <style>${toolbarCss}</style>
-        </head>
-        <body>
-          <div class="print-toolbar">
-            <button class="print-btn" onclick="window.print()">🖨 Imprimir / Guardar PDF</button>
-            <button class="close-btn" onclick="window.close()">✕</button>
-          </div>
-          ${lista.html}
-        </body>
-      </html>`)
-    win.document.close()
-    win.focus()
-  }
-
   function imprimirLista() {
     if (!preview) return
     const isMobile = window.innerWidth < 768
@@ -593,7 +521,7 @@ export default function ListasPage() {
                       {' · '}Guardada el {fecha}
                     </div>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      {puedeVerMontos && <button className="btn btn-sm btn-secondary" style={{ flex: 1, textAlign: 'center' }} onClick={() => verListaRepo(l)}>👁 Ver</button>}
+                      {puedeVerMontos && <a href={url} target="_blank" rel="noreferrer" className="btn btn-sm btn-secondary" style={{ flex: 1, textAlign: 'center', textDecoration: 'none' }}>👁 Ver</a>}
                       {puedeVerMontos && <a href={`https://wa.me/?text=${waMsg}`} target="_blank" rel="noreferrer" className="btn btn-sm" style={{ flex: 1, textAlign: 'center', background: '#25D366', color: '#fff', textDecoration: 'none' }}>💬 WhatsApp</a>}
                       {isAdmin && <button className="btn btn-sm btn-danger" style={{ flex: 1 }} onClick={() => deleteListaRepo(l.id)}>🗑 Borrar</button>}
                     </div>
