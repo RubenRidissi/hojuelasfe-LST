@@ -14,7 +14,7 @@ const EMPTY_AJUSTE = {
 }
 
 export default function CtaCorrientePage() {
-  const { isAdmin, puedeVerMontos } = useAuth()
+  const { user, isAdmin, puedeVerMontos } = useAuth()
   const { toasts, toast } = useToast()
 
   const [clientes, setClientes] = useState([])
@@ -32,9 +32,11 @@ export default function CtaCorrientePage() {
   const [savingAjuste, setSavingAjuste] = useState(false)
 
   useEffect(() => {
-    supabase.from('clientes').select('id,nombre,nombre_fantasia,tipo').order('nombre')
+    supabase.from('clientes').select('id,nombre,nombre_fantasia,tipo,vendedor_id').order('nombre')
       .then(({ data }) => setClientes(data || []))
   }, [])
+
+  const misClientes = isAdmin ? clientes : clientes.filter(c => c.vendedor_id === user)
 
   useEffect(() => {
     if (clienteId) loadCtaCte()
@@ -136,7 +138,7 @@ export default function CtaCorrientePage() {
         <select value={clienteId} onChange={e => setClienteId(e.target.value)}
           style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius)', fontSize: 14, background: 'var(--surface)' }}>
           <option value="">— Elegí un cliente —</option>
-          {clientes.map(c => <option key={c.id} value={c.id}>{nombreCliente(c)}{c.tipo ? ` — ${c.tipo}` : ''}</option>)}
+          {misClientes.map(c => <option key={c.id} value={c.id}>{nombreCliente(c)}{c.tipo ? ` — ${c.tipo}` : ''}</option>)}
         </select>
       </div>
 
