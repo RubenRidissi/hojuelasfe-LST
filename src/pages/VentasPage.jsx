@@ -355,6 +355,14 @@ export default function VentasPage() {
         .eq('id', v.id)
         .single()
       if (error) throw error
+
+      // venta_items.precio_unitario se guarda ya con el descuento del cliente y el IVA aplicados
+      // (ver saveVenta). Hay que revertirlos acá para volver al precio de lista "crudo" que
+      // esperan calcTotal/addItem, o al guardar de nuevo se aplicarían por segunda vez.
+      const descPct = getDescPct(data.cliente_id)
+      const ivaFactor = getIvaFactor(data.modalidad_factura || 'sin_iva')
+      const factor = (1 - descPct / 100) * ivaFactor
+
       setEditingVenta(data)
       setForm({
         clienteId: data.cliente_id || '',
@@ -369,7 +377,7 @@ export default function VentasPage() {
         familia: i.productos?.familia || '',
         cantidad: i.cantidad || 0,
         bonificado: i.bonificado || 0,
-        precio_unitario: parseFloat(i.precio_unitario || 0),
+        precio_unitario: factor > 0 ? parseFloat(i.precio_unitario || 0) / factor : parseFloat(i.precio_unitario || 0),
         descuento_item: 0,
         promo: i.productos?.promo || ''
       })))

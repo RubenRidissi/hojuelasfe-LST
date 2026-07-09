@@ -458,11 +458,20 @@ export default function PedidosPage() {
         .eq('pedido_id', p.id)
       if (error) throw error
 
+      // pedido_items.precio_unitario se guarda ya con el descuento del cliente y el IVA aplicados
+      // (ver savePedido). Hay que revertirlos acá para volver al precio de lista "crudo" que
+      // esperan calcTotal/addItem, o al guardar de nuevo se aplicarían por segunda vez.
+      const cliente = clientes.find(c => c.id === p.cliente_id)
+      const descPct = parseFloat(cliente?.descuento_pct || 0)
+      const modalidad = p.modalidad_factura || 'sin_iva'
+      const ivaFactor = modalidad === 'con_iva' ? 1.21 : 1
+      const factor = (1 - descPct / 100) * ivaFactor
+
       setForm({
         id: p.id,
         clienteId: p.cliente_id,
         notas: limpiarNotasUsuario(p.notas || ''),
-        modalidad: p.modalidad_factura || 'sin_iva'
+        modalidad
       })
       setItems((its || []).map(i => ({
         producto_id: i.producto_id,
@@ -470,7 +479,7 @@ export default function PedidosPage() {
         familia: i.productos?.familia || '',
         cantidad: i.cantidad,
         bonificado: i.bonificado || 0,
-        precio_unitario: parseFloat(i.precio_unitario || 0),
+        precio_unitario: factor > 0 ? parseFloat(i.precio_unitario || 0) / factor : parseFloat(i.precio_unitario || 0),
         descuento_item: 0,
         promo: i.productos?.promo || ''
       })))
