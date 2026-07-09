@@ -605,7 +605,7 @@ export default function VentasPage() {
                       <td>{v.fecha || (v.created_at ? v.created_at.slice(0, 10) : '—')}</td>
                       <td>{v.clientes ? nombreCliente(v.clientes) : '—'}</td>
                       <td>{badgeEstado(estado)}</td>
-                      <td>{fmtMonto(v.total, puedeVerMontos)}</td>
+                      <td>{fmtMonto(v.total, puedeVerMontos, { maximumFractionDigits: 2 })}</td>
                       <td style={{ whiteSpace: 'nowrap' }}>
                         <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
                           {puedeVerMontos && <button className="btn btn-sm btn-secondary" onClick={async () => { try { await verComprobanteVenta(v.id) } catch(e) { toast('Error', 'error') } }}>👁 Ver comprobante</button>}
@@ -668,7 +668,7 @@ export default function VentasPage() {
                 <div className="op-card-cliente" style={{ marginBottom: 0 }}>{v.clientes ? nombreCliente(v.clientes) : '—'}</div>
                 {badgeEstado(estado)}
               </div>
-              <div className="op-card-total" style={{ marginTop: 4 }}>{fmtMonto(v.total, puedeVerMontos)}</div>
+              <div className="op-card-total" style={{ marginTop: 4 }}>{fmtMonto(v.total, puedeVerMontos, { maximumFractionDigits: 2 })}</div>
               <div className="op-card-actions">
                 {puedeVerMontos && <button className="btn btn-secondary" onClick={async () => { try { await verComprobanteVenta(v.id) } catch(e) { toast('Error', 'error') } }}>👁 Ver</button>}
                 {estado === 'abierta' && (

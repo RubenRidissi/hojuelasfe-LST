@@ -163,18 +163,18 @@ export default function CtaCorrientePage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 12, marginBottom: 16 }}>
             <div className="card" style={{ padding: 16, textAlign: 'center' }}>
               <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--muted)', marginBottom: 8 }}>Total facturado</div>
-              <div style={{ fontSize: 24, fontWeight: 700 }}>{fmtMonto(resumen.facturado, puedeVerMontos)}</div>
+              <div style={{ fontSize: 24, fontWeight: 700 }}>{fmtMonto(resumen.facturado, puedeVerMontos, { maximumFractionDigits: 2 })}</div>
             </div>
             <div className="card" style={{ padding: 16, textAlign: 'center' }}>
               <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--muted)', marginBottom: 8 }}>Total cobrado</div>
-              <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--success)' }}>{fmtMonto(resumen.cobrado, puedeVerMontos)}</div>
+              <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--success)' }}>{fmtMonto(resumen.cobrado, puedeVerMontos, { maximumFractionDigits: 2 })}</div>
             </div>
             <div className="card" style={{ padding: 16, textAlign: 'center', borderTop: `3px solid ${resumen.saldo <= 0 ? 'var(--success)' : 'var(--danger)'}` }}>
               <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--muted)', marginBottom: 8 }}>
                 {resumen.saldo < 0 ? 'Saldo a favor' : resumen.saldo === 0 ? 'Sin deuda' : 'Saldo pendiente'}
               </div>
               <div style={{ fontSize: 24, fontWeight: 700, color: resumen.saldo <= 0 ? 'var(--success)' : 'var(--danger)' }}>
-                {fmtMonto(Math.abs(resumen.saldo), puedeVerMontos)}
+                {fmtMonto(Math.abs(resumen.saldo), puedeVerMontos, { maximumFractionDigits: 2 })}
               </div>
             </div>
             <div className="card" style={{ padding: 16, textAlign: 'center' }}>
@@ -208,7 +208,7 @@ export default function CtaCorrientePage() {
                         debe = m.monto
                         if (m.anulada) {
                           tipoBadge = 'badge-gray'; tipoLabel = 'Venta anulada'
-                          detalle = `Anulada · no afecta el saldo (${fmtMonto(m.montoOriginal, puedeVerMontos)})`
+                          detalle = `Anulada · no afecta el saldo (${fmtMonto(m.montoOriginal, puedeVerMontos, { maximumFractionDigits: 2 })})`
                         } else {
                           tipoBadge = m.estado === 'pagado' ? 'badge-green' : m.estado === 'parcial' ? 'badge-yellow' : 'badge-gray'
                           tipoLabel = m.estado === 'pagado' ? 'Venta pagada' : m.estado === 'parcial' ? 'Venta parcial' : 'Venta'
@@ -233,10 +233,10 @@ export default function CtaCorrientePage() {
                           <td style={{ fontSize: 12 }}>{new Date(m.fecha + 'T00:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })}</td>
                           <td><span className={`badge ${tipoBadge}`}>{tipoLabel}</span></td>
                           <td style={{ fontSize: 12, color: 'var(--muted)' }}>{detalle}</td>
-                          <td style={{ textAlign: 'right', color: 'var(--danger)' }}>{debe > 0 ? fmtMonto(debe, puedeVerMontos) : '—'}</td>
-                          <td style={{ textAlign: 'right', color: 'var(--success)' }}>{haber > 0 ? fmtMonto(haber, puedeVerMontos) : '—'}</td>
+                          <td style={{ textAlign: 'right', color: 'var(--danger)' }}>{debe > 0 ? fmtMonto(debe, puedeVerMontos, { maximumFractionDigits: 2 }) : '—'}</td>
+                          <td style={{ textAlign: 'right', color: 'var(--success)' }}>{haber > 0 ? fmtMonto(haber, puedeVerMontos, { maximumFractionDigits: 2 }) : '—'}</td>
                           <td style={{ textAlign: 'right', fontWeight: 600, color: saldoColor }}>
-                            {fmtMonto(Math.abs(saldoAcum), puedeVerMontos)}{saldoAcum < 0 ? ' ✓' : ''}
+                            {fmtMonto(Math.abs(saldoAcum), puedeVerMontos, { maximumFractionDigits: 2 })}{saldoAcum < 0 ? ' ✓' : ''}
                           </td>
                         </tr>
                       )
@@ -257,7 +257,7 @@ export default function CtaCorrientePage() {
                   debe = m.monto
                   if (m.anulada) {
                     tipoBadge = 'badge-gray'; tipoLabel = 'Venta anulada'
-                    detalle = `Anulada · no afecta el saldo (${fmtMonto(m.montoOriginal, puedeVerMontos)})`
+                    detalle = `Anulada · no afecta el saldo (${fmtMonto(m.montoOriginal, puedeVerMontos, { maximumFractionDigits: 2 })})`
                   } else {
                     tipoBadge = m.estado === 'pagado' ? 'badge-green' : m.estado === 'parcial' ? 'badge-yellow' : 'badge-gray'
                     tipoLabel = m.estado === 'pagado' ? 'Venta pagada' : m.estado === 'parcial' ? 'Venta parcial' : 'Venta'
@@ -285,11 +285,11 @@ export default function CtaCorrientePage() {
                     {detalle && <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>{detalle}</div>}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <div style={{ fontSize: 13 }}>
-                        {debe > 0 && <span style={{ color: 'var(--danger)' }}>Debe: {fmtMonto(debe, puedeVerMontos)}</span>}
-                        {haber > 0 && <span style={{ color: 'var(--success)' }}>Haber: {fmtMonto(haber, puedeVerMontos)}</span>}
+                        {debe > 0 && <span style={{ color: 'var(--danger)' }}>Debe: {fmtMonto(debe, puedeVerMontos, { maximumFractionDigits: 2 })}</span>}
+                        {haber > 0 && <span style={{ color: 'var(--success)' }}>Haber: {fmtMonto(haber, puedeVerMontos, { maximumFractionDigits: 2 })}</span>}
                       </div>
                       <div style={{ fontWeight: 700, color: saldoColor }}>
-                        Saldo: {fmtMonto(Math.abs(saldoMob), puedeVerMontos)}{saldoMob < 0 ? ' ✓' : ''}
+                        Saldo: {fmtMonto(Math.abs(saldoMob), puedeVerMontos, { maximumFractionDigits: 2 })}{saldoMob < 0 ? ' ✓' : ''}
                       </div>
                     </div>
                   </div>
