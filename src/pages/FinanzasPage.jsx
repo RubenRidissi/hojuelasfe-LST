@@ -255,6 +255,9 @@ export default function FinanzasPage() {
     } catch (e) { console.error(e); toast('Error cargando finanzas', 'error') } finally { setLoading(false) }
   }
 
+  const cajaMes = cobradoMes.total - pagadoProvMes
+  const posicionNeta = totalCobrar - totalPagar
+
   const ccBadge = cc => cc === 'CC1'
     ? <span style={{ fontSize: 11, background: '#DBEAFE', color: '#1D4ED8', padding: '1px 7px', borderRadius: 10, fontWeight: 600 }}>CC1</span>
     : <span style={{ fontSize: 11, background: '#F3F4F6', color: '#374151', padding: '1px 7px', borderRadius: 10, fontWeight: 600 }}>CC2</span>
@@ -276,6 +279,31 @@ export default function FinanzasPage() {
         <div className="empty"><div className="empty-icon">⏳</div><p>Cargando...</p></div>
       ) : (
         <>
+          {/* RESUMEN DEL MES */}
+          <div className="card" style={{ marginBottom: 16, padding: 16 }}>
+            <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12 }}>Resumen del mes</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+              <div style={{ background: 'var(--bg)', borderRadius: 8, padding: 14, textAlign: 'center' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--muted)', marginBottom: 6 }}>Caja del mes</div>
+                <div style={{ fontSize: 26, fontWeight: 700, color: cajaMes >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+                  {cajaMes >= 0 ? '+' : ''}{fmt(cajaMes)}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
+                  Cobrado {fmt(cobradoMes.total)} − Pagado a proveedor {fmt(pagadoProvMes)}
+                </div>
+              </div>
+              <div style={{ background: 'var(--bg)', borderRadius: 8, padding: 14, textAlign: 'center' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--muted)', marginBottom: 6 }}>Posición neta</div>
+                <div style={{ fontSize: 26, fontWeight: 700, color: posicionNeta >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+                  {posicionNeta >= 0 ? '+' : ''}{fmt(posicionNeta)}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
+                  Cta a cobrar {fmt(totalCobrar)} − Cta a pagar {fmt(totalPagar)}
+                </div>
+              </div>
+            </div>
+          </div>
+
           {/* 1. POSICIÓN DEL PERÍODO */}
           <div className="card" style={{ marginBottom: 16, padding: 16 }}>
             <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12 }}>
