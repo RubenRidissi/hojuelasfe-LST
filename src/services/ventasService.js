@@ -20,7 +20,8 @@ export async function recalcularEstadoVenta(ventaId) {
   const ajusteNeto = (ajustesVenta || []).reduce((s, a) => s + (a.tipo === 'NC' ? -1 : 1) * parseFloat(a.monto || 0), 0)
 
   const totalVenta = parseFloat(venta?.total || 0) + ajusteNeto
-  const nuevoEstado = totalPagado >= totalVenta - 0.01 ? 'pagado' : totalPagado > 0 ? 'parcial' : 'pendiente'
+  // Tolerancia de $1 para absorber centavos de redondeo en el total (no representan deuda real).
+  const nuevoEstado = totalPagado >= totalVenta - 1 ? 'pagado' : totalPagado > 0 ? 'parcial' : 'pendiente'
 
   const { error: updError } = await supabase
     .from('ventas')
