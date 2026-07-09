@@ -5,14 +5,14 @@ import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
 import { fmtMonto } from '../utils/money'
 
-const TIPOS_CLIENTE = ['Representante', 'Distribuidor', 'Mayorista', 'Supermercado', 'Almacén']
+const TIPOS_CLIENTE = ['Representante', 'Distribuidor', 'Mayorista', 'Supermercado', 'Minorista']
 
 const MARKUP_COLS = [
   { key: 'markup_representante', precio: 'precio_representante', label: 'Representante' },
   { key: 'markup_distribuidor', precio: 'precio_distribuidor', label: 'Distribuidor' },
   { key: 'markup_mayorista', precio: 'precio_mayorista', label: 'Mayorista' },
   { key: 'markup_supermercado', precio: 'precio_supermercado', label: 'Supermercado' },
-  { key: 'markup_almacen', precio: 'precio_almacen', label: 'Almacén' },
+  { key: 'markup_almacen', precio: 'precio_almacen', label: 'Minorista' },
 ]
 
 const BULK_PRICE_FIELDS = ['descuento_costo', ...MARKUP_COLS.map(c => c.key)]

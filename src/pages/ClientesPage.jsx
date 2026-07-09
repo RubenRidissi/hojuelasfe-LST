@@ -706,7 +706,7 @@ export default function ClientesPage() {
                       <div className="form-group">
                         <label>Tipo</label>
                         <select value={form.tipo} onChange={e => setForm(f => ({ ...f, tipo: e.target.value }))}>
-                          {['Representante','Distribuidor','Mayorista','Supermercado','Almacén'].map(t => <option key={t} value={t}>{t}</option>)}
+                          {['Representante','Distribuidor','Mayorista','Supermercado','Minorista'].map(t => <option key={t} value={t}>{t}</option>)}
                         </select>
                       </div>
                       <div className="form-group">

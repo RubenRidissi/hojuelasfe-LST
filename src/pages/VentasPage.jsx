@@ -148,7 +148,7 @@ export default function VentasPage() {
     'Distribuidor':  'precio_distribuidor',
     'Mayorista':     'precio_mayorista',
     'Supermercado':  'precio_supermercado',
-    'Almacén':       'precio_almacen',
+    'Minorista':     'precio_almacen',
   }
 
   function getTipoClienteActual() {

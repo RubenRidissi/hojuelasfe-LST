@@ -89,6 +89,7 @@ export default function ListasPage() {
       Supermercado: 'supermercado',
       'Almacén': 'almacen',
       Almacen: 'almacen',
+      Minorista: 'almacen',
       cliente: 'cliente',
       Cliente: 'cliente',
     }
@@ -118,7 +119,7 @@ export default function ListasPage() {
         'Distribuidor':  'precio_distribuidor',
         'Mayorista':     'precio_mayorista',
         'Supermercado':  'precio_supermercado',
-        'Almacén':       'precio_almacen',
+        'Minorista':     'precio_almacen',
       }
       const tipoEfectivo = tipo === 'cliente' ? (clienteSeleccionado?.tipo || 'Distribuidor') : tipo
       const colPrecio = PRECIO_POR_TIPO[tipoEfectivo] || 'precio_distribuidor'
@@ -381,7 +382,7 @@ export default function ListasPage() {
   }
 
   const tipoBadge = { representante: 'badge-gray', distribuidor: 'badge-yellow', mayorista: 'badge-blue', supermercado: 'badge-green', almacen: 'badge-blue', cliente: 'badge-green' }
-  const tipoLabel = { representante: 'Representante', distribuidor: 'Distribuidor', mayorista: 'Mayorista', supermercado: 'Supermercado', almacen: 'Almacén', cliente: 'Cliente específico' }
+  const tipoLabel = { representante: 'Representante', distribuidor: 'Distribuidor', mayorista: 'Mayorista', supermercado: 'Supermercado', almacen: 'Minorista', cliente: 'Cliente específico' }
   const baseUrl = typeof window !== 'undefined' ? window.location.origin + '/lista.html' : ''
 
   return (
@@ -403,7 +404,7 @@ export default function ListasPage() {
               <option value="Distribuidor">Distribuidor</option>
               <option value="Mayorista">Mayorista</option>
               <option value="Supermercado">Supermercado</option>
-              <option value="Almacén">Almacén</option>
+              <option value="Minorista">Minorista</option>
               <option value="cliente">Cliente específico</option>
             </select>
           </div>
