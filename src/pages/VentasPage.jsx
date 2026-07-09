@@ -591,7 +591,7 @@ export default function VentasPage() {
                   <th>Fecha creación</th>
                   <th>Cliente</th>
                   <th>Estado</th>
-                  <th>Total</th>
+                  <th style={{ textAlign: 'right' }}>Total</th>
                   <th>Acciones</th>
                 </tr>
               </thead>
@@ -605,7 +605,7 @@ export default function VentasPage() {
                       <td>{v.fecha || (v.created_at ? v.created_at.slice(0, 10) : '—')}</td>
                       <td>{v.clientes ? nombreCliente(v.clientes) : '—'}</td>
                       <td>{badgeEstado(estado)}</td>
-                      <td>{fmtMonto(v.total, puedeVerMontos, { maximumFractionDigits: 2 })}</td>
+                      <td style={{ textAlign: 'right' }}>{fmtMonto(v.total, puedeVerMontos, { maximumFractionDigits: 2 })}</td>
                       <td style={{ whiteSpace: 'nowrap' }}>
                         <div style={{ display: 'flex', gap: 4, alignItems: 'center', flexWrap: 'wrap' }}>
                           {puedeVerMontos && <button className="btn btn-sm btn-secondary" onClick={async () => { try { await verComprobanteVenta(v.id) } catch(e) { toast('Error', 'error') } }}>👁 Ver comprobante</button>}

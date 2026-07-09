@@ -510,7 +510,7 @@ export default function PagosPage() {
                   <th>Fecha</th>
                   <th>Nº Venta</th>
                   <th>Cliente</th>
-                  <th>Monto</th>
+                  <th style={{ textAlign: 'right' }}>Monto</th>
                   <th>Estado</th>
                   <th>Medio</th>
                   <th>CC</th>
@@ -530,7 +530,7 @@ export default function PagosPage() {
                       <td>{p.fecha}</td>
                       <td style={{ fontSize: 12, color: 'var(--muted)' }}>{numeroVentaLabel(p)}</td>
                       <td>{p.clientes ? nombreCliente(p.clientes) : '—'}</td>
-                      <td><strong>{fmtMonto(p.monto, puedeVerMontos)}</strong></td>
+                      <td style={{ textAlign: 'right' }}><strong>{fmtMonto(p.monto, puedeVerMontos, { maximumFractionDigits: 2 })}</strong></td>
                       <td>
                         <button
                           className={`badge ${estadoCobro.badge}`}
@@ -594,7 +594,7 @@ export default function PagosPage() {
                 {ccBadge}
               </div>
               <div className="op-card-cliente">{p.clientes ? nombreCliente(p.clientes) : '—'} <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 400 }}>{numeroVentaLabel(p)}</span></div>
-              <div className="op-card-total" style={{ color: 'var(--success)' }}>{fmtMonto(p.monto, puedeVerMontos)}</div>
+              <div className="op-card-total" style={{ color: 'var(--success)' }}>{fmtMonto(p.monto, puedeVerMontos, { maximumFractionDigits: 2 })}</div>
               <div className="op-card-actions" style={{ marginTop: 8 }}>
                 <button className="btn btn-secondary" onClick={() => handleReciboPago(p.id)}>🧾 Recibo</button>
                 {estadoCobro.key !== 'imputado' && (
