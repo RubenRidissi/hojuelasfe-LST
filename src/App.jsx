@@ -78,14 +78,32 @@ function AppLayout() {
   )
 }
 
+function SinRolView() {
+  const { logout } = useAuth()
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: 18 }}>
+      <div style={{ textAlign: 'center', maxWidth: 420 }}>
+        <div style={{ fontSize: 40, marginBottom: 12 }}>🔒</div>
+        <h2 style={{ marginBottom: 8 }}>Tu cuenta no tiene un rol asignado</h2>
+        <p style={{ color: 'var(--muted)', marginBottom: 18 }}>
+          Pedile al administrador que te asigne un rol (vendedor, admin o invitado) para poder acceder al sistema.
+        </p>
+        <button className="btn btn-secondary" onClick={logout}>Cerrar sesión</button>
+      </div>
+    </div>
+  )
+}
+
 function ProtectedRoute({ children }) {
-  const { user, loading } = useAuth()
+  const { user, loading, sinRolAsignado } = useAuth()
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
       <div style={{ color: 'var(--muted)' }}>Cargando...</div>
     </div>
   )
-  return user ? children : <Navigate to="/login" replace />
+  if (!user) return <Navigate to="/login" replace />
+  if (sinRolAsignado) return <SinRolView />
+  return children
 }
 
 function AdminRoute({ children }) {

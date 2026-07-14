@@ -41,21 +41,23 @@ export function AuthProvider({ children }) {
 
       if (error) throw error
 
+      setUser(userId)
       if (data && data.length > 0) {
-        setUser(userId)
         setRol(data[0].rol)
         setNombre(data[0].nombre)
       } else {
-        // Sin registro en user_roles — rol por defecto
-        setUser(userId)
-        setRol('vendedor')
-        setNombre('Usuario')
+        // Sin registro en user_roles: no se asigna ningun rol por defecto.
+        // Antes esto caia silenciosamente en 'vendedor' (acceso completo);
+        // ahora queda sin rol y ProtectedRoute lo bloquea hasta que un
+        // admin le asigne uno explicitamente.
+        setRol(null)
+        setNombre(null)
       }
     } catch (e) {
       console.error('Error cargando rol:', e)
       setUser(userId)
-      setRol('vendedor')
-      setNombre('Usuario')
+      setRol(null)
+      setNombre(null)
     } finally {
       setLoading(false)
     }
@@ -73,9 +75,10 @@ export function AuthProvider({ children }) {
   const isAdmin = rol === 'admin'
   const isInvitado = rol === 'invitado'
   const puedeVerMontos = !isInvitado
+  const sinRolAsignado = !loading && !!user && !rol
 
   return (
-    <AuthContext.Provider value={{ user, rol, nombre, isAdmin, isInvitado, puedeVerMontos, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, rol, nombre, isAdmin, isInvitado, puedeVerMontos, sinRolAsignado, loading, login, logout }}>
       {children}
     </AuthContext.Provider>
   )
