@@ -10,6 +10,10 @@ import { fmtMonto } from '../utils/money'
 
 const ESTADOS = ['pendiente', 'confirmado', 'cancelado']
 
+function esClientePlaceholder(cli) {
+  return !!cli?.nombre?.trim().toUpperCase().startsWith('NUEVO CLIENTE')
+}
+
 const EMPTY_FORM = {
   id: '',
   clienteId: '',
@@ -422,10 +426,7 @@ export default function PedidosPage() {
       )
       if (itemsError) throw itemsError
 
-      if (cliente && !cliente.vendedor_id && !isAdmin) {
-        await supabase.from('clientes').update({ vendedor_id: user, estado_cliente: 'Activo' }).eq('id', form.clienteId)
-        toast('✓ Cliente asignado a tu cartera y activado')
-      } else if (cliente && cliente.estado_cliente !== 'Activo') {
+      if (cliente && cliente.estado_cliente !== 'Activo') {
         await supabase.from('clientes').update({ estado_cliente: 'Activo' }).eq('id', form.clienteId)
       }
 
@@ -499,6 +500,10 @@ export default function PedidosPage() {
     }
     if (!isAdmin && p.vendedor_id !== user) {
       toast('No podés confirmar pedidos de otro vendedor', 'error')
+      return
+    }
+    if (esClientePlaceholder(p.clientes)) {
+      toast('Este pedido tiene un cliente genérico. Asigná el cliente real antes de confirmar.', 'error')
       return
     }
     if (!confirm(`¿Confirmar pedido Nº ${p.numero || '—'}?`)) return
@@ -684,9 +689,7 @@ export default function PedidosPage() {
     return '#92400E'
   }
 
-  const misClientes = isAdmin ? clientes : clientes.filter(c =>
-    (c.vendedor_id === user && c.estado_cliente === 'Activo') || !c.vendedor_id
-  )
+  const misClientes = isAdmin ? clientes : clientes.filter(c => c.vendedor_id === user && c.estado_cliente === 'Activo')
 
   const clientesFiltrados = misClientes.filter(c => {
     const s = searchCliente.trim().toLowerCase()
@@ -756,7 +759,10 @@ export default function PedidosPage() {
                       <tr key={p.id}>
                         <td><strong>{p.numero || '—'}</strong></td>
                         <td>{fechaCreacionPedido(p)}</td>
-                        <td>{nombreCliente(p.clientes)}</td>
+                        <td>
+                          {nombreCliente(p.clientes)}
+                          {esClientePlaceholder(p.clientes) && <span className="badge badge-yellow" style={{ marginLeft: 6 }} title="Cliente genérico: asigná el cliente real antes de confirmar">⚠ Genérico</span>}
+                        </td>
                         <td><span className={estadoBadgeClass(visual)}>{estadoLabel(visual)}</span></td>
                         <td style={{ textAlign: 'right' }}>{fmtMonto(p.total, puedeVerMontos, { maximumFractionDigits: 2 })}</td>
                         <td>
@@ -766,7 +772,7 @@ export default function PedidosPage() {
                             {visual === 'pendiente' && (
                               <>
                                 <button className="btn btn-sm btn-secondary" onClick={() => editPedido(p)}>Editar</button>
-                                <button className="btn btn-sm btn-primary" onClick={() => confirmarPedido(p)}>Confirmar</button>
+                                <button className="btn btn-sm btn-primary" disabled={esClientePlaceholder(p.clientes)} title={esClientePlaceholder(p.clientes) ? 'Asigná el cliente real antes de confirmar' : ''} onClick={() => confirmarPedido(p)}>Confirmar</button>
                                 <button className="btn btn-sm btn-danger" onClick={() => cancelarPedido(p)}>Cancelar</button>
                               </>
                             )}
@@ -804,7 +810,10 @@ export default function PedidosPage() {
                       <span className="op-card-fecha">{fechaCreacionPedido(p)}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                      <div className="op-card-cliente" style={{ marginBottom: 0 }}>{nombreCliente(p.clientes)}</div>
+                      <div className="op-card-cliente" style={{ marginBottom: 0 }}>
+                        {nombreCliente(p.clientes)}
+                        {esClientePlaceholder(p.clientes) && <span className="badge badge-yellow" style={{ marginLeft: 6 }}>⚠ Genérico</span>}
+                      </div>
                       <span className={estadoBadgeClass(visual)}>{estadoLabel(visual)}</span>
                     </div>
                     <div className="op-card-total" style={{ marginTop: 4 }}>{fmtMonto(p.total, puedeVerMontos, { maximumFractionDigits: 2 })}</div>
