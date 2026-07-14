@@ -541,7 +541,7 @@ export default function PagosPage() {
                       {isAdmin && <td style={{ fontSize: 12, color: 'var(--muted)' }}>{vendedorNombre}</td>}
                       <td style={{ whiteSpace: 'nowrap' }}>
                         <div style={{ display: 'flex', gap: 4 }}>
-                          <button className="btn btn-sm btn-secondary" onClick={() => handleReciboPago(p.id)}>🧾 Recibo</button>
+                          {puedeVerMontos && <button className="btn btn-sm btn-secondary" onClick={() => handleReciboPago(p.id)}>🧾 Recibo</button>}
                           {estadoCobro.key !== 'imputado' && (
                             <button className="btn btn-sm" style={{ background: '#E0E7FF', color: '#4338CA' }} onClick={() => abrirImputar(p)}>🔗 Imputar</button>
                           )}
@@ -591,7 +591,7 @@ export default function PagosPage() {
               <div className="op-card-cliente">{p.clientes ? nombreCliente(p.clientes) : '—'} <span style={{ fontSize: 12, color: 'var(--muted)', fontWeight: 400 }}>{numeroVentaLabel(p)}</span></div>
               <div className="op-card-total" style={{ color: 'var(--success)' }}>{fmtMonto(p.monto, puedeVerMontos, { maximumFractionDigits: 2 })}</div>
               <div className="op-card-actions" style={{ marginTop: 8 }}>
-                <button className="btn btn-secondary" onClick={() => handleReciboPago(p.id)}>🧾 Recibo</button>
+                {puedeVerMontos && <button className="btn btn-secondary" onClick={() => handleReciboPago(p.id)}>🧾 Recibo</button>}
                 {estadoCobro.key !== 'imputado' && (
                   <button className="btn" style={{ background: '#E0E7FF', color: '#4338CA' }} onClick={() => abrirImputar(p)}>🔗 Imputar</button>
                 )}

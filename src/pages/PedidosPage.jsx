@@ -840,7 +840,7 @@ export default function PedidosPage() {
                     </div>
                     <div className="op-card-total" style={{ marginTop: 4 }}>{fmtMonto(p.total, puedeVerMontos, { maximumFractionDigits: 2 })}</div>
                     <div className="op-card-actions">
-                      <button className="btn btn-sm btn-secondary" onClick={() => verComprobante(p.id)}>👁 Ver</button>
+                      {puedeVerMontos && <button className="btn btn-sm btn-secondary" onClick={() => verComprobante(p.id)}>👁 Ver</button>}
 
                       {visual === 'pendiente' && (
                         <>
