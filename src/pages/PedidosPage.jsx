@@ -71,7 +71,7 @@ export default function PedidosPage() {
       const [{ data: v }, { data: c }, { data: p }, { data: vers }] = await Promise.all([
         supabase.from('user_roles').select('user_id,nombre').eq('rol', 'vendedor').order('nombre'),
         supabase.from('clientes').select('id,nombre,nombre_fantasia,tipo,vendedor_id,descuento_pct,modalidad_factura,estado_cliente').order('nombre'),
-        supabase.from('productos').select('id,codigo,nombre,costo,descuento_costo,markup_representante,markup_distribuidor,markup_mayorista,markup_supermercado,markup_almacen,precio_representante,precio_distribuidor,precio_mayorista,precio_supermercado,precio_almacen,promo,precio_editable,familia,pqxbj,descuento_bandeja').order('codigo'),
+        supabase.from('productos').select('id,codigo,nombre,costo,descuento_costo,markup_representante,markup_distribuidor,markup_mayorista,markup_supermercado,markup_almacen,precio_representante,precio_distribuidor,precio_mayorista,precio_supermercado,precio_almacen,promo,precio_editable,familia,pqxbj,descuento_bandeja,activo').order('codigo'),
         supabase.from('listas_precios_repo').select('id,nombre,created_at,precios').order('created_at', { ascending: false })
       ])
       setVendedores(v || [])
@@ -699,6 +699,7 @@ export default function PedidosPage() {
   const ivaFactor = (form.modalidad || clienteDelForm?.modalidad_factura || 'sin_iva') === 'con_iva' ? 1.21 : 1
   const total = items.reduce((s, item) => s + item.cantidad * item.precio_unitario * (1 - descPct / 100) * ivaFactor, 0)
   const prodSelObj = productos.find(p => p.id === prodSel)
+  const productosActivos = productos.filter(p => p.activo !== false)
 
   return (
     <div>
@@ -910,7 +911,7 @@ export default function PedidosPage() {
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                       <select value={prodSel} onChange={e => onProdSelChange(e.target.value)} style={{ flex: 3, minWidth: 180 }}>
                         <option value="">— Elegí un producto —</option>
-                        {productos.map(p => (
+                        {productosActivos.map(p => (
                           <option key={p.id} value={p.id}>
                             {p.codigo ? `${p.codigo} — ` : ''}{p.nombre} — {fmtMonto(getPrecio(p.id), puedeVerMontos, { maximumFractionDigits: 2 })}{p.promo ? ` 🎁${p.promo}` : ''}
                           </option>

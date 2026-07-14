@@ -53,6 +53,7 @@ export default function ProductosPage() {
   const [productos, setProductos] = useState([])
   const [loading, setLoading] = useState(true)
   const [filtroFamilia, setFiltroFamilia] = useState('')
+  const [filtroActivo, setFiltroActivo] = useState('activos')
   const [search, setSearch] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [priceModalOpen, setPriceModalOpen] = useState(false)
@@ -81,10 +82,17 @@ export default function ProductosPage() {
 
   const productosFiltrados = useMemo(() => {
     let list = productos
+    if (!isAdmin) {
+      list = list.filter(p => p.activo !== false)
+    } else if (filtroActivo === 'activos') {
+      list = list.filter(p => p.activo !== false)
+    } else if (filtroActivo === 'inactivos') {
+      list = list.filter(p => p.activo === false)
+    }
     if (filtroFamilia) list = list.filter(p => p.familia === filtroFamilia)
     if (search) list = list.filter(p => (p.nombre + ' ' + (p.codigo || '')).toLowerCase().includes(search.toLowerCase()))
     return list
-  }, [productos, filtroFamilia, search])
+  }, [productos, filtroFamilia, filtroActivo, search, isAdmin])
 
   // Valor común de cada campo entre los productos objetivo (familias seleccionadas, o todos)
   // Si todos comparten el mismo valor, se prellena; si son distintos, queda vacío ("varios valores")
@@ -286,6 +294,13 @@ export default function ProductosPage() {
           <option value="">Todas las familias</option>
           {familias.map(f => <option key={f} value={f}>{f}</option>)}
         </select>
+        {isAdmin && (
+          <select value={filtroActivo} onChange={e => setFiltroActivo(e.target.value)} style={{ flex: 1 }}>
+            <option value="activos">Solo activos</option>
+            <option value="inactivos">Solo inactivos</option>
+            <option value="todos">Todos</option>
+          </select>
+        )}
       </div>
 
       {/* Tabla desktop */}
