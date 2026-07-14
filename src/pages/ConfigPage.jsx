@@ -3,6 +3,8 @@ import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
+import { loadXLSX } from '../utils/xlsxLoader'
+import { resultadoVisitaInfo } from '../utils/helpers'
 
 const TABLAS_EXPORT = [
   { nombre: 'Clientes',         tabla: 'clientes',          select: undefined, order: 'nombre' },
@@ -17,6 +19,7 @@ const TABLAS_EXPORT = [
   { nombre: 'Stock Movimientos',tabla: 'stock_movimientos', select: 'fecha,tipo,origen,cantidad,notas,productos(nombre,codigo),clientes(nombre)', order: undefined },
   { nombre: 'Ajustes Clientes', tabla: 'ajustes_cliente',  select: 'fecha,tipo,monto,concepto,clientes(nombre)', order: undefined },
   { nombre: 'Objetivos Ventas', tabla: 'objetivos_ventas', select: undefined, order: 'anio,mes' },
+  { nombre: 'Visitas',          tabla: 'visitas',          select: 'id,fecha,resultado,notas,vendedor_id,clientes(nombre,nombre_fantasia)', order: 'fecha' },
 ]
 
 // Aplicar tamaño de fuente guardado al body
@@ -88,18 +91,12 @@ export default function ConfigPage() {
     setExportando(true)
     setExportStatus('Cargando librería Excel...')
     try {
-      // Cargar SheetJS dinámicamente
-      if (!window.XLSX) {
-        await new Promise((res, rej) => {
-          const s = document.createElement('script')
-          s.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'
-          s.onload = res; s.onerror = rej
-          document.head.appendChild(s)
-        })
-      }
-      const XLSX = window.XLSX
+      const XLSX = await loadXLSX()
       const wb = XLSX.utils.book_new()
       let exportadas = 0
+
+      const { data: vendedores } = await supabase.from('user_roles').select('user_id,nombre').eq('rol', 'vendedor')
+      const vendedorNombre = id => vendedores?.find(v => v.user_id === id)?.nombre || id || ''
 
       for (const t of TABLAS_EXPORT) {
         setExportStatus(`Exportando ${t.nombre}...`)
@@ -109,7 +106,11 @@ export default function ConfigPage() {
           const { data } = await q
           if (!data?.length) continue
 
-          const aplanados = data.map(row => {
+          const filas = t.tabla === 'visitas'
+            ? data.map(v => ({ ...v, vendedor_id: vendedorNombre(v.vendedor_id), resultado: resultadoVisitaInfo(v.resultado).label }))
+            : data
+
+          const aplanados = filas.map(row => {
             const flat = {}
             Object.entries(row).forEach(([k, v]) => {
               if (v && typeof v === 'object' && !Array.isArray(v)) {

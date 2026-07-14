@@ -3,6 +3,7 @@ import { supabase } from '../services/supabase'
 import { nombreCliente, resultadoVisitaInfo, RESULTADOS_VISITA, hoyAR } from '../utils/helpers'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
+import { loadXLSX } from '../utils/xlsxLoader'
 
 function primerDiaMes() {
   const hoy = new Date()
@@ -21,6 +22,7 @@ export default function HistorialVisitasPage() {
   const [filtroVendedor, setFiltroVendedor] = useState('')
   const [filtroResultado, setFiltroResultado] = useState('')
   const [buscarCliente, setBuscarCliente] = useState('')
+  const [exportando, setExportando] = useState(false)
 
   useEffect(() => {
     supabase.from('user_roles').select('user_id,nombre').eq('rol', 'vendedor').order('nombre')
@@ -48,6 +50,30 @@ export default function HistorialVisitasPage() {
   const visitasFiltradas = buscarCliente.trim()
     ? visitas.filter(v => nombreCliente(v.clientes).toLowerCase().includes(buscarCliente.trim().toLowerCase()))
     : visitas
+
+  async function exportarExcel() {
+    if (!visitasFiltradas.length) { toast('No hay visitas para exportar', 'error'); return }
+    setExportando(true)
+    try {
+      const XLSX = await loadXLSX()
+      const filas = visitasFiltradas.map(v => ({
+        Fecha: new Date(v.fecha + 'T00:00:00').toLocaleDateString('es-AR'),
+        Cliente: nombreCliente(v.clientes),
+        Vendedor: vendedores.find(vd => vd.user_id === v.vendedor_id)?.nombre || '—',
+        Resultado: resultadoVisitaInfo(v.resultado).label,
+        Notas: v.notas || ''
+      }))
+      const wb = XLSX.utils.book_new()
+      const ws = XLSX.utils.json_to_sheet(filas)
+      XLSX.utils.book_append_sheet(wb, ws, 'Historial de Visitas')
+      const fecha = new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit' }).replace(/\//g, '-')
+      XLSX.writeFile(wb, `HistorialVisitas_${fecha}.xlsx`)
+    } catch (e) {
+      toast('Error al exportar: ' + e.message, 'error')
+    } finally {
+      setExportando(false)
+    }
+  }
 
   return (
     <div>
@@ -79,8 +105,9 @@ export default function HistorialVisitasPage() {
               {RESULTADOS_VISITA.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
             </select>
           </div>
-          <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
             <button className="btn btn-primary" onClick={cargar} disabled={loading}>{loading ? 'Cargando...' : 'Buscar'}</button>
+            <button className="btn btn-secondary" onClick={exportarExcel} disabled={exportando || loading}>{exportando ? 'Exportando...' : '📊 Exportar a Excel'}</button>
           </div>
         </div>
         <input
