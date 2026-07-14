@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
-import { nombreCliente } from '../utils/helpers'
+import { nombreCliente, hoyAR } from '../utils/helpers'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
 import { fmtMonto } from '../utils/money'
@@ -9,7 +9,7 @@ import { recalcularEstadoVenta } from '../services/ventasService'
 
 const EMPTY_AJUSTE = {
   tipo: 'NC', clienteId: '', ventaId: '',
-  fecha: new Date().toISOString().split('T')[0],
+  fecha: hoyAR(),
   numero: '', monto: '', concepto: ''
 }
 

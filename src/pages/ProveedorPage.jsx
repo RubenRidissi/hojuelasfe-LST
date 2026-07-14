@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
 import { useComprobante, ComprobanteModal } from '../hooks/useComprobante.jsx'
+import { hoyAR, fechaISOBuenosAires } from '../utils/helpers'
 
 const ESTADOS_BADGE = {
   borrador: 'badge-gray', pendiente: 'badge-yellow', confirmado: 'badge-green',
@@ -18,7 +19,7 @@ const getLabel = e => ESTADO_LABEL[e] || (e.charAt(0).toUpperCase() + e.slice(1)
 
 const EMPTY_FORM = {
   id: '', proveedorId: '',
-  fecha: new Date().toISOString().split('T')[0], notas: ''
+  fecha: hoyAR(), notas: ''
 }
 
 export default function ProveedorPage() {
@@ -113,7 +114,7 @@ export default function ProveedorPage() {
   async function updateEstado(id, estado) {
     try {
       const data = { estado }
-      if (estado === 'enviado') data.fecha_enviado = new Date().toISOString().split('T')[0]
+      if (estado === 'enviado') data.fecha_enviado = hoyAR()
       await supabase.from('pedidos_proveedor').update(data).eq('id', id)
       toast('Estado actualizado')
       loadPedidos()
@@ -160,8 +161,8 @@ export default function ProveedorPage() {
     try {
       const hoy = new Date()
       const limite = new Date(hoy); limite.setDate(limite.getDate() + diasBorrador)
-      const hoyStr = hoy.toISOString().split('T')[0]
-      const limiteStr = limite.toISOString().split('T')[0]
+      const hoyStr = hoyAR()
+      const limiteStr = fechaISOBuenosAires(limite)
 
       const { data: pedidosClientes } = await supabase.from('pedidos')
         .select('id')

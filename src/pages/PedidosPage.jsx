@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
-import { nombreCliente } from '../utils/helpers'
+import { nombreCliente, hoyAR } from '../utils/helpers'
 import { useToast } from '../hooks/useToast'
 import { useComprobante, ComprobanteModal } from '../hooks/useComprobante.jsx'
 import { ToastContainer } from '../components/Toast'
@@ -391,7 +391,7 @@ export default function PedidosPage() {
         if (deleteError) throw deleteError
       } else {
         const vendedorId = cliente?.vendedor_id || user
-        const hoy = new Date().toISOString().split('T')[0]
+        const hoy = hoyAR()
         const { data, error: insertError } = await supabase
           .from('pedidos')
           .insert({
@@ -504,7 +504,7 @@ export default function PedidosPage() {
     if (!confirm(`¿Confirmar pedido Nº ${p.numero || '—'}?`)) return
 
     try {
-      const hoy = new Date().toISOString().split('T')[0]
+      const hoy = hoyAR()
       const { error } = await supabase
         .from('pedidos')
         .update({ estado: 'confirmado', fecha_confirmacion: hoy })
@@ -533,7 +533,7 @@ export default function PedidosPage() {
     if (!confirm(`¿Cancelar pedido Nº ${p.numero || '—'}?`)) return
 
     try {
-      const hoy = new Date().toISOString().split('T')[0]
+      const hoy = hoyAR()
       const { error } = await supabase
         .from('pedidos')
         .update({ estado: 'cancelado', fecha_cancelacion: hoy })
@@ -597,7 +597,7 @@ export default function PedidosPage() {
         return
       }
 
-      const hoy = new Date().toISOString().split('T')[0]
+      const hoy = hoyAR()
       const dataVenta = {
         cliente_id: p.cliente_id,
         fecha: hoy,

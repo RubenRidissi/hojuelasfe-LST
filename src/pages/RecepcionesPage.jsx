@@ -6,9 +6,10 @@ import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
 import { useComprobante, ComprobanteModal } from '../hooks/useComprobante.jsx'
 import { registrarPagoProveedor } from '../services/proveedorPagosService'
+import { hoyAR } from '../utils/helpers'
 
 const EMPTY_FORM = {
-  pedidoProveedorId: '', proveedorId: '', fecha: new Date().toISOString().split('T')[0],
+  pedidoProveedorId: '', proveedorId: '', fecha: hoyAR(),
   remitoProveedor: '', notas: '',
   adicionalDesc: '', adicionalMonto: '', adicionalDescTipo: 'pct', adicionalDescValor: ''
 }
@@ -44,7 +45,7 @@ export default function RecepcionesPage() {
 
   // Modal pago proveedor
   const [modalPago, setModalPago] = useState(null) // { recepcionId, total, montoPagado, remito }
-  const [pagoCampos, setPagoCampos] = useState({ fecha: new Date().toISOString().split('T')[0], monto: '', medio: 'Transferencia', notas: '' })
+  const [pagoCampos, setPagoCampos] = useState({ fecha: hoyAR(), monto: '', medio: 'Transferencia', notas: '' })
   const [savingPago, setSavingPago] = useState(false)
 
   // Abrir modal automáticamente si se navega desde ProveedorPage con un pedidoId
@@ -387,7 +388,7 @@ export default function RecepcionesPage() {
                             {pago.saldo > 0 && (
                               <button className="btn btn-sm btn-success" onClick={() => {
                                 setModalPago({ recepcionId: r.id, total: r.total, montoPagado: r.monto_pagado_prov || 0, remito: r.remito_proveedor })
-                                setPagoCampos({ fecha: new Date().toISOString().split('T')[0], monto: pago.saldo.toFixed(2), medio: 'Transferencia', notas: '' })
+                                setPagoCampos({ fecha: hoyAR(), monto: pago.saldo.toFixed(2), medio: 'Transferencia', notas: '' })
                               }}>💸 Pagar</button>
                             )}
                           </div>
@@ -446,7 +447,7 @@ export default function RecepcionesPage() {
                   <>
                     {pago?.saldo > 0 && <button className="btn btn-success" style={{ flex: 1 }} onClick={() => {
                       setModalPago({ recepcionId: r.id, total: r.total, montoPagado: r.monto_pagado_prov || 0, remito: r.remito_proveedor })
-                      setPagoCampos({ fecha: new Date().toISOString().split('T')[0], monto: pago.saldo.toFixed(2), medio: 'Transferencia', notas: '' })
+                      setPagoCampos({ fecha: hoyAR(), monto: pago.saldo.toFixed(2), medio: 'Transferencia', notas: '' })
                     }}>💸 Pagar</button>}
                     <button className="btn btn-secondary" style={{ flex: 1 }} onClick={async () => { try { await verComprobanteRecepcion(r.id) } catch (e) { toast('Error: ' + e.message, 'error') } }}>👁 Ver</button>
                   </>
@@ -588,7 +589,7 @@ export default function RecepcionesPage() {
               <button className="btn btn-secondary" onClick={() => setModalOpen(false)}>Cancelar</button>
               <button className="btn btn-primary" onClick={() => {
                 if (!items.length) { toast('Agregá al menos un producto', 'error'); return }
-                const fecha = form.fecha || new Date().toISOString().split('T')[0]
+                const fecha = form.fecha || hoyAR()
                 guardarRecepcion(fecha)
               }} disabled={saving}>{saving ? 'Guardando...' : 'Guardar borrador'}</button>
             </div>

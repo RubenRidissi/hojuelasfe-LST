@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
-import { nombreCliente } from '../utils/helpers'
+import { nombreCliente, hoyAR } from '../utils/helpers'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
 
@@ -56,7 +56,7 @@ export default function MiRutaPage() {
   const [saving, setSaving] = useState(false)
 
   const hoy = new Date()
-  const hoyStr = hoy.toISOString().split('T')[0]
+  const hoyStr = hoyAR()
   const mondayHoy = getMonday(hoy)
 
   const [weekOffset, setWeekOffset] = useState(0)

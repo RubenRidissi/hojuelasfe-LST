@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '../services/supabase'
 import { buscarRemitoExistente, prepararEntrega, MODALIDADES_ENTREGA } from '../services/logisticaService'
-import { nombreCliente } from '../utils/helpers'
+import { nombreCliente, hoyAR } from '../utils/helpers'
 
 const EMPRESA = {
   nombre: 'LST Distribuidora',
@@ -107,7 +107,7 @@ function buildComprobantePedido(p, num) {
   const descPct = descMatch ? parseFloat(descMatch[1]) : 0
   const fechaProgramada = p.fecha_entrega ? new Date(p.fecha_entrega + 'T00:00:00').toLocaleDateString('es-AR') : 'A confirmar'
 
-  let html = buildHeader('PEDIDO', num || 0, p.fecha || new Date().toISOString().split('T')[0])
+  let html = buildHeader('PEDIDO', num || 0, p.fecha || hoyAR())
   html += buildClienteInfo(p.clientes, 'Fecha de entrega', fechaProgramada, 'Estado', (p.estado || '').charAt(0).toUpperCase() + (p.estado || '').slice(1))
   html += `<table class="comp-table"><thead><tr><th>Código</th><th>Producto</th><th style="text-align:center">Cant.</th><th style="text-align:right">P. Unit.</th><th style="text-align:right">Subtotal</th></tr></thead><tbody>`
 
@@ -188,7 +188,7 @@ function buildComprobanteRecepcion(r, num) {
     : '<span style="color:#A8A29E">Pendiente de confirmar</span>'
   const estadoLabel = r.estado === 'confirmada' ? 'Confirmada' : 'Borrador'
 
-  let html = buildHeader('RECEPCION', num || 0, r.fecha || new Date().toISOString().split('T')[0])
+  let html = buildHeader('RECEPCION', num || 0, r.fecha || hoyAR())
   html += `<div class="comp-datos">
     <div><span>Proveedor</span><strong>${proveedorNombre}</strong></div>
     <div><span>Remito proveedor</span><strong>${r.remito_proveedor || '—'}</strong></div>
@@ -230,7 +230,7 @@ function buildComprobantePedidoProveedor(p, num) {
   }[p.estado] || p.estado
   const fechaEnviado = p.fecha_enviado ? new Date(p.fecha_enviado + 'T00:00:00').toLocaleDateString('es-AR') : '—'
 
-  let html = buildHeader('PEDIDO PROV.', num || 0, p.fecha || new Date().toISOString().split('T')[0])
+  let html = buildHeader('PEDIDO PROV.', num || 0, p.fecha || hoyAR())
   html += `<div class="comp-datos">
     <div><span>Proveedor</span><strong>${proveedorNombre}</strong></div>
     <div><span>Estado</span><strong>${estadoLabel}</strong></div>
@@ -255,7 +255,7 @@ function buildComprobantePedidoProveedor(p, num) {
 
 function buildRemitoEntrega(datos) {
   const items = datos.items || []
-  let html = buildHeader('REMITO', datos.remito_numero || 0, new Date().toISOString().split('T')[0])
+  let html = buildHeader('REMITO', datos.remito_numero || 0, hoyAR())
   const fechaProgramada = datos.fecha_entrega ? new Date(datos.fecha_entrega + 'T00:00:00').toLocaleDateString('es-AR') : 'A confirmar'
   const fechaReal = datos.fecha_entrega_real ? new Date(datos.fecha_entrega_real + 'T00:00:00').toLocaleDateString('es-AR') : null
   const fechaEntLabel = fechaReal
@@ -307,7 +307,7 @@ function buildReciboPago(pago) {
       ? 'Sin factura / efectivo'
       : (pago.centro_costo || '—')
 
-  let html = buildHeader('RECIBO', pago.numero || 0, pago.fecha || new Date().toISOString().split('T')[0])
+  let html = buildHeader('RECIBO', pago.numero || 0, pago.fecha || hoyAR())
   html += buildClienteInfo(
     pago.clientes,
     'Medio de pago',

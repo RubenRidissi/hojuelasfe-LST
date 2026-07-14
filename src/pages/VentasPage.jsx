@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
-import { nombreCliente } from '../utils/helpers'
+import { nombreCliente, hoyAR } from '../utils/helpers'
 import { useToast } from '../hooks/useToast'
 import { useComprobante, ComprobanteModal } from '../hooks/useComprobante.jsx'
 import { ToastContainer } from '../components/Toast'
@@ -10,7 +10,7 @@ import { MODALIDADES_ENTREGA } from '../services/logisticaService'
 import { fmtMonto } from '../utils/money'
 
 const EMPTY_FORM = {
-  clienteId: '', fecha: new Date().toISOString().split('T')[0], notas: '', modalidad: 'sin_iva'
+  clienteId: '', fecha: hoyAR(), notas: '', modalidad: 'sin_iva'
 }
 
 function badgePago(estado) {
@@ -366,7 +366,7 @@ export default function VentasPage() {
       setEditingVenta(data)
       setForm({
         clienteId: data.cliente_id || '',
-        fecha: data.fecha || new Date().toISOString().split('T')[0],
+        fecha: data.fecha || hoyAR(),
         notas: (data.notas || '').split('|').map(x => x.trim()).filter(x => x && !x.includes('Descuento aplicado') && !x.includes('Con IVA') && !x.includes('bonificadas') && !x.includes('muestras')).join(' | '),
         modalidad: data.modalidad_factura || 'sin_iva'
       })
@@ -408,7 +408,7 @@ export default function VentasPage() {
       ].filter(Boolean).join(' | ')
 
       const vendedorId = cliente?.vendedor_id || user
-      const fecha = form.fecha || new Date().toISOString().split('T')[0]
+      const fecha = form.fecha || hoyAR()
 
       const { error: ventaError } = await supabase.from('ventas')
         .update({
@@ -629,7 +629,7 @@ export default function VentasPage() {
                             <>
                               {puedeVerMontos && <button className="btn btn-sm btn-secondary" onClick={async () => { try { await verRemito('venta', v.id) } catch(e) { toast('Error', 'error') } }}>👁 Ver remito</button>}
                               <button className="btn btn-sm" style={{ background: '#DCFCE7', color: '#15803D' }}
-                                onClick={() => { setModalFecha({ id: v.id, fechaActual: '' }); setFechaInput(new Date().toISOString().split('T')[0]) }}>
+                                onClick={() => { setModalFecha({ id: v.id, fechaActual: '' }); setFechaInput(hoyAR()) }}>
                                 ✅ Confirmar entrega
                               </button>
                             </>
@@ -690,7 +690,7 @@ export default function VentasPage() {
                 {estado === 'remitida' && (
                   <>
                     {puedeVerMontos && <button className="btn btn-secondary" onClick={async () => { try { await verRemito('venta', v.id) } catch(e) { toast('Error', 'error') } }}>👁 Remito</button>}
-                    <button className="btn btn-secondary" onClick={() => { setModalFecha({ id: v.id, fechaActual: '' }); setFechaInput(new Date().toISOString().split('T')[0]) }}>✅ Confirmar entrega</button>
+                    <button className="btn btn-secondary" onClick={() => { setModalFecha({ id: v.id, fechaActual: '' }); setFechaInput(hoyAR()) }}>✅ Confirmar entrega</button>
                   </>
                 )}
                 {estado === 'entregada' && puedeVerMontos && (

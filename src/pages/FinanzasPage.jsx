@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
-import { nombreCliente } from '../utils/helpers'
+import { nombreCliente, hoyAR } from '../utils/helpers'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
 
@@ -184,7 +184,7 @@ export default function FinanzasPage() {
     setLoading(true)
     try {
       const now = new Date()
-      const hoy = now.toISOString().split('T')[0]
+      const hoy = hoyAR()
       const mesDesde = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
       const mesHasta = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()}`
 

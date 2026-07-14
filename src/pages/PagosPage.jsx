@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
-import { nombreCliente } from '../utils/helpers'
+import { nombreCliente, hoyAR } from '../utils/helpers'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
 import { useComprobante, ComprobanteModal } from '../hooks/useComprobante.jsx'
@@ -43,7 +43,7 @@ function getEstadoCobro(pago) {
 }
 
 const EMPTY_FORM = {
-  clienteId: '', fecha: new Date().toISOString().split('T')[0],
+  clienteId: '', fecha: hoyAR(),
   monto: '', medio: 'efectivo', notas: '', centroCosto: 'CC2'
 }
 

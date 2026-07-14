@@ -3,12 +3,13 @@ import { supabase } from '../services/supabase'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
 import { registrarPagoProveedor, anularPagoProveedor } from '../services/proveedorPagosService'
+import { hoyAR } from '../utils/helpers'
 
 const MEDIOS = ['Transferencia', 'Efectivo', 'Cheque', 'Otro']
 
 const EMPTY_FORM = {
   proveedorId: '', recepcionId: '',
-  fecha: new Date().toISOString().split('T')[0],
+  fecha: hoyAR(),
   monto: '', medio: 'Transferencia', notas: ''
 }
 

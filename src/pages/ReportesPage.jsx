@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
 import { fmtMonto } from '../utils/money'
+import { hoyAR } from '../utils/helpers'
 
 const TIPO_COLORS = { Minorista: 'badge-gray', Distribuidor: 'badge-blue', Mayorista: 'badge-yellow', Institucional: 'badge-green' }
 const HONEY_COLOR = '#D4860A'
@@ -30,7 +31,7 @@ export default function ReportesPage() {
   const firstDay = new Date(today.getFullYear(), today.getMonth(), 1)
 
   const [desde, setDesde] = useState(firstDay.toISOString().split('T')[0])
-  const [hasta, setHasta] = useState(today.toISOString().split('T')[0])
+  const [hasta, setHasta] = useState(hoyAR())
   const [filtroVendedor, setFiltroVendedor] = useState('')
   const [vendedores, setVendedores] = useState([])
   const [loading, setLoading] = useState(false)

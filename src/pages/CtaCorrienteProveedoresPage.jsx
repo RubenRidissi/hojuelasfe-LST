@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../services/supabase'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
+import { hoyAR } from '../utils/helpers'
 
 const EMPTY_AJUSTE = {
   tipo: 'NC', proveedorId: '', recepcionId: '',
-  fecha: new Date().toISOString().split('T')[0],
+  fecha: hoyAR(),
   numero: '', monto: '', concepto: ''
 }
 

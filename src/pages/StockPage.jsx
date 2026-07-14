@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
-import { nombreCliente } from '../utils/helpers'
+import { nombreCliente, hoyAR } from '../utils/helpers'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
 
@@ -30,15 +30,15 @@ export default function StockPage() {
 
   // Modal entrada
   const [modalEntrada, setModalEntrada] = useState(false)
-  const [entrada, setEntrada] = useState({ producto: '', cantidad: '', fecha: new Date().toISOString().split('T')[0], origen: 'reposicion', notas: '' })
+  const [entrada, setEntrada] = useState({ producto: '', cantidad: '', fecha: hoyAR(), origen: 'reposicion', notas: '' })
 
   // Modal muestra
   const [modalMuestra, setModalMuestra] = useState(false)
-  const [muestra, setMuestra] = useState({ producto: '', cantidad: '', cliente: '', fecha: new Date().toISOString().split('T')[0], notas: '' })
+  const [muestra, setMuestra] = useState({ producto: '', cantidad: '', cliente: '', fecha: hoyAR(), notas: '' })
 
   // Modal ajuste
   const [modalAjuste, setModalAjuste] = useState(false)
-  const [ajuste, setAjuste] = useState({ producto: '', cantidad: '', fecha: new Date().toISOString().split('T')[0], notas: '' })
+  const [ajuste, setAjuste] = useState({ producto: '', cantidad: '', fecha: hoyAR(), notas: '' })
   const [stockActualProd, setStockActualProd] = useState(null)
   const [saving, setSaving] = useState(false)
 
@@ -98,7 +98,7 @@ export default function StockPage() {
       await supabase.from('stock_movimientos').insert({ producto_id: entrada.producto, tipo: 'entrada', origen: entrada.origen, cantidad: parseFloat(entrada.cantidad), fecha: entrada.fecha, notas: entrada.notas })
       toast('Entrada registrada')
       setModalEntrada(false)
-      setEntrada({ producto: '', cantidad: '', fecha: new Date().toISOString().split('T')[0], origen: 'reposicion', notas: '' })
+      setEntrada({ producto: '', cantidad: '', fecha: hoyAR(), origen: 'reposicion', notas: '' })
       loadAll()
     } catch (e) { toast('Error: ' + e.message, 'error') } finally { setSaving(false) }
   }
@@ -112,7 +112,7 @@ export default function StockPage() {
       await supabase.from('stock_movimientos').insert({ producto_id: muestra.producto, tipo: 'salida', origen: 'muestra', cantidad: -parseFloat(muestra.cantidad), cliente_id: muestra.cliente || null, fecha: muestra.fecha, notas: muestra.notas })
       toast('Muestra registrada')
       setModalMuestra(false)
-      setMuestra({ producto: '', cantidad: '', cliente: '', fecha: new Date().toISOString().split('T')[0], notas: '' })
+      setMuestra({ producto: '', cantidad: '', cliente: '', fecha: hoyAR(), notas: '' })
       loadAll()
     } catch (e) { toast('Error: ' + e.message, 'error') } finally { setSaving(false) }
   }
@@ -135,7 +135,7 @@ export default function StockPage() {
       await supabase.from('stock_movimientos').insert({ producto_id: ajuste.producto, tipo: 'ajuste', origen: 'ajuste_manual', cantidad: cant, fecha: ajuste.fecha, notas: ajuste.notas })
       toast('Ajuste guardado')
       setModalAjuste(false)
-      setAjuste({ producto: '', cantidad: '', fecha: new Date().toISOString().split('T')[0], notas: '' })
+      setAjuste({ producto: '', cantidad: '', fecha: hoyAR(), notas: '' })
       setStockActualProd(null)
       loadAll()
     } catch (e) { toast('Error: ' + e.message, 'error') } finally { setSaving(false) }
@@ -158,7 +158,7 @@ export default function StockPage() {
           <div className="page-header-actions">
             <button className="btn btn-secondary" onClick={() => setModalEntrada(true)}>⬆ Entrada</button>
             <button className="btn btn-secondary" onClick={() => setModalMuestra(true)}>🎁 Muestra</button>
-            <button className="btn btn-secondary" onClick={() => { setAjuste({ producto: '', cantidad: '', fecha: new Date().toISOString().split('T')[0], notas: '' }); setStockActualProd(null); setModalAjuste(true) }}>↔ Ajuste</button>
+            <button className="btn btn-secondary" onClick={() => { setAjuste({ producto: '', cantidad: '', fecha: hoyAR(), notas: '' }); setStockActualProd(null); setModalAjuste(true) }}>↔ Ajuste</button>
           </div>
         )}
       </div>
