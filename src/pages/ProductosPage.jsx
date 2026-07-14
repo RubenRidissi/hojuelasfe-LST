@@ -270,11 +270,7 @@ export default function ProductosPage() {
     return g
   }, [productosFiltrados])
 
-  const costoNeto = (p) => {
-    const c = parseFloat(p.costo || 0)
-    const d = parseFloat(p.descuento_costo || 0)
-    return c * (1 - d / 100)
-  }
+  const costoNeto = (p) => calcPrecio(p.costo, p.descuento_costo, 0)
 
   return (
     <div>

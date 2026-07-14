@@ -84,12 +84,12 @@ export default function ProveedorPage() {
         const { data: [pedido] } = await supabase.from('pedidos_proveedor').insert({ proveedor_id: form.proveedorId, fecha: form.fecha, notas: form.notas, total_estimado: total, estado: 'pendiente' }).select()
         pedidoId = pedido.id
       }
-      await Promise.all(items.map(item =>
-        supabase.from('pedido_proveedor_items').insert({ pedido_proveedor_id: pedidoId, producto_id: item.producto_id, cantidad: item.cantidad, costo_unitario: item.costo_unitario })
-      ))
+      await supabase.from('pedido_proveedor_items').insert(items.map(item => ({
+        pedido_proveedor_id: pedidoId, producto_id: item.producto_id, cantidad: item.cantidad, costo_unitario: item.costo_unitario
+      })))
       toast(form.id ? 'Pedido actualizado' : 'Pedido creado')
       setModalOpen(false)
-      setForm(EMPTY_FORM)
+      setForm({ ...EMPTY_FORM, fecha: hoyAR() })
       setItems([])
       loadPedidos()
     } catch (e) { toast('Error: ' + e.message, 'error') } finally { setSaving(false) }
@@ -185,14 +185,28 @@ export default function ProveedorPage() {
       const stockMap = {}
       ;(stockData || []).forEach(s => { stockMap[s.id] = parseFloat(s.stock || 0) })
 
+      // Pedidos a Hojuelas ya en camino (todavía sin recibir nada) cuentan como stock cubierto,
+      // para no volver a pedir lo mismo dos veces mientras el envío anterior no llegó.
+      const { data: pedidosEnCamino } = await supabase.from('pedidos_proveedor')
+        .select('id').in('estado', ['borrador', 'pendiente', 'confirmado', 'enviado'])
+      const enCaminoMap = {}
+      if (pedidosEnCamino?.length) {
+        const { data: itsEnCamino } = await supabase.from('pedido_proveedor_items')
+          .select('producto_id,cantidad').in('pedido_proveedor_id', pedidosEnCamino.map(p => p.id))
+        ;(itsEnCamino || []).forEach(item => {
+          enCaminoMap[item.producto_id] = (enCaminoMap[item.producto_id] || 0) + parseFloat(item.cantidad || 0)
+        })
+      }
+
       const { data: prods } = await supabase.from('productos').select('id,nombre,costo,stock_minimo')
       const itemsBorrador = []
       Object.entries(demanda).forEach(([productoId, dem]) => {
         const prod = prods?.find(p => p.id === productoId)
         if (!prod) return
         const stockHoy = stockMap[productoId] || 0
+        const stockEnCamino = enCaminoMap[productoId] || 0
         const stockMin = prod.stock_minimo || 0
-        const faltante = dem + stockMin - stockHoy
+        const faltante = dem + stockMin - stockHoy - stockEnCamino
         if (faltante > 0) itemsBorrador.push({ producto_id: productoId, nombre: prod.nombre, cantidad: Math.ceil(faltante), costo_unitario: prod.costo || 0 })
       })
 
@@ -204,9 +218,9 @@ export default function ProveedorPage() {
         notas: `Generado automáticamente (demanda a ${diasBorrador} días)`, total_estimado: total
       }).select()
 
-      await Promise.all(itemsBorrador.map(item =>
-        supabase.from('pedido_proveedor_items').insert({ pedido_proveedor_id: pedido.id, producto_id: item.producto_id, cantidad: item.cantidad, costo_unitario: item.costo_unitario })
-      ))
+      await supabase.from('pedido_proveedor_items').insert(itemsBorrador.map(item => ({
+        pedido_proveedor_id: pedido.id, producto_id: item.producto_id, cantidad: item.cantidad, costo_unitario: item.costo_unitario
+      })))
 
       toast(`Borrador generado con ${itemsBorrador.length} producto(s) ✓`)
       setModalBorrador(false)
@@ -226,7 +240,7 @@ export default function ProveedorPage() {
         <h1 className="page-title">Pedidos Proveedor</h1>
         <div className="page-header-actions">
           <button className="btn btn-secondary" onClick={() => setModalBorrador(true)}>🤖 Generar borrador</button>
-          <button className="btn btn-primary" onClick={() => { setForm(EMPTY_FORM); setItems([]); setModalOpen(true) }}>+ Nuevo pedido</button>
+          <button className="btn btn-primary" onClick={() => { setForm({ ...EMPTY_FORM, fecha: hoyAR() }); setItems([]); setModalOpen(true) }}>+ Nuevo pedido</button>
         </div>
       </div>
 

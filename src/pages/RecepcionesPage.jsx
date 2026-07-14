@@ -33,6 +33,7 @@ export default function RecepcionesPage() {
   const [faltantes, setFaltantes] = useState([])
   const [pedidoInfo, setPedidoInfo] = useState('')
   const [saving, setSaving] = useState(false)
+  const [confirmandoId, setConfirmandoId] = useState(null)
 
   // Modal fecha confirmación
 
@@ -82,7 +83,7 @@ export default function RecepcionesPage() {
     setEditandoId(null)
     setItems([])
     setFaltantes([])
-    setForm({ ...EMPTY_FORM, pedidoProveedorId })
+    setForm({ ...EMPTY_FORM, fecha: hoyAR(), pedidoProveedorId })
     setPedidoInfo('')
 
     if (pedidoProveedorId) {
@@ -236,15 +237,13 @@ export default function RecepcionesPage() {
         }).select()
         recepcionId = r.id
       }
-      await Promise.all(items.map(item =>
-        supabase.from('recepcion_items').insert({
-          recepcion_id: recepcionId, producto_id: item.producto_id,
-          cantidad: item.cantidad, bonificado: item.bonificado || 0,
-          costo_unitario: item.costo_unitario,
-          costo_lista: item.costo_lista || item.costo_unitario,
-          desc_label: item.desc_label || null
-        })
-      ))
+      await supabase.from('recepcion_items').insert(items.map(item => ({
+        recepcion_id: recepcionId, producto_id: item.producto_id,
+        cantidad: item.cantidad, bonificado: item.bonificado || 0,
+        costo_unitario: item.costo_unitario,
+        costo_lista: item.costo_lista || item.costo_unitario,
+        desc_label: item.desc_label || null
+      })))
       toast(editandoId ? 'Borrador actualizado ✓' : 'Recepción guardada como borrador ✓ — confirmala para impactar el stock')
       setModalOpen(false)
       loadAll()
@@ -253,27 +252,32 @@ export default function RecepcionesPage() {
 
   // ===== CONFIRMAR RECEPCIÓN =====
   async function confirmarRecepcion(id) {
+    if (confirmandoId) return
     if (!confirm('¿Confirmar esta recepción? Se va a impactar el stock y no podrás editarla después.')) return
+    setConfirmandoId(id)
     try {
       const { data: r } = await supabase.from('recepciones').select('*').eq('id', id).single()
       const { data: its } = await supabase.from('recepcion_items').select('*').eq('recepcion_id', id)
 
-      await Promise.all((its || []).map(async item => {
+      const fechaMovimiento = r.fecha_recepcion_real || r.fecha
+      await supabase.from('stock_movimientos').insert((its || []).map(item => {
         const bonif = item.bonificado || 0
-        await supabase.from('stock_movimientos').insert({
+        return {
           producto_id: item.producto_id, tipo: 'entrada', origen: 'reposicion',
           cantidad: item.cantidad, referencia_id: id,
           notas: `Recepción #${String(r.numero).padStart(4, '0')}${bonif > 0 ? ` (${bonif} bonif.)` : ''}${r.remito_proveedor ? ` (remito ${r.remito_proveedor})` : ''}`,
-          fecha: r.fecha_recepcion_real || r.fecha
-        })
-        if (bonif > 0) {
-          await supabase.from('lotes_muestra').insert({
-            producto_id: item.producto_id, recepcion_item_id: item.id,
-            cantidad_original: bonif, cantidad_disponible: bonif,
-            fecha_ingreso: r.fecha_recepcion_real || r.fecha
-          })
+          fecha: fechaMovimiento
         }
       }))
+
+      const itemsConBonif = (its || []).filter(item => (item.bonificado || 0) > 0)
+      if (itemsConBonif.length) {
+        await supabase.from('lotes_muestra').insert(itemsConBonif.map(item => ({
+          producto_id: item.producto_id, recepcion_item_id: item.id,
+          cantidad_original: item.bonificado, cantidad_disponible: item.bonificado,
+          fecha_ingreso: fechaMovimiento
+        })))
+      }
 
       await supabase.from('recepciones').update({ estado: 'confirmada' }).eq('id', id)
 
@@ -282,7 +286,7 @@ export default function RecepcionesPage() {
 
       toast('Recepción confirmada y stock actualizado ✓')
       loadAll()
-    } catch (e) { toast('Error: ' + e.message, 'error') } finally { setConfirmando(false) }
+    } catch (e) { toast('Error: ' + e.message, 'error') } finally { setConfirmandoId(null) }
   }
 
   async function recalcularEstadoPedido(pedidoId) {
@@ -397,7 +401,7 @@ export default function RecepcionesPage() {
                       <td style={{ whiteSpace: 'nowrap' }}>
                         {esBorrador ? (
                           <div style={{ display: 'flex', gap: 4 }}>
-                            <button className="btn btn-sm btn-success" onClick={() => confirmarRecepcion(r.id)}>✓ Confirmar</button>
+                            <button className="btn btn-sm btn-success" disabled={!!confirmandoId} onClick={() => confirmarRecepcion(r.id)}>{confirmandoId === r.id ? 'Confirmando...' : '✓ Confirmar'}</button>
                             <button className="btn btn-sm btn-secondary" onClick={() => editarRecepcion(r)}>✏ Editar</button>
                             <button className="btn btn-sm btn-secondary" onClick={async () => { try { await verComprobanteRecepcion(r.id) } catch (e) { toast('Error: ' + e.message, 'error') } }}>👁 Ver</button>
                             <button className="btn btn-sm btn-danger" onClick={() => deleteRecepcion(r.id)}>✕</button>
@@ -439,7 +443,7 @@ export default function RecepcionesPage() {
               <div className="op-card-actions" style={{ marginTop: 10 }}>
                 {esBorrador ? (
                   <>
-                    <button className="btn btn-success" style={{ flex: 1 }} onClick={() => confirmarRecepcion(r.id)}>✓ Confirmar</button>
+                    <button className="btn btn-success" style={{ flex: 1 }} disabled={!!confirmandoId} onClick={() => confirmarRecepcion(r.id)}>{confirmandoId === r.id ? 'Confirmando...' : '✓ Confirmar'}</button>
                     <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => editarRecepcion(r)}>✏ Editar</button>
                     <button className="btn btn-danger" style={{ flex: 1 }} onClick={() => deleteRecepcion(r.id)}>✕</button>
                   </>

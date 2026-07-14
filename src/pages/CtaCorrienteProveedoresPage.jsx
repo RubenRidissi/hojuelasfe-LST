@@ -98,7 +98,7 @@ export default function CtaCorrienteProveedoresPage() {
       })
       toast(`${ajuste.tipo} registrada ✓`)
       setModalAjuste(false)
-      setAjuste(EMPTY_AJUSTE)
+      setAjuste({ ...EMPTY_AJUSTE, fecha: hoyAR() })
       setRecepcionesProveedor([])
       if (proveedorId) loadCtaCte()
     } catch (e) { toast('Error: ' + e.message, 'error') } finally { setSavingAjuste(false) }
@@ -122,7 +122,7 @@ export default function CtaCorrienteProveedoresPage() {
         <h1 className="page-title">Cta. Cte. Proveedores</h1>
         <div className="page-header-actions">
           <button className="btn btn-secondary" onClick={() => {
-            setAjuste({ ...EMPTY_AJUSTE, proveedorId })
+            setAjuste({ ...EMPTY_AJUSTE, fecha: hoyAR(), proveedorId })
             cargarRecepcionesProveedor(proveedorId)
             setModalAjuste(true)
           }}>± NC/ND Proveedor</button>

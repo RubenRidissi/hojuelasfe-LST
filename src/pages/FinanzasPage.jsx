@@ -218,13 +218,19 @@ export default function FinanzasPage() {
       })
 
       // 2. CUENTAS A COBRAR
-      const [{ data: ventasPend }, { data: ajustesClientes }] = await Promise.all([
-        supabase.from('ventas').select('total,monto_pagado,vendedor_id,cliente_id,clientes(nombre,nombre_fantasia)').neq('estado_pago', 'pagado').neq('estado', 'anulada'),
-        supabase.from('ajustes_cliente').select('tipo,monto,cliente_id')
+      const [{ data: ventasTodas }, { data: ajustesClientes }] = await Promise.all([
+        supabase.from('ventas').select('id,total,monto_pagado,vendedor_id,cliente_id,estado_pago,estado,clientes(nombre,nombre_fantasia)'),
+        supabase.from('ajustes_cliente').select('tipo,monto,cliente_id,venta_id')
       ])
+
+      const ventasPend = (ventasTodas || []).filter(v => v.estado_pago !== 'pagado' && v.estado !== 'anulada')
+      // Ventas ya excluidas de "pendiente" (pagadas o anuladas): si un ajuste está atado a una de
+      // ellas, su efecto ya quedó reflejado en esa exclusión — sumarlo de nuevo lo contaría dos veces.
+      const ventaIdsExcluidas = new Set((ventasTodas || []).filter(v => v.estado_pago === 'pagado' || v.estado === 'anulada').map(v => v.id))
 
       const ajustesPorCliente = {}
       ;(ajustesClientes || []).forEach(a => {
+        if (a.venta_id && ventaIdsExcluidas.has(a.venta_id)) return
         if (!ajustesPorCliente[a.cliente_id]) ajustesPorCliente[a.cliente_id] = 0
         ajustesPorCliente[a.cliente_id] += a.tipo === 'NC' ? -parseFloat(a.monto || 0) : parseFloat(a.monto || 0)
       })
@@ -310,6 +316,11 @@ export default function FinanzasPage() {
                     Cobrado CC1: {fmt(cajaActual.cc1)} · CC2: {fmt(cajaActual.cc2)}
                   </div>
                 )}
+                {filtroCC && (
+                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2, fontStyle: 'italic' }}>
+                    El pagado a proveedor no se registra por CC — es el total, no solo {filtroCC}
+                  </div>
+                )}
               </div>
               <div style={{ background: 'var(--bg)', borderRadius: 8, padding: 14, textAlign: 'center' }}>
                 <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--muted)', marginBottom: 6 }}>Caja del mes</div>
@@ -319,6 +330,11 @@ export default function FinanzasPage() {
                 <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
                   Cobrado {fmt(cobradoMes.total)} − Pagado a proveedor {fmt(pagadoProvMes)}
                 </div>
+                {filtroCC && (
+                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2, fontStyle: 'italic' }}>
+                    El pagado a proveedor no se registra por CC — es el total, no solo {filtroCC}
+                  </div>
+                )}
               </div>
               <div style={{ background: 'var(--bg)', borderRadius: 8, padding: 14, textAlign: 'center' }}>
                 <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--muted)', marginBottom: 6 }}>Posición neta</div>

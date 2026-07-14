@@ -44,7 +44,7 @@ export default function StockPage() {
 
   useEffect(() => {
     Promise.all([
-      supabase.from('productos').select('id,codigo,nombre').order('codigo'),
+      supabase.from('productos').select('id,codigo,nombre,activo').order('codigo'),
       supabase.from('clientes').select('id,nombre,nombre_fantasia').order('nombre')
     ]).then(([{ data: p }, { data: c }]) => {
       setProductos(p || [])
@@ -77,6 +77,8 @@ export default function StockPage() {
   }
 
   useEffect(() => { loadMovimientos() }, [filtroOrigen, filtroProducto])
+
+  const productosActivos = productos.filter(p => p.activo !== false)
 
   // Agrupar stock por familia
   const stockGrupos = useMemo(() => {
@@ -324,7 +326,7 @@ export default function StockPage() {
                 <label>Producto *</label>
                 <select value={entrada.producto} onChange={e => setEntrada(f => ({ ...f, producto: e.target.value }))}>
                   <option value="">Seleccioná un producto</option>
-                  {productos.map(p => <option key={p.id} value={p.id}>{p.codigo ? `${p.codigo} — ` : ''}{p.nombre}</option>)}
+                  {productosActivos.map(p => <option key={p.id} value={p.id}>{p.codigo ? `${p.codigo} — ` : ''}{p.nombre}</option>)}
                 </select>
               </div>
               <div className="form-row">
@@ -371,7 +373,7 @@ export default function StockPage() {
                 <label>Producto *</label>
                 <select value={muestra.producto} onChange={e => setMuestra(f => ({ ...f, producto: e.target.value }))}>
                   <option value="">Seleccioná un producto</option>
-                  {productos.map(p => <option key={p.id} value={p.id}>{p.codigo ? `${p.codigo} — ` : ''}{p.nombre}</option>)}
+                  {productosActivos.map(p => <option key={p.id} value={p.id}>{p.codigo ? `${p.codigo} — ` : ''}{p.nombre}</option>)}
                 </select>
               </div>
               <div className="form-row">
@@ -417,7 +419,7 @@ export default function StockPage() {
                 <label>Producto *</label>
                 <select value={ajuste.producto} onChange={e => onAjusteProdChange(e.target.value)}>
                   <option value="">Seleccioná un producto</option>
-                  {productos.map(p => <option key={p.id} value={p.id}>{p.codigo ? `${p.codigo} — ` : ''}{p.nombre}</option>)}
+                  {productosActivos.map(p => <option key={p.id} value={p.id}>{p.codigo ? `${p.codigo} — ` : ''}{p.nombre}</option>)}
                 </select>
                 {stockActualProd !== null && <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>Stock actual: <strong>{stockActualProd}</strong></div>}
               </div>

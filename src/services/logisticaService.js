@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { hoyAR } from '../utils/helpers'
 
 export const ESTADOS_LOGISTICOS = {
   SIN_REMITO: 'SIN_REMITO',
@@ -9,14 +10,6 @@ export const ESTADOS_LOGISTICOS = {
 export const MODALIDADES_ENTREGA = {
   RETIRO_DEPOSITO: 'retiro_deposito',
   REPARTO: 'reparto'
-}
-
-function fechaHoyISO() {
-  const hoy = new Date()
-  const yyyy = hoy.getFullYear()
-  const mm = String(hoy.getMonth() + 1).padStart(2, '0')
-  const dd = String(hoy.getDate()).padStart(2, '0')
-  return `${yyyy}-${mm}-${dd}`
 }
 
 function normalizarItemsStock(items = []) {
@@ -41,7 +34,7 @@ async function registrarMovimientosStockRemito({ remito, items = [], clienteId }
 
   if (!itemsStock.length) return
 
-  const fecha = fechaHoyISO()
+  const fecha = hoyAR()
 
   const movimientos = itemsStock.map(item => ({
     producto_id: item.producto_id,
@@ -264,7 +257,7 @@ export async function prepararEntrega({
 
   const fechaEntregaFinal =
     modalidadEntrega === MODALIDADES_ENTREGA.RETIRO_DEPOSITO
-      ? fechaHoyISO()
+      ? hoyAR()
       : fechaEntregaReal
 
   const remito = await emitirRemito({

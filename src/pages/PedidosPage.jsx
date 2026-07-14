@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
-import { nombreCliente, hoyAR } from '../utils/helpers'
+import { nombreCliente, hoyAR, getIvaFactor } from '../utils/helpers'
 import { useToast } from '../hooks/useToast'
 import { useComprobante, ComprobanteModal } from '../hooks/useComprobante.jsx'
 import { ToastContainer } from '../components/Toast'
@@ -329,7 +329,7 @@ export default function PedidosPage() {
     const cliente = clientes.find(c => c.id === clienteId)
     const descPct = parseFloat(cliente?.descuento_pct || 0)
     const modalidad = modalidadForzada || form.modalidad || cliente?.modalidad_factura || 'sin_iva'
-    const ivaFactor = modalidad === 'con_iva' ? 1.21 : 1
+    const ivaFactor = getIvaFactor(modalidad)
     return itemsArr.reduce((s, item) => s + item.cantidad * item.precio_unitario * (1 - descPct / 100) * ivaFactor, 0)
   }
 
@@ -367,7 +367,7 @@ export default function PedidosPage() {
       const cliente = clientes.find(c => c.id === form.clienteId)
       const descPct = parseFloat(cliente?.descuento_pct || 0)
       const modalidad = form.modalidad || cliente?.modalidad_factura || 'sin_iva'
-      const ivaFactor = modalidad === 'con_iva' ? 1.21 : 1
+      const ivaFactor = getIvaFactor(modalidad)
       const total = calcTotal(items, form.clienteId, modalidad)
       const notas = [
         form.notas,
@@ -384,12 +384,6 @@ export default function PedidosPage() {
           toast('Solo se pueden editar pedidos Pendientes', 'error')
           return
         }
-
-        const { error: pedidoError } = await supabase
-          .from('pedidos')
-          .update({ cliente_id: form.clienteId, notas, total, modalidad_factura: modalidad })
-          .eq('id', form.id)
-        if (pedidoError) throw pedidoError
 
         const { error: deleteError } = await supabase.from('pedido_items').delete().eq('pedido_id', form.id)
         if (deleteError) throw deleteError
@@ -425,6 +419,14 @@ export default function PedidosPage() {
         })
       )
       if (itemsError) throw itemsError
+
+      if (form.id) {
+        const { error: pedidoError } = await supabase
+          .from('pedidos')
+          .update({ cliente_id: form.clienteId, notas, total, modalidad_factura: modalidad })
+          .eq('id', form.id)
+        if (pedidoError) throw pedidoError
+      }
 
       if (cliente && cliente.estado_cliente !== 'Activo') {
         await supabase.from('clientes').update({ estado_cliente: 'Activo' }).eq('id', form.clienteId)
@@ -465,8 +467,9 @@ export default function PedidosPage() {
       const cliente = clientes.find(c => c.id === p.cliente_id)
       const descPct = parseFloat(cliente?.descuento_pct || 0)
       const modalidad = p.modalidad_factura || 'sin_iva'
-      const ivaFactor = modalidad === 'con_iva' ? 1.21 : 1
+      const ivaFactor = getIvaFactor(modalidad)
       const factor = (1 - descPct / 100) * ivaFactor
+      const tipoClienteEdit = cliente?.tipo || 'Distribuidor'
 
       setForm({
         id: p.id,
@@ -474,16 +477,26 @@ export default function PedidosPage() {
         notas: limpiarNotasUsuario(p.notas || ''),
         modalidad
       })
-      setItems((its || []).map(i => ({
-        producto_id: i.producto_id,
-        nombre: i.productos?.nombre || '—',
-        familia: i.productos?.familia || '',
-        cantidad: i.cantidad,
-        bonificado: i.bonificado || 0,
-        precio_unitario: factor > 0 ? parseFloat(i.precio_unitario || 0) / factor : parseFloat(i.precio_unitario || 0),
-        descuento_item: 0,
-        promo: i.productos?.promo || ''
-      })))
+      setItems((its || []).map(i => {
+        const precioSinDescCliente = factor > 0 ? parseFloat(i.precio_unitario || 0) / factor : parseFloat(i.precio_unitario || 0)
+        // El item pudo haberse cargado con descuento (bandeja u otro). Ya no se guarda el % original,
+        // así que se lo recupera comparando contra el precio de lista actual: si cambian cliente/lista
+        // durante la edición, recalcularPreciosItems necesita este % para no perder el descuento.
+        const precioListaActual = precioBaseProducto(i.producto_id, tipoClienteEdit, '')
+        const descuentoItemRecuperado = precioListaActual > 0 && precioSinDescCliente < precioListaActual
+          ? Math.round((1 - precioSinDescCliente / precioListaActual) * 10000) / 100
+          : 0
+        return {
+          producto_id: i.producto_id,
+          nombre: i.productos?.nombre || '—',
+          familia: i.productos?.familia || '',
+          cantidad: i.cantidad,
+          bonificado: i.bonificado || 0,
+          precio_unitario: precioSinDescCliente,
+          descuento_item: descuentoItemRecuperado,
+          promo: i.productos?.promo || ''
+        }
+      }))
       setUsarListaHistorica(false)
       setVersionId('')
       setStep(1)
@@ -590,6 +603,7 @@ export default function PedidosPage() {
     const p = modalConvertir
     setConvirtiendo(true)
 
+    let ventaCreada = null
     try {
       const { data: its, error: itemsError } = await supabase
         .from('pedido_items')
@@ -620,6 +634,7 @@ export default function PedidosPage() {
 
       const venta = ventaData?.[0]
       if (!venta?.id) throw new Error('No se pudo crear la venta')
+      ventaCreada = venta
 
       const { error: itemsVentaError } = await supabase
         .from('venta_items')
@@ -642,6 +657,13 @@ export default function PedidosPage() {
       setModalConvertir(null)
       loadPedidos()
     } catch (e) {
+      // Si la venta ya se había creado (o sus items) pero un paso posterior falló,
+      // se deshace lo creado para que el pedido quede sin convertir y se pueda reintentar
+      // sin generar una venta duplicada.
+      if (ventaCreada) {
+        await supabase.from('venta_items').delete().eq('venta_id', ventaCreada.id)
+        await supabase.from('ventas').delete().eq('id', ventaCreada.id)
+      }
       toast('Error al convertir: ' + e.message, 'error')
     } finally {
       setConvirtiendo(false)
@@ -699,7 +721,7 @@ export default function PedidosPage() {
 
   const clienteDelForm = clientes.find(c => c.id === form.clienteId)
   const descPct = parseFloat(clienteDelForm?.descuento_pct || 0)
-  const ivaFactor = (form.modalidad || clienteDelForm?.modalidad_factura || 'sin_iva') === 'con_iva' ? 1.21 : 1
+  const ivaFactor = getIvaFactor(form.modalidad || clienteDelForm?.modalidad_factura || 'sin_iva')
   const total = items.reduce((s, item) => s + item.cantidad * item.precio_unitario * (1 - descPct / 100) * ivaFactor, 0)
   const prodSelObj = productos.find(p => p.id === prodSel)
   const productosActivos = productos.filter(p => p.activo !== false)

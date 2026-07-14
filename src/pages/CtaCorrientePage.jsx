@@ -109,7 +109,7 @@ export default function CtaCorrientePage() {
       await recalcularEstadoVenta(ajuste.ventaId)
       toast(`${ajuste.tipo} registrada ✓`)
       setModalAjuste(false)
-      setAjuste(EMPTY_AJUSTE)
+      setAjuste({ ...EMPTY_AJUSTE, fecha: hoyAR() })
       setVentasCliente([])
       if (clienteId) loadCtaCte()
     } catch (e) { toast('Error: ' + e.message, 'error') } finally { setSavingAjuste(false) }
@@ -125,7 +125,7 @@ export default function CtaCorrientePage() {
         {isAdmin && (
           <div className="page-header-actions">
             <button className="btn btn-secondary" onClick={() => {
-              setAjuste(EMPTY_AJUSTE)
+              setAjuste({ ...EMPTY_AJUSTE, fecha: hoyAR() })
               setVentasCliente([])
               setModalAjuste(true)
             }}>± NC/ND Cliente</button>

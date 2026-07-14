@@ -153,6 +153,7 @@ export default function ClientesPage() {
             toast('No tenés permiso para editar este cliente', 'error'); return
           }
           const { error } = await supabase.from('clientes').update({
+            nombre: data.nombre, nombre_fantasia: data.nombre_fantasia,
             telefono: data.telefono, email: data.email,
             direccion: data.direccion, localidad: data.localidad,
             provincia: data.provincia, notas: data.notas,
@@ -258,14 +259,25 @@ export default function ClientesPage() {
 
   async function responderSolicitud(s, decision) {
     try {
-      await supabase.from('solicitudes_clientes').update({ estado: decision }).eq('id', s.id)
       if (decision === 'aprobada') {
+        // Releer el dueño actual por si cambió desde que se cargó la lista (otra solicitud
+        // ya aprobada, o asignación manual) para no pisarlo sin avisar.
+        const { data: clienteActual } = await supabase.from('clientes').select('vendedor_id').eq('id', s.cliente_id).single()
+        if (clienteActual?.vendedor_id && clienteActual.vendedor_id !== s.vendedor_id) {
+          const nombreActual = vendedores.find(v => v.user_id === clienteActual.vendedor_id)?.nombre || 'otro vendedor'
+          if (!confirm(`Este cliente ya está asignado a ${nombreActual}. ¿Reasignarlo de todos modos?`)) return
+        }
+
         await supabase.from('clientes').update({ vendedor_id: s.vendedor_id }).eq('id', s.cliente_id)
+        // Cualquier otra solicitud pendiente para el mismo cliente queda obsoleta.
+        await supabase.from('solicitudes_clientes').update({ estado: 'rechazada' })
+          .eq('cliente_id', s.cliente_id).eq('estado', 'pendiente').neq('id', s.id)
         const nombre = vendedores.find(v => v.user_id === s.vendedor_id)?.nombre || 'el vendedor'
         toast(`Cliente asignado a ${nombre}`)
       } else {
         toast('Solicitud rechazada')
       }
+      await supabase.from('solicitudes_clientes').update({ estado: decision }).eq('id', s.id)
       load()
     } catch (e) { toast('Error', 'error') }
   }
@@ -378,7 +390,8 @@ export default function ClientesPage() {
             <thead>
               <tr>
                 <th>Cliente</th>
-                <th>Vendedor</th>
+                <th>Cartera actual</th>
+                <th>Solicitado por</th>
                 <th>Fecha</th>
                 <th></th>
               </tr>
@@ -390,6 +403,7 @@ export default function ClientesPage() {
                 return (
                   <tr key={s.id}>
                     <td><strong>{cliente ? nombreCliente(cliente) : '—'}</strong></td>
+                    <td>{carteraBadge(cliente || {})}</td>
                     <td>{vendedor}</td>
                     <td style={{ fontSize:12, color:'var(--muted)' }}>{new Date(s.created_at).toLocaleDateString('es-AR')}</td>
                     <td style={{ whiteSpace:'nowrap' }}>

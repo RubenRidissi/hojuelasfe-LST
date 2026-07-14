@@ -72,7 +72,7 @@ export default function PagosProveedoresPage() {
     .filter(r => !form.proveedorId || r.proveedor_id === form.proveedorId)
 
   function abrirNuevoPago() {
-    setForm(EMPTY_FORM)
+    setForm({ ...EMPTY_FORM, fecha: hoyAR() })
     setModalOpen(true)
   }
 

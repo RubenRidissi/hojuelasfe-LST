@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
-import { nombreCliente, hoyAR } from '../utils/helpers'
+import { nombreCliente, hoyAR, getIvaFactor } from '../utils/helpers'
 import { useToast } from '../hooks/useToast'
 import { useComprobante, ComprobanteModal } from '../hooks/useComprobante.jsx'
 import { ToastContainer } from '../components/Toast'
@@ -259,10 +259,6 @@ export default function VentasPage() {
     return parseFloat(clientes.find(c => c.id === clienteId)?.descuento_pct || 0)
   }
 
-  function getIvaFactor(modalidad) {
-    return modalidad === 'con_iva' ? 1.21 : 1
-  }
-
   function calcTotal(itemsArr, clienteId, modalidad) {
     const descPct = getDescPct(clienteId)
     const ivaFactor = getIvaFactor(modalidad)
@@ -309,10 +305,9 @@ export default function VentasPage() {
   }
 
   function resetEditor() {
-    setForm(EMPTY_FORM)
+    setForm({ ...EMPTY_FORM, fecha: hoyAR() })
     setItems([])
     setEditingVenta(null)
-    setSearchCliente('')
     setProdSel('')
     setCantidad(1)
     setPrecioEditable('')

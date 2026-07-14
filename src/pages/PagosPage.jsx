@@ -7,7 +7,7 @@ import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
 import { useComprobante, ComprobanteModal } from '../hooks/useComprobante.jsx'
 import { fmtMonto } from '../utils/money'
-import { recalcularEstadoVenta } from '../services/ventasService'
+import { recalcularEstadoVenta, recalcularEstadoVentas } from '../services/ventasService'
 
 const MEDIOS = [
   { value: 'efectivo', label: 'Efectivo' },
@@ -94,7 +94,7 @@ export default function PagosPage() {
   useEffect(() => {
     const { clienteId, ventaId } = location.state || {}
     if (!clienteId) return
-    setForm(f => ({ ...EMPTY_FORM, clienteId }))
+    setForm(f => ({ ...EMPTY_FORM, fecha: hoyAR(), clienteId }))
     cargarVentasPendientes(clienteId, ventaId)
     setModalOpen(true)
     navigate(location.pathname, { replace: true, state: null })
@@ -102,7 +102,7 @@ export default function PagosPage() {
 
   useEffect(() => {
     const abrirDesdeFab = () => {
-      setForm(EMPTY_FORM)
+      setForm({ ...EMPTY_FORM, fecha: hoyAR() })
       setVentasPendientes([])
       setImputaciones({})
       setModalOpen(true)
@@ -278,25 +278,22 @@ export default function PagosPage() {
       if (!pago) throw new Error('No se pudo registrar el cobro.')
 
       // Registrar imputaciones y actualizar estado de cada venta
-      await Promise.all(imputacionesActivas.map(async ([ventaId, imp]) => {
-        const montoAplicado = parseFloat(imp.monto || 0)
-        if (montoAplicado <= 0) return
-
-        const { error: impError } = await supabase
-          .from('pago_ventas')
-          .insert({ pago_id: pago.id, venta_id: ventaId, monto_aplicado: montoAplicado })
-
+      const imputacionesValidas = imputacionesActivas.filter(([, imp]) => parseFloat(imp.monto || 0) > 0)
+      if (imputacionesValidas.length) {
+        const { error: impError } = await supabase.from('pago_ventas').insert(
+          imputacionesValidas.map(([ventaId, imp]) => ({ pago_id: pago.id, venta_id: ventaId, monto_aplicado: parseFloat(imp.monto || 0) }))
+        )
         if (impError) throw impError
 
-        await recalcularEstadoVenta(ventaId)
-      }))
+        await recalcularEstadoVentas(imputacionesValidas.map(([ventaId]) => ventaId))
+      }
 
       toast(imputacionesActivas.length
         ? `Cobro registrado (${centroCosto}) e imputado a ${imputacionesActivas.length} venta(s) ✓`
         : `Cobro registrado como pago a cuenta (${centroCosto}) ✓`)
 
       setModalOpen(false)
-      setForm(EMPTY_FORM)
+      setForm({ ...EMPTY_FORM, fecha: hoyAR() })
       setVentasPendientes([])
       setImputaciones({})
       loadPagos()
@@ -445,18 +442,15 @@ export default function PagosPage() {
 
     setImputando(true)
     try {
-      await Promise.all(nuevasImputacionesActivas.map(async ([ventaId, imp]) => {
-        const montoAplicado = parseFloat(imp.monto || 0)
-        if (montoAplicado <= 0) return
-
-        const { error } = await supabase
-          .from('pago_ventas')
-          .insert({ pago_id: modalImputar.id, venta_id: ventaId, monto_aplicado: montoAplicado })
-
+      const imputacionesValidas = nuevasImputacionesActivas.filter(([, imp]) => parseFloat(imp.monto || 0) > 0)
+      if (imputacionesValidas.length) {
+        const { error } = await supabase.from('pago_ventas').insert(
+          imputacionesValidas.map(([ventaId, imp]) => ({ pago_id: modalImputar.id, venta_id: ventaId, monto_aplicado: parseFloat(imp.monto || 0) }))
+        )
         if (error) throw error
 
-        await recalcularEstadoVenta(ventaId)
-      }))
+        await recalcularEstadoVentas(imputacionesValidas.map(([ventaId]) => ventaId))
+      }
 
       toast('Imputación registrada ✓')
       setModalImputar(null)
@@ -469,6 +463,7 @@ export default function PagosPage() {
   }
 
   const misClientes = isAdmin ? clientes : clientes.filter(c => c.vendedor_id === user)
+  const misClientesActivos = isAdmin ? clientes : clientes.filter(c => c.vendedor_id === user && c.estado_cliente === 'Activo')
 
   return (
     <div>
@@ -476,7 +471,7 @@ export default function PagosPage() {
       <div className="page-header">
         <h1 className="page-title">Cobros</h1>
         <div className="page-header-actions">
-          <button className="mobile-hide btn btn-primary" onClick={() => { setForm(EMPTY_FORM); setVentasPendientes([]); setImputaciones({}); setModalOpen(true) }}>
+          <button className="mobile-hide btn btn-primary" onClick={() => { setForm({ ...EMPTY_FORM, fecha: hoyAR() }); setVentasPendientes([]); setImputaciones({}); setModalOpen(true) }}>
             + Registrar cobro
           </button>
         </div>
@@ -629,7 +624,7 @@ export default function PagosPage() {
                     cargarVentasPendientes(e.target.value)
                   }}>
                     <option value="">— Elegí un cliente —</option>
-                    {misClientes.map(c => <option key={c.id} value={c.id}>{nombreCliente(c)}</option>)}
+                    {misClientesActivos.map(c => <option key={c.id} value={c.id}>{nombreCliente(c)}</option>)}
                   </select>
                 </div>
                 <div className="form-group">
