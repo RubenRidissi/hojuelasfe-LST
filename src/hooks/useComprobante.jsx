@@ -402,7 +402,7 @@ export function useComprobante() {
         .eq('id', id).single()
       if (!v) throw new Error('No se encontró la venta')
       const num = v.numero || 1
-      const nomCli = (v.clientes?.nombre_fantasia || v.clientes?.nombre || 'cliente').replace(/[^a-zA-Z0-9\sáéíóúÁÉÍÓÚñÑ]/g, '').trim().replace(/\s+/g, '_')
+      const nomCli = (v.clientes?.nombre || v.clientes?.nombre_fantasia || 'cliente').replace(/[^a-zA-Z0-9\sáéíóúÁÉÍÓÚñÑ]/g, '').trim().replace(/\s+/g, '_')
       setComp({ titulo: 'Comprobante de Venta', html: buildComprobanteVenta(v, num), filename: `Venta_${String(num).padStart(4, '0')}_${nomCli}` })
     } catch (e) { throw e }
   }
@@ -414,7 +414,7 @@ export function useComprobante() {
         .eq('id', id).single()
       if (!p) throw new Error('No se encontró el pedido')
       const num = p.numero || 1
-      const nomCli = (p.clientes?.nombre_fantasia || p.clientes?.nombre || 'cliente').replace(/[^a-zA-Z0-9\sáéíóúÁÉÍÓÚñÑ]/g, '').trim().replace(/\s+/g, '_')
+      const nomCli = (p.clientes?.nombre || p.clientes?.nombre_fantasia || 'cliente').replace(/[^a-zA-Z0-9\sáéíóúÁÉÍÓÚñÑ]/g, '').trim().replace(/\s+/g, '_')
       setComp({ titulo: 'Comprobante de Pedido', html: buildComprobantePedido(p, num), filename: `Pedido_${String(num).padStart(4, '0')}_${nomCli}` })
     } catch (e) { throw e }
   }
@@ -568,7 +568,7 @@ export function useComprobante() {
         .single()
       if (!pago) throw new Error('No se encontró el cobro')
       const num = pago.numero || 1
-      const nomCli = (pago.clientes?.nombre_fantasia || pago.clientes?.nombre || 'cliente').replace(/[^a-zA-Z0-9\sáéíóúÁÉÍÓÚñÑ]/g, '').trim().replace(/\s+/g, '_')
+      const nomCli = (pago.clientes?.nombre || pago.clientes?.nombre_fantasia || 'cliente').replace(/[^a-zA-Z0-9\sáéíóúÁÉÍÓÚñÑ]/g, '').trim().replace(/\s+/g, '_')
       setComp({ titulo: 'Recibo de Pago', html: buildReciboPago(pago), filename: `Recibo_${String(num).padStart(6, '0')}_${nomCli}` })
     } catch (e) { throw e }
   }

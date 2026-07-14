@@ -17,7 +17,8 @@ export function hoyAR() {
 
 export function nombreCliente(c) {
   if (!c) return '—'
-  return c.nombre_fantasia || c.nombre || '—'
+  if (c.nombre && c.nombre_fantasia) return `${c.nombre} (${c.nombre_fantasia})`
+  return c.nombre || c.nombre_fantasia || '—'
 }
 
 export function formatMoney(val) {

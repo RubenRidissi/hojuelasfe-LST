@@ -182,7 +182,7 @@ export default function ListasPage() {
       })
 
       const tituloLista = tipo === 'cliente'
-        ? `Lista de Precios — ${clienteSeleccionado?.nombre_fantasia || clienteSeleccionado?.nombre || ''}`
+        ? `Lista de Precios — ${clienteSeleccionado ? nombreCliente(clienteSeleccionado) : ''}`
         : `Lista de Precios ${tipo}`
 
       const subtitulo = ''

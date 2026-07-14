@@ -428,8 +428,8 @@ export default function ClientesPage() {
                 {clientesFiltrados.map(c => (
                   <tr key={c.id}>
                     <td>
-                      <strong>{c.nombre_fantasia || c.nombre || '—'}</strong>
-                      {c.nombre_fantasia && c.nombre && <><br /><span style={{ fontSize:12, color:'var(--muted)' }}>{c.nombre}</span></>}
+                      <strong>{c.nombre || c.nombre_fantasia || '—'}</strong>
+                      {c.nombre_fantasia && c.nombre && <><br /><span style={{ fontSize:12, color:'var(--muted)' }}>{c.nombre_fantasia}</span></>}
                     </td>
                     <td><span className={`badge ${estadoBadge[c.estado_cliente] || 'badge-yellow'}`}>{estadoIcon[c.estado_cliente] || '⏳'} {c.estado_cliente || 'Pendiente'}</span></td>
                     <td><span className={`badge ${tipoBadge[c.tipo] || 'badge-gray'}`}>{c.tipo || 'Minorista'}</span></td>
@@ -466,7 +466,7 @@ export default function ClientesPage() {
         ) : clientesFiltrados.length === 0 ? (
           <div className="empty"><div className="empty-icon">👥</div><p>No hay clientes</p></div>
         ) : clientesFiltrados.map(c => {
-          const inicial = (c.nombre_fantasia || c.nombre || '?').charAt(0).toUpperCase()
+          const inicial = (c.nombre || c.nombre_fantasia || '?').charAt(0).toUpperCase()
           const estadoColor = { Activo:'var(--success)', Pendiente:'#D97706', Inactivo:'#DC2626' }[c.estado_cliente] || '#D97706'
           return (
             <div key={c.id} className="op-card op-card-elevated" style={{ borderLeftColor: estadoColor, cursor: 'pointer' }} onClick={() => setVerCliente(c)}>
@@ -523,10 +523,6 @@ export default function ClientesPage() {
                 <span className={`badge ${tipoBadge[verCliente.tipo] || 'badge-gray'}`}>{verCliente.tipo || 'Minorista'}</span>
                 {carteraBadge(verCliente)}
               </div>
-
-              {verCliente.nombre_fantasia && verCliente.nombre && (
-                <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>Razón social: {verCliente.nombre}</div>
-              )}
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 10, marginBottom: 12 }}>
                 <div style={{ background: 'var(--bg)', borderRadius: 8, padding: '8px 10px' }}>

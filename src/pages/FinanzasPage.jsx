@@ -235,7 +235,7 @@ export default function FinanzasPage() {
         const saldo = parseFloat(v.total || 0) - parseFloat(v.monto_pagado || 0)
         const vid = v.vendedor_id || 'sin_asignar'
         porVendedor[vid] = (porVendedor[vid] || 0) + saldo
-        const nCli = v.clientes?.nombre_fantasia || v.clientes?.nombre || 'Sin nombre'
+        const nCli = v.clientes ? nombreCliente(v.clientes) : 'Sin nombre'
         porCliente[nCli] = (porCliente[nCli] || 0) + saldo
       })
 
