@@ -141,3 +141,6 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Claude Code local settings (puede contener credenciales/keys locales)
+.claude/settings.local.json
