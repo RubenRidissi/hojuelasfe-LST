@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
-import { nombreCliente, hoyAR, RESULTADOS_VISITA, resultadoVisitaInfo } from '../utils/helpers'
+import { nombreCliente, hoyAR, RESULTADOS_VISITA, resultadoVisitaInfo, distanciaKm } from '../utils/helpers'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
 
@@ -35,6 +35,28 @@ function fmtCorta(d) {
   return d.toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit' })
 }
 
+// Ordena por vecino más cercano (greedy) a partir de un punto de origen.
+// Los clientes sin coordenadas quedan al final, en el orden en que llegaron.
+function ordenarPorCercania(clientes, origen) {
+  const conCoords = clientes.filter(c => c.latitud && c.longitud)
+  const sinCoords = clientes.filter(c => !(c.latitud && c.longitud))
+  const restantes = [...conCoords]
+  const ordenados = []
+  let actual = origen
+  while (restantes.length) {
+    let idxMin = 0
+    let distMin = Infinity
+    restantes.forEach((c, i) => {
+      const d = distanciaKm(actual.lat, actual.lng, c.latitud, c.longitud)
+      if (d < distMin) { distMin = d; idxMin = i }
+    })
+    const [next] = restantes.splice(idxMin, 1)
+    ordenados.push(next)
+    actual = { lat: next.latitud, lng: next.longitud }
+  }
+  return [...ordenados, ...sinCoords]
+}
+
 export default function MiRutaPage() {
   const { user, isAdmin } = useAuth()
   const { toasts, toast } = useToast()
@@ -50,6 +72,10 @@ export default function MiRutaPage() {
   const [notas, setNotas] = useState('')
   const [saving, setSaving] = useState(false)
   const [verVisita, setVerVisita] = useState(null) // { cliente, visita }
+
+  const [ordenGps, setOrdenGps] = useState(null) // array de cliente.id en el orden optimizado, o null = orden por defecto
+  const [primerClienteId, setPrimerClienteId] = useState('')
+  const [ubicando, setUbicando] = useState(false)
 
   const hoy = new Date()
   const hoyStr = hoyAR()
@@ -75,6 +101,7 @@ export default function MiRutaPage() {
   }
 
   useEffect(() => { load() }, [diaSel, fechaSelStr])
+  useEffect(() => { setOrdenGps(null); setPrimerClienteId('') }, [diaSel, fechaSelStr, filtroVendedor])
 
   async function load() {
     setLoading(true)
@@ -120,6 +147,40 @@ export default function MiRutaPage() {
 
   const pendientes = rutaSel.filter(c => !visitaDe(c.id))
   const hechas = rutaSel.filter(c => visitaDe(c.id))
+  const sinCoords = pendientes.filter(c => !(c.latitud && c.longitud)).length
+
+  const pendientesOrdenados = useMemo(() => {
+    if (!ordenGps) return pendientes
+    const porId = new Map(pendientes.map(c => [c.id, c]))
+    const ordenados = ordenGps.map(id => porId.get(id)).filter(Boolean)
+    const faltantes = pendientes.filter(c => !ordenGps.includes(c.id))
+    return [...ordenados, ...faltantes]
+  }, [pendientes, ordenGps])
+
+  function ordenarDesdeUbicacion() {
+    if (!navigator.geolocation) { toast('Tu navegador no soporta geolocalización', 'error'); return }
+    setUbicando(true)
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const origen = { lat: pos.coords.latitude, lng: pos.coords.longitude }
+        setOrdenGps(ordenarPorCercania(pendientes, origen).map(c => c.id))
+        setPrimerClienteId('')
+        setUbicando(false)
+      },
+      err => { toast('No se pudo obtener tu ubicación: ' + err.message, 'error'); setUbicando(false) },
+      { enableHighAccuracy: true, timeout: 10000 }
+    )
+  }
+
+  function ordenarDesdeCliente(id) {
+    setPrimerClienteId(id)
+    if (!id) { setOrdenGps(null); return }
+    const cliente = pendientes.find(c => c.id === id)
+    if (!cliente?.latitud || !cliente?.longitud) { toast('Ese cliente no tiene coordenadas cargadas', 'error'); return }
+    const resto = pendientes.filter(c => c.id !== id)
+    const ordenResto = ordenarPorCercania(resto, { lat: cliente.latitud, lng: cliente.longitud })
+    setOrdenGps([cliente.id, ...ordenResto.map(c => c.id)])
+  }
 
   return (
     <div>
@@ -164,18 +225,39 @@ export default function MiRutaPage() {
         <div className="empty"><div className="empty-icon">🗓</div><p>No hay clientes asignados a {diaSel}.</p></div>
       ) : (
         <>
+          {pendientes.length > 1 && (
+            <div className="card" style={{ padding: 12, marginBottom: 12 }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                <button className="btn btn-secondary btn-sm" onClick={ordenarDesdeUbicacion} disabled={ubicando}>
+                  {ubicando ? '📍 Ubicando...' : '📍 Ordenar desde mi ubicación'}
+                </button>
+                <select value={primerClienteId} onChange={e => ordenarDesdeCliente(e.target.value)} style={{ flex: 1, minWidth: 180 }}>
+                  <option value="">...o elegí el primer cliente</option>
+                  {pendientes.map(c => <option key={c.id} value={c.id}>{nombreCliente(c)}</option>)}
+                </select>
+                {ordenGps && <button className="btn btn-secondary btn-sm" onClick={() => { setOrdenGps(null); setPrimerClienteId('') }}>✕ Quitar orden</button>}
+              </div>
+              {sinCoords > 0 && (
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>
+                  {sinCoords} cliente{sinCoords !== 1 ? 's' : ''} sin coordenadas cargadas — quedan al final, sin optimizar.
+                </div>
+              )}
+            </div>
+          )}
+
           <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 8 }}>
             {pendientes.length} pendiente{pendientes.length !== 1 ? 's' : ''} · {hechas.length} visitado{hechas.length !== 1 ? 's' : ''}
           </div>
           <div className="cards-grid">
-            {[...pendientes, ...hechas].map(c => {
+            {[...pendientesOrdenados, ...hechas].map((c, idx) => {
               const visita = visitaDe(c.id)
               const resultadoInfo = RESULTADOS.find(r => r.value === visita?.resultado)
+              const numero = ordenGps && idx < pendientesOrdenados.length ? idx + 1 : null
               return (
                 <div key={c.id} className="op-card" style={{ opacity: visita ? 0.6 : 1 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 600, fontSize: 15 }}>{nombreCliente(c)}</div>
+                      <div style={{ fontWeight: 600, fontSize: 15 }}>{numero ? `${numero}. ` : ''}{nombreCliente(c)}</div>
                       <div style={{ fontSize: 12, color: 'var(--muted)' }}>
                         {c.tipo || '—'}{c.zona_lst ? ` · ${c.zona_lst}` : ''}
                       </div>
