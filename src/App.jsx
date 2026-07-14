@@ -19,6 +19,7 @@ import StockPage from './pages/StockPage'
 import ListasPage from './pages/ListasPage'
 import FinanzasPage from './pages/FinanzasPage'
 import ReportesPage from './pages/ReportesPage'
+import HistorialVisitasPage from './pages/HistorialVisitasPage'
 import ConfigPage from './pages/ConfigPage'
 import MapaPage from './pages/MapaPage'
 import InfoPage from './pages/InfoPage'
@@ -59,6 +60,7 @@ function AppLayout() {
           <Route path="/stock"       element={<StockPage />} />
           <Route path="/listas"      element={<ListasPage />} />
           <Route path="/finanzas"    element={<AdminRoute><FinanzasPage /></AdminRoute>} />
+          <Route path="/historial-visitas" element={<AdminRoute><HistorialVisitasPage /></AdminRoute>} />
           <Route path="/reportes"    element={<ReportesPage />} />
           <Route path="/config"      element={<ConfigPage />} />
           <Route path="/mi-dia"      element={<InfoPage type="/mi-dia" />} />

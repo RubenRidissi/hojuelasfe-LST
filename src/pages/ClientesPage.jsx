@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
-import { nombreCliente, formatMoney } from '../utils/helpers'
+import { nombreCliente, formatMoney, resultadoVisitaInfo } from '../utils/helpers'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
 
@@ -39,6 +39,8 @@ export default function ClientesPage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [step, setStep] = useState(1)
   const [verCliente, setVerCliente] = useState(null)
+  const [historialVisitas, setHistorialVisitas] = useState([])
+  const [cargandoHistorial, setCargandoHistorial] = useState(false)
   const [form, setForm] = useState(EMPTY_FORM)
   const [zonaManual, setZonaManual] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -60,6 +62,14 @@ export default function ClientesPage() {
     window.addEventListener('fab:nuevo-cliente', abrirDesdeFab)
     return () => window.removeEventListener('fab:nuevo-cliente', abrirDesdeFab)
   }, [])
+
+  useEffect(() => {
+    if (!verCliente) { setHistorialVisitas([]); return }
+    setCargandoHistorial(true)
+    supabase.from('visitas').select('fecha,resultado,notas,vendedor_id').eq('cliente_id', verCliente.id).order('fecha', { ascending: false })
+      .then(({ data }) => setHistorialVisitas(data || []))
+      .finally(() => setCargandoHistorial(false))
+  }, [verCliente])
 
 
   async function load() {
@@ -299,6 +309,7 @@ export default function ClientesPage() {
     const tieneSolicitud = solicitudes.some(s => s.cliente_id === c.id && s.vendedor_id === user)
     if (isAdmin) return (
       <div style={{ display:'flex', gap:4 }}>
+        <button className="btn btn-sm btn-secondary" onClick={() => setVerCliente(c)} title="Ver ficha / historial de visitas">👁</button>
         <button className="btn btn-sm btn-success" onClick={() => toggleEstado(c)} title="Activar/Desactivar">✅</button>
         <button className="btn btn-sm btn-secondary" onClick={() => editCliente(c)} title="Editar">✏</button>
         <button className="btn btn-sm btn-danger" onClick={() => deleteCliente(c)} title="Borrar">🗑</button>
@@ -306,7 +317,12 @@ export default function ClientesPage() {
           onClick={() => { setModalAsignar(c); setVendedorSel(c.vendedor_id || '') }} title="Asignar vendedor">👤</button>
       </div>
     )
-    if (c.vendedor_id === user) return <button className="btn btn-sm btn-secondary" onClick={() => editCliente(c)}>✏</button>
+    if (c.vendedor_id === user) return (
+      <div style={{ display:'flex', gap:4 }}>
+        <button className="btn btn-sm btn-secondary" onClick={() => setVerCliente(c)} title="Ver ficha / historial de visitas">👁</button>
+        <button className="btn btn-sm btn-secondary" onClick={() => editCliente(c)} title="Editar">✏</button>
+      </div>
+    )
     if (tieneSolicitud) return <span style={{ fontSize:11, color:'var(--muted)' }}>Solicitud enviada</span>
     return <button className="btn btn-sm" style={{ background:'#FEF3DC', color:'#92400E' }} onClick={() => solicitarCliente(c.id)}>📬 Solicitar</button>
   }
@@ -613,11 +629,36 @@ export default function ClientesPage() {
               )}
 
               {verCliente.notas && (
-                <div>
+                <div style={{ marginBottom: 12 }}>
                   <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Notas</div>
                   <div style={{ fontSize: 13, color: 'var(--muted)' }}>{verCliente.notas}</div>
                 </div>
               )}
+
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 12, color: 'var(--muted)', textTransform: 'uppercase', marginBottom: 4 }}>Historial de visitas</div>
+                {cargandoHistorial ? (
+                  <p style={{ fontSize: 13, color: 'var(--muted)' }}>Cargando...</p>
+                ) : historialVisitas.length === 0 ? (
+                  <p style={{ fontSize: 13, color: 'var(--muted)' }}>Sin visitas registradas todavía.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {historialVisitas.map((v, i) => {
+                      const info = resultadoVisitaInfo(v.resultado)
+                      const vendedorNombre = vendedores.find(vd => vd.user_id === v.vendedor_id)?.nombre
+                      return (
+                        <div key={i} style={{ background: 'var(--bg)', borderRadius: 8, padding: '8px 10px' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontSize: 12, fontWeight: 600 }}>{new Date(v.fecha + 'T00:00:00').toLocaleDateString('es-AR')}{vendedorNombre ? ` · ${vendedorNombre}` : ''}</span>
+                            <span className={`badge ${info.badge}`}>{info.label}</span>
+                          </div>
+                          {v.notas && <div style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>{v.notas}</div>}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setVerCliente(null)}>Cerrar</button>

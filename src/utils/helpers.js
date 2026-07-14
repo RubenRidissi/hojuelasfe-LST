@@ -28,3 +28,14 @@ export function formatMoney(val, opts = { maximumFractionDigits: 2 }) {
 export function getIvaFactor(modalidad) {
   return modalidad === 'con_iva' ? 1.21 : 1
 }
+
+export const RESULTADOS_VISITA = [
+  { value: 'venta', label: '✅ Venta', badge: 'badge-green' },
+  { value: 'sin_venta', label: '➖ Sin venta', badge: 'badge-yellow' },
+  { value: 'cerrado', label: '🔒 Cerrado', badge: 'badge-gray' },
+  { value: 'no_atendio', label: '🚫 No atendió', badge: 'badge-red' }
+]
+
+export function resultadoVisitaInfo(value) {
+  return RESULTADOS_VISITA.find(r => r.value === value) || { label: value || '—', badge: 'badge-gray' }
+}

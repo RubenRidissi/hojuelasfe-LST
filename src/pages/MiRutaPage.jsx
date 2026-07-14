@@ -1,17 +1,12 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
-import { nombreCliente, hoyAR } from '../utils/helpers'
+import { nombreCliente, hoyAR, RESULTADOS_VISITA, resultadoVisitaInfo } from '../utils/helpers'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
 
 const DIAS_SEMANA = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado']
-const RESULTADOS = [
-  { value: 'venta', label: '✅ Venta', badge: 'badge-green' },
-  { value: 'sin_venta', label: '➖ Sin venta', badge: 'badge-yellow' },
-  { value: 'cerrado', label: '🔒 Cerrado', badge: 'badge-gray' },
-  { value: 'no_atendio', label: '🚫 No atendió', badge: 'badge-red' }
-]
+const RESULTADOS = RESULTADOS_VISITA
 
 function getISOWeek(d) {
   const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
@@ -54,6 +49,7 @@ export default function MiRutaPage() {
   const [resultado, setResultado] = useState('venta')
   const [notas, setNotas] = useState('')
   const [saving, setSaving] = useState(false)
+  const [verVisita, setVerVisita] = useState(null) // { cliente, visita }
 
   const hoy = new Date()
   const hoyStr = hoyAR()
@@ -88,7 +84,7 @@ export default function MiRutaPage() {
           .select('id,nombre,nombre_fantasia,direccion,localidad,zona_lst,tipo,telefono,vendedor_id,dia_visita,frecuencia_visita,estado_cliente,latitud,longitud')
           .eq('dia_visita', diaSel).eq('estado_cliente', 'Activo'),
         supabase.from('user_roles').select('user_id,nombre').eq('rol', 'vendedor').order('nombre'),
-        supabase.from('visitas').select('cliente_id,resultado').eq('fecha', fechaSelStr)
+        supabase.from('visitas').select('cliente_id,resultado,notas').eq('fecha', fechaSelStr)
       ])
       setClientes(c || [])
       setVendedores(v || [])
@@ -195,6 +191,7 @@ export default function MiRutaPage() {
                       <a href={`https://www.google.com/maps?q=${c.latitud},${c.longitud}`} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ flex: 1, textDecoration: 'none', textAlign: 'center' }}>🗺 Mapa</a>
                     )}
                     {!visita && esHoy && <button className="btn btn-success" style={{ flex: 1 }} onClick={() => abrirVisita(c)}>✓ Visitado</button>}
+                    {visita && <button className="btn btn-secondary" style={{ flex: 1 }} onClick={() => setVerVisita({ cliente: c, visita })}>👁 Ver detalle</button>}
                   </div>
                 </div>
               )
@@ -226,6 +223,34 @@ export default function MiRutaPage() {
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setModalVisita(null)}>Cancelar</button>
               <button className="btn btn-primary" onClick={saveVisita} disabled={saving}>{saving ? 'Guardando...' : 'Registrar'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {verVisita && (
+        <div className="modal-backdrop" onClick={e => e.target === e.currentTarget && setVerVisita(null)}>
+          <div className="modal" style={{ maxWidth: 420 }}>
+            <div className="modal-header">
+              <h2>Detalle de la visita</h2>
+              <button className="btn btn-secondary btn-sm" onClick={() => setVerVisita(null)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <p style={{ marginBottom: 12 }}><strong>{nombreCliente(verVisita.cliente)}</strong></p>
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 4 }}>Resultado</div>
+                {(() => {
+                  const info = RESULTADOS.find(r => r.value === verVisita.visita.resultado)
+                  return <span className={`badge ${info?.badge || 'badge-gray'}`}>{info?.label || verVisita.visita.resultado}</span>
+                })()}
+              </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 4 }}>Notas</div>
+                <p style={{ color: verVisita.visita.notas ? 'var(--text)' : 'var(--muted)' }}>{verVisita.visita.notas || 'Sin observaciones'}</p>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => setVerVisita(null)}>Cerrar</button>
             </div>
           </div>
         </div>

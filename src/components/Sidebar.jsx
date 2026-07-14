@@ -46,6 +46,7 @@ const NAV_ADMIN = [
     group: 'Administración', icon: '📊', defaultOpen: false, items: [
       { to: '/reportes', icon: '📊', label: 'Reportes' },
       { to: '/finanzas', icon: '💵', label: 'Finanzas' },
+      { to: '/historial-visitas', icon: '🗓️', label: 'Historial de Visitas' },
     ]
   },
   {
