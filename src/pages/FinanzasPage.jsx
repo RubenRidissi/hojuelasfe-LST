@@ -118,6 +118,9 @@ export default function FinanzasPage() {
   const [pagadoProvHoy, setPagadoProvHoy] = useState(0)
   const [pagadoProvMes, setPagadoProvMes] = useState(0)
 
+  // Caja actual (histórica)
+  const [cajaActual, setCajaActual] = useState({ total: 0, cobradoTotal: 0, cc1: 0, cc2: 0 })
+
   // Cuentas a cobrar
   const [totalCobrar, setTotalCobrar] = useState(0)
   const [cobroPorVendedor, setCobroPorVendedor] = useState([])
@@ -192,18 +195,27 @@ export default function FinanzasPage() {
       // 1. POSICIÓN DEL PERÍODO
       let qHoy = supabase.from('pagos').select('monto,centro_costo').eq('fecha', hoy)
       let qMes = supabase.from('pagos').select('monto,centro_costo').gte('fecha', mesDesde).lte('fecha', mesHasta)
-      if (filtroCC) { qHoy = qHoy.eq('centro_costo', filtroCC); qMes = qMes.eq('centro_costo', filtroCC) }
+      let qTodo = supabase.from('pagos').select('monto,centro_costo')
+      if (filtroCC) { qHoy = qHoy.eq('centro_costo', filtroCC); qMes = qMes.eq('centro_costo', filtroCC); qTodo = qTodo.eq('centro_costo', filtroCC) }
 
-      const [{ data: cobHoy }, { data: cobMes }, { data: ppHoy }, { data: ppMes }] = await Promise.all([
-        qHoy, qMes,
+      const [{ data: cobHoy }, { data: cobMes }, { data: cobTodo }, { data: ppHoy }, { data: ppMes }, { data: ppTodo }] = await Promise.all([
+        qHoy, qMes, qTodo,
         supabase.from('pagos_proveedor').select('monto').eq('fecha', hoy),
-        supabase.from('pagos_proveedor').select('monto').gte('fecha', mesDesde).lte('fecha', mesHasta)
+        supabase.from('pagos_proveedor').select('monto').gte('fecha', mesDesde).lte('fecha', mesHasta),
+        supabase.from('pagos_proveedor').select('monto')
       ])
 
       setCobradoHoy({ total: sum(cobHoy || []), cc1: sumCC(cobHoy || [], 'CC1'), cc2: sumCC(cobHoy || [], 'CC2') })
       setCobradoMes({ total: sum(cobMes || []), cc1: sumCC(cobMes || [], 'CC1'), cc2: sumCC(cobMes || [], 'CC2') })
       setPagadoProvHoy(sum(ppHoy || []))
       setPagadoProvMes(sum(ppMes || []))
+
+      setCajaActual({
+        total: sum(cobTodo || []) - sum(ppTodo || []),
+        cobradoTotal: sum(cobTodo || []),
+        cc1: sumCC(cobTodo || [], 'CC1'),
+        cc2: sumCC(cobTodo || [], 'CC2')
+      })
 
       // 2. CUENTAS A COBRAR
       const [{ data: ventasPend }, { data: ajustesClientes }] = await Promise.all([
@@ -257,6 +269,8 @@ export default function FinanzasPage() {
 
   const cajaMes = cobradoMes.total - pagadoProvMes
   const posicionNeta = totalCobrar - totalPagar
+  const cobertura = cajaActual.total + posicionNeta
+  const faltaCobrar = Math.max(0, totalPagar - cajaActual.total)
 
   const ccBadge = cc => cc === 'CC1'
     ? <span style={{ fontSize: 11, background: '#DBEAFE', color: '#1D4ED8', padding: '1px 7px', borderRadius: 10, fontWeight: 600 }}>CC1</span>
@@ -279,10 +293,24 @@ export default function FinanzasPage() {
         <div className="empty"><div className="empty-icon">⏳</div><p>Cargando...</p></div>
       ) : (
         <>
-          {/* RESUMEN DEL MES */}
+          {/* RESUMEN */}
           <div className="card" style={{ marginBottom: 16, padding: 16 }}>
-            <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12 }}>Resumen del mes</div>
+            <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12 }}>Resumen {filtroCC && ccBadge(filtroCC)}</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
+              <div style={{ background: 'var(--bg)', borderRadius: 8, padding: 14, textAlign: 'center' }}>
+                <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--muted)', marginBottom: 6 }}>Caja actual</div>
+                <div style={{ fontSize: 26, fontWeight: 700, color: cajaActual.total >= 0 ? 'var(--success)' : 'var(--danger)' }}>
+                  {fmt(cajaActual.total)}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
+                  Cobrado histórico {fmt(cajaActual.cobradoTotal)} − Pagado a proveedor histórico {fmt(cajaActual.cobradoTotal - cajaActual.total)}
+                </div>
+                {!filtroCC && (
+                  <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
+                    Cobrado CC1: {fmt(cajaActual.cc1)} · CC2: {fmt(cajaActual.cc2)}
+                  </div>
+                )}
+              </div>
               <div style={{ background: 'var(--bg)', borderRadius: 8, padding: 14, textAlign: 'center' }}>
                 <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--muted)', marginBottom: 6 }}>Caja del mes</div>
                 <div style={{ fontSize: 26, fontWeight: 700, color: cajaMes >= 0 ? 'var(--success)' : 'var(--danger)' }}>
@@ -301,6 +329,38 @@ export default function FinanzasPage() {
                   Cta a cobrar {fmt(totalCobrar)} − Cta a pagar {fmt(totalPagar)}
                 </div>
               </div>
+            </div>
+          </div>
+
+          {/* COBERTURA: caja + posición neta */}
+          <div className="card" style={{ marginBottom: 16, padding: 16 }}>
+            <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12 }}>Cobertura financiera total</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 13, marginBottom: 12 }}>
+              <span>Caja actual <strong>{fmt(cajaActual.total)}</strong></span>
+              <span style={{ color: 'var(--muted)' }}>+</span>
+              <span>Cta a cobrar <strong>{fmt(totalCobrar)}</strong></span>
+              <span style={{ color: 'var(--muted)' }}>−</span>
+              <span>Cta a pagar <strong>{fmt(totalPagar)}</strong></span>
+              <span style={{ color: 'var(--muted)' }}>=</span>
+              <span style={{ fontWeight: 700, color: cobertura >= 0 ? 'var(--success)' : 'var(--danger)' }}>{fmt(cobertura)}</span>
+            </div>
+            <div style={{ background: 'var(--bg)', borderRadius: 8, padding: 14 }}>
+              {cobertura >= 0 ? (
+                <p style={{ margin: 0, fontSize: 13 }}>
+                  Cobrando el 100% de lo pendiente ({fmt(totalCobrar)}), la caja actual alcanza y sobra{' '}
+                  <strong style={{ color: 'var(--success)' }}>{fmt(cobertura)}</strong> para cubrir la deuda con el proveedor.
+                </p>
+              ) : (
+                <p style={{ margin: 0, fontSize: 13 }}>
+                  Aunque cobres el 100% de lo pendiente ({fmt(totalCobrar)}), te faltarían{' '}
+                  <strong style={{ color: 'var(--danger)' }}>{fmt(-cobertura)}</strong> para cubrir la deuda con el proveedor ({fmt(totalPagar)}).
+                </p>
+              )}
+              {faltaCobrar > 0 && (
+                <p style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--muted)' }}>
+                  Con la caja actual, necesitás cobrar al menos <strong>{fmt(faltaCobrar)}</strong> para quedar cubierto frente al proveedor sin usar más efectivo.
+                </p>
+              )}
             </div>
           </div>
 
