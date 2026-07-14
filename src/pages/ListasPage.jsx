@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
-import { nombreCliente } from '../utils/helpers'
+import { nombreCliente, formatMoney } from '../utils/helpers'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
 
@@ -169,12 +169,12 @@ export default function ListasPage() {
             <td style="font-weight:600;color:#292524">${p.nombre}${promoStr}${pqxbjStr}${bandejaStr}</td>
             <td style="text-align:center;color:#78716C;font-size:12px">${p.unidad || ''}</td>
             <td style="text-align:right;font-weight:700;color:#9A5F00">
-              ${hayTachado ? `<span style="text-decoration:line-through;color:#A8A29E;font-size:11px;font-weight:400">$${(ivaOpcion === 'coniva' ? precioBase * 1.21 : precioBase).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span><br>` : ''}
+              ${hayTachado ? `<span style="text-decoration:line-through;color:#A8A29E;font-size:11px;font-weight:400">${formatMoney((ivaOpcion === 'coniva' ? precioBase * 1.21 : precioBase), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span><br>` : ''}
               ${ivaOpcion === 'ambos'
-                ? `$${precioFinalMostrar.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span style="color:#1D4ED8;font-size:11px">($${precioIVAMostrar.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</span>`
+                ? `${formatMoney(precioFinalMostrar, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span style="color:#1D4ED8;font-size:11px">(${formatMoney(precioIVAMostrar, { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</span>`
                 : ivaOpcion === 'coniva'
-                  ? `$${precioIVAMostrar.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                  : `$${precioFinalMostrar.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                  ? `${formatMoney(precioIVAMostrar, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                  : `${formatMoney(precioFinalMostrar, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
               }
             </td>
           </tr>`

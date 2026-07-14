@@ -21,8 +21,8 @@ export function nombreCliente(c) {
   return c.nombre || c.nombre_fantasia || '—'
 }
 
-export function formatMoney(val) {
-  return '$' + parseFloat(val || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })
+export function formatMoney(val, opts = { maximumFractionDigits: 2 }) {
+  return '$' + parseFloat(val || 0).toLocaleString('es-AR', opts)
 }
 
 export function getIvaFactor(modalidad) {

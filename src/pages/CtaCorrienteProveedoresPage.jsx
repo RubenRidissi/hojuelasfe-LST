@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../services/supabase'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
-import { hoyAR } from '../utils/helpers'
+import { hoyAR, formatMoney } from '../utils/helpers'
 
 const EMPTY_AJUSTE = {
   tipo: 'NC', proveedorId: '', recepcionId: '',
@@ -10,9 +10,7 @@ const EMPTY_AJUSTE = {
   numero: '', monto: '', concepto: ''
 }
 
-function fmt(valor) {
-  return '$' + parseFloat(valor || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })
-}
+const fmt = formatMoney
 
 export default function CtaCorrienteProveedoresPage() {
   const { toasts, toast } = useToast()

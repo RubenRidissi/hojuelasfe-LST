@@ -3,7 +3,7 @@ import { supabase } from '../services/supabase'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
 import { registrarPagoProveedor, anularPagoProveedor } from '../services/proveedorPagosService'
-import { hoyAR } from '../utils/helpers'
+import { hoyAR, formatMoney } from '../utils/helpers'
 
 const MEDIOS = ['Transferencia', 'Efectivo', 'Cheque', 'Otro']
 
@@ -17,9 +17,7 @@ function proveedorDeRecepcion(r) {
   return r?.proveedores?.nombre || 'Recepción suelta'
 }
 
-function fmt(valor) {
-  return '$' + parseFloat(valor || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })
-}
+const fmt = formatMoney
 
 export default function PagosProveedoresPage() {
   const { toasts, toast } = useToast()

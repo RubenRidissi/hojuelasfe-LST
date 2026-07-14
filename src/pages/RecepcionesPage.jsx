@@ -6,7 +6,7 @@ import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
 import { useComprobante, ComprobanteModal } from '../hooks/useComprobante.jsx'
 import { registrarPagoProveedor } from '../services/proveedorPagosService'
-import { hoyAR } from '../utils/helpers'
+import { hoyAR, formatMoney } from '../utils/helpers'
 
 const EMPTY_FORM = {
   pedidoProveedorId: '', proveedorId: '', fecha: hoyAR(),
@@ -382,13 +382,13 @@ export default function RecepcionesPage() {
                       <td>{r.proveedores?.nombre || '—'}</td>
                       <td>{r.pedidos_proveedor ? `Pedido #${String(r.pedidos_proveedor.numero).padStart(4, '0')}` : <span style={{ color: 'var(--muted)' }}>Suelta</span>}</td>
                       <td style={{ fontSize: 12 }}>{r.remito_proveedor || '—'}</td>
-                      <td>${parseFloat(r.total || 0).toLocaleString('es-AR')}</td>
+                      <td>{formatMoney(parseFloat(r.total || 0))}</td>
                       <td><span className={`badge ${esBorrador ? 'badge-yellow' : 'badge-green'}`}>{esBorrador ? 'Borrador' : 'Confirmada'}</span></td>
                       <td>
                         {pago ? (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                             <span className={`badge ${pago.badge}`}>{pago.label}</span>
-                            {pago.saldo > 0 && <span style={{ fontSize: 11, color: 'var(--muted)' }}>Saldo ${pago.saldo.toLocaleString('es-AR', { maximumFractionDigits: 0 })}</span>}
+                            {pago.saldo > 0 && <span style={{ fontSize: 11, color: 'var(--muted)' }}>Saldo {formatMoney(pago.saldo, { maximumFractionDigits: 0 })}</span>}
                             {pago.saldo > 0 && (
                               <button className="btn btn-sm btn-success" onClick={() => {
                                 setModalPago({ recepcionId: r.id, total: r.total, montoPagado: r.monto_pagado_prov || 0, remito: r.remito_proveedor })
@@ -435,7 +435,7 @@ export default function RecepcionesPage() {
                   {r.pedidos_proveedor ? <div style={{ fontSize: 12, color: 'var(--muted)' }}>Pedido #{String(r.pedidos_proveedor.numero).padStart(4, '0')}</div> : <div style={{ fontSize: 12, color: 'var(--muted)' }}>Recepción suelta</div>}
                 </div>
                 <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 12 }}>
-                  <div style={{ fontWeight: 700, fontSize: 15 }}>${parseFloat(r.total || 0).toLocaleString('es-AR', { maximumFractionDigits: 0 })}</div>
+                  <div style={{ fontWeight: 700, fontSize: 15 }}>{formatMoney(parseFloat(r.total || 0), { maximumFractionDigits: 0 })}</div>
                   <span className={`badge ${esBorrador ? 'badge-yellow' : 'badge-green'}`} style={{ display: 'inline-block', marginTop: 2 }}>{esBorrador ? 'Borrador' : 'Confirmada'}</span>
                   {pago && <><br /><span className={`badge ${pago.badge}`} style={{ display: 'inline-block', marginTop: 2 }}>{pago.label}</span></>}
                 </div>
@@ -535,7 +535,7 @@ export default function RecepcionesPage() {
                     <option value="monto">$ desc.</option>
                   </select>
                   <input type="number" min="0" value={descValor} onChange={e => setDescValor(e.target.value)} style={{ width: 80 }} placeholder="Valor" />
-                  {costoPreview !== null && <span style={{ fontSize: 12, color: 'var(--muted)' }}>Costo final: ${costoPreview.toLocaleString('es-AR', { maximumFractionDigits: 2 })}</span>}
+                  {costoPreview !== null && <span style={{ fontSize: 12, color: 'var(--muted)' }}>Costo final: {formatMoney(costoPreview, { maximumFractionDigits: 2 })}</span>}
                   <button className="btn btn-primary" onClick={addItem}>+ Agregar</button>
                 </div>
               </div>
@@ -558,9 +558,9 @@ export default function RecepcionesPage() {
                               <input type="number" value={i.bonificado || 0} min="0" style={{ width: 65, padding: '4px 6px', border: '1px solid var(--border)', borderRadius: 6, color: '#15803D' }} onChange={e => updateBonif(i.producto_id, e.target.value)} />
                             </td>
                             <td style={{ textAlign: 'center', fontSize: 13 }}>{totalFisico}{i.bonificado > 0 && <span style={{ color: '#15803D', fontSize: 11 }}> 🎁{i.bonificado} bonif.</span>}</td>
-                            <td style={{ textAlign: 'right', fontSize: 13, color: 'var(--muted)' }}>${(i.costo_lista || i.costo_unitario).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</td>
+                            <td style={{ textAlign: 'right', fontSize: 13, color: 'var(--muted)' }}>{formatMoney((i.costo_lista || i.costo_unitario), { maximumFractionDigits: 2 })}</td>
                             <td style={{ textAlign: 'center', fontSize: 12 }}>{i.desc_label || '—'}</td>
-                            <td style={{ textAlign: 'right', fontSize: 13, fontWeight: 600, color: '#15803D' }}>${i.costo_unitario.toLocaleString('es-AR', { maximumFractionDigits: 2 })}</td>
+                            <td style={{ textAlign: 'right', fontSize: 13, fontWeight: 600, color: '#15803D' }}>{formatMoney(i.costo_unitario, { maximumFractionDigits: 2 })}</td>
                             <td><button className="btn btn-sm btn-danger" onClick={() => removeItem(i.producto_id)}>✕</button></td>
                           </tr>
                         )
@@ -581,12 +581,12 @@ export default function RecepcionesPage() {
                     <option value="monto">$ desc.</option>
                   </select>
                   <input type="number" min="0" value={form.adicionalDescValor} onChange={e => setForm(f => ({ ...f, adicionalDescValor: e.target.value }))} placeholder="Desc." style={{ width: 80 }} />
-                  <span style={{ fontSize: 13, alignSelf: 'center' }}>Neto: ${fleteNeto.toLocaleString('es-AR', { maximumFractionDigits: 2 })}</span>
+                  <span style={{ fontSize: 13, alignSelf: 'center' }}>Neto: {formatMoney(fleteNeto, { maximumFractionDigits: 2 })}</span>
                 </div>
               </div>
 
               <div style={{ textAlign: 'right', fontSize: 16, fontWeight: 700 }}>
-                Total: ${totalRecep.toLocaleString('es-AR', { maximumFractionDigits: 2 })}
+                Total: {formatMoney(totalRecep, { maximumFractionDigits: 2 })}
               </div>
             </div>
             <div className="modal-footer">
@@ -611,9 +611,9 @@ export default function RecepcionesPage() {
             </div>
             <div className="modal-body">
               <div style={{ background: 'var(--bg)', borderRadius: 8, padding: 12, marginBottom: 16, fontSize: 13 }}>
-                Total factura: <strong>${parseFloat(modalPago.total || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</strong>
-                {parseFloat(modalPago.montoPagado || 0) > 0 && <> · Ya pagado: <strong>${parseFloat(modalPago.montoPagado).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</strong></>}
-                {' · '}<span style={{ color: '#DC2626', fontWeight: 600 }}>Saldo: ${(parseFloat(modalPago.total || 0) - parseFloat(modalPago.montoPagado || 0)).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</span>
+                Total factura: <strong>{formatMoney(parseFloat(modalPago.total || 0), { maximumFractionDigits: 2 })}</strong>
+                {parseFloat(modalPago.montoPagado || 0) > 0 && <> · Ya pagado: <strong>{formatMoney(parseFloat(modalPago.montoPagado), { maximumFractionDigits: 2 })}</strong></>}
+                {' · '}<span style={{ color: '#DC2626', fontWeight: 600 }}>Saldo: {formatMoney((parseFloat(modalPago.total || 0) - parseFloat(modalPago.montoPagado || 0)), { maximumFractionDigits: 2 })}</span>
                 {modalPago.remito && <><br /><span style={{ fontSize: 11, color: 'var(--muted)' }}>Remito: {modalPago.remito}</span></>}
               </div>
               <div className="form-row">

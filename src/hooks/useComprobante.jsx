@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { supabase } from '../services/supabase'
 import { buscarRemitoExistente, prepararEntrega, MODALIDADES_ENTREGA } from '../services/logisticaService'
-import { nombreCliente, hoyAR } from '../utils/helpers'
+import { nombreCliente, hoyAR, formatMoney } from '../utils/helpers'
 
 const EMPRESA = {
   nombre: 'LST Distribuidora',
@@ -118,8 +118,8 @@ function buildComprobantePedido(p, num) {
       <td style="color:#78716C;font-size:12px">${item.productos?.codigo || '—'}</td>
       <td>${item.productos?.nombre || '—'}</td>
       <td style="text-align:center">${item.cantidad}${bonifTxt}${muestraTxt} ${item.productos?.unidad || ''}</td>
-      <td style="text-align:right">$${parseFloat(item.precio_unitario).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</td>
-      <td style="text-align:right">$${(item.cantidad * item.precio_unitario).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</td>
+      <td style="text-align:right">${formatMoney(parseFloat(item.precio_unitario))}</td>
+      <td style="text-align:right">${formatMoney((item.cantidad * item.precio_unitario))}</td>
     </tr>`
   })
 
@@ -130,7 +130,7 @@ function buildComprobantePedido(p, num) {
     html += `<tr style="background:#F0FDF4"><td colspan="5" style="font-size:12px;color:#15803D;padding:6px 10px">🎁 Este pedido incluye unidades bonificadas por ${partes}.</td></tr>`
   }
 
-  html += `</tbody><tfoot><tr><td colspan="4" style="text-align:right">TOTAL</td><td style="text-align:right">$${parseFloat(p.total).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</td></tr></tfoot></table>`
+  html += `</tbody><tfoot><tr><td colspan="4" style="text-align:right">TOTAL</td><td style="text-align:right">${formatMoney(parseFloat(p.total))}</td></tr></tfoot></table>`
 
   const notaLimpia = (p.notas || '').split('|').map(s => s.trim()).filter(s => s && !s.includes('Descuento aplicado') && !s.includes('bonificadas') && !s.includes('muestras')).join(' | ')
   html += buildFooter(notaLimpia)
@@ -161,8 +161,8 @@ function buildComprobanteVenta(v, num) {
       <td style="color:#78716C;font-size:12px">${item.productos?.codigo || '—'}</td>
       <td>${item.productos?.nombre || '—'}</td>
       <td style="text-align:center">${item.cantidad}${bonifTxt}${muestraTxt} ${item.productos?.unidad || ''}</td>
-      <td style="text-align:right">$${parseFloat(item.precio_unitario).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</td>
-      <td style="text-align:right">$${(item.cantidad * item.precio_unitario).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</td>
+      <td style="text-align:right">${formatMoney(parseFloat(item.precio_unitario))}</td>
+      <td style="text-align:right">${formatMoney((item.cantidad * item.precio_unitario))}</td>
     </tr>`
   })
 
@@ -173,7 +173,7 @@ function buildComprobanteVenta(v, num) {
     html += `<tr style="background:#F0FDF4"><td colspan="5" style="font-size:12px;color:#15803D;padding:6px 10px">🎁 Esta venta incluye unidades bonificadas por ${partes}.</td></tr>`
   }
 
-  html += `</tbody><tfoot><tr><td colspan="4" style="text-align:right">TOTAL</td><td style="text-align:right">$${parseFloat(v.total).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</td></tr></tfoot></table>`
+  html += `</tbody><tfoot><tr><td colspan="4" style="text-align:right">TOTAL</td><td style="text-align:right">${formatMoney(parseFloat(v.total))}</td></tr></tfoot></table>`
 
   const notaLimpia = (v.notas || '').split('|').map(s => s.trim()).filter(s => s && !s.includes('Descuento aplicado') && !s.includes('bonificadas') && !s.includes('muestras')).join(' | ')
   html += buildFooter(notaLimpia)
@@ -205,18 +205,18 @@ function buildComprobanteRecepcion(r, num) {
       <td style="color:#78716C;font-size:12px">${item.productos?.codigo || '—'}</td>
       <td>${item.productos?.nombre || '—'}</td>
       <td style="text-align:center">${item.cantidad}${bonifTxt}</td>
-      <td style="text-align:right">$${parseFloat(item.costo_unitario).toLocaleString('es-AR', { maximumFractionDigits: 2 })}${descTxt}</td>
-      <td style="text-align:right">$${(cantFacturada * item.costo_unitario).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</td>
+      <td style="text-align:right">${formatMoney(parseFloat(item.costo_unitario))}${descTxt}</td>
+      <td style="text-align:right">${formatMoney((cantFacturada * item.costo_unitario))}</td>
     </tr>`
   })
 
   if (parseFloat(r.costo_adicional_monto_bruto || 0) > 0) {
     const dv = parseFloat(r.costo_adicional_desc_valor || 0)
     const descLabel = dv > 0 ? ` (${r.costo_adicional_desc_tipo === 'pct' ? '-' + dv + '%' : '-$' + dv})` : ''
-    html += `<tr><td colspan="3">${r.costo_adicional_desc || 'Costo adicional'}${descLabel}</td><td></td><td style="text-align:right">$${parseFloat(r.costo_adicional_monto || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</td></tr>`
+    html += `<tr><td colspan="3">${r.costo_adicional_desc || 'Costo adicional'}${descLabel}</td><td></td><td style="text-align:right">${formatMoney(parseFloat(r.costo_adicional_monto || 0))}</td></tr>`
   }
 
-  html += `</tbody><tfoot><tr><td colspan="4" style="text-align:right">TOTAL</td><td style="text-align:right">$${parseFloat(r.total || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</td></tr></tfoot></table>`
+  html += `</tbody><tfoot><tr><td colspan="4" style="text-align:right">TOTAL</td><td style="text-align:right">${formatMoney(parseFloat(r.total || 0))}</td></tr></tfoot></table>`
   html += buildFooter(r.notas)
   return html
 }
@@ -243,12 +243,12 @@ function buildComprobantePedidoProveedor(p, num) {
       <td style="color:#78716C;font-size:12px">${item.productos?.codigo || '—'}</td>
       <td>${item.productos?.nombre || '—'}</td>
       <td style="text-align:center">${item.cantidad}</td>
-      <td style="text-align:right">$${parseFloat(item.costo_unitario).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</td>
-      <td style="text-align:right">$${(item.cantidad * item.costo_unitario).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</td>
+      <td style="text-align:right">${formatMoney(parseFloat(item.costo_unitario))}</td>
+      <td style="text-align:right">${formatMoney((item.cantidad * item.costo_unitario))}</td>
     </tr>`
   })
 
-  html += `</tbody><tfoot><tr><td colspan="4" style="text-align:right">TOTAL ESTIMADO</td><td style="text-align:right">$${parseFloat(p.total_estimado || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</td></tr></tfoot></table>`
+  html += `</tbody><tfoot><tr><td colspan="4" style="text-align:right">TOTAL ESTIMADO</td><td style="text-align:right">${formatMoney(parseFloat(p.total_estimado || 0))}</td></tr></tfoot></table>`
   html += buildFooter(p.notas)
   return html
 }
@@ -317,9 +317,9 @@ function buildReciboPago(pago) {
   )
 
   html += `<div class="comp-datos" style="grid-template-columns:1fr 1fr 1fr;margin-top:-8px">
-    <div><span>Monto recibido</span><strong style="font-size:16px;color:#15803D">$${monto.toLocaleString('es-AR', { maximumFractionDigits: 2 })}</strong></div>
-    <div><span>Total imputado</span><strong>$${totalImputado.toLocaleString('es-AR', { maximumFractionDigits: 2 })}</strong></div>
-    <div><span>Saldo a cuenta</span><strong>$${saldoCuenta.toLocaleString('es-AR', { maximumFractionDigits: 2 })}</strong></div>
+    <div><span>Monto recibido</span><strong style="font-size:16px;color:#15803D">${formatMoney(monto)}</strong></div>
+    <div><span>Total imputado</span><strong>${formatMoney(totalImputado)}</strong></div>
+    <div><span>Saldo a cuenta</span><strong>${formatMoney(saldoCuenta)}</strong></div>
   </div>`
 
   html += `<table class="comp-table"><thead><tr><th>Concepto</th><th>Fecha</th><th style="text-align:right">Total venta</th><th style="text-align:right">Importe aplicado</th></tr></thead><tbody>`
@@ -333,13 +333,13 @@ function buildReciboPago(pago) {
       html += `<tr>
         <td><strong>Venta N° ${String(venta.numero || 0).padStart(6, '0')}</strong></td>
         <td>${fechaVenta}</td>
-        <td style="text-align:right">$${parseFloat(venta.total || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</td>
-        <td style="text-align:right;font-weight:700">$${parseFloat(imp.monto_aplicado || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</td>
+        <td style="text-align:right">${formatMoney(parseFloat(venta.total || 0))}</td>
+        <td style="text-align:right;font-weight:700">${formatMoney(parseFloat(imp.monto_aplicado || 0))}</td>
       </tr>`
     })
   }
 
-  html += `</tbody><tfoot><tr><td colspan="3" style="text-align:right">TOTAL RECIBIDO</td><td style="text-align:right">$${monto.toLocaleString('es-AR', { maximumFractionDigits: 2 })}</td></tr></tfoot></table>`
+  html += `</tbody><tfoot><tr><td colspan="3" style="text-align:right">TOTAL RECIBIDO</td><td style="text-align:right">${formatMoney(monto)}</td></tr></tfoot></table>`
 
   html += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:32px;margin-top:32px;font-size:12px;color:#78716C">
     <div style="text-align:center"><div style="border-top:1px solid #1C1917;padding-top:6px;margin-top:40px">Firma receptor</div></div>

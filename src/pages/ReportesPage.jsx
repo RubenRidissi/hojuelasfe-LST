@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
 import { fmtMonto } from '../utils/money'
-import { hoyAR } from '../utils/helpers'
+import { hoyAR, formatMoney } from '../utils/helpers'
 
 const TIPO_COLORS = { Minorista: 'badge-gray', Distribuidor: 'badge-blue', Mayorista: 'badge-yellow', Institucional: 'badge-green' }
 const HONEY_COLOR = '#D4860A'
@@ -194,7 +194,7 @@ export default function ReportesPage() {
                 <>
                   <div className="card" style={{ padding: 16, textAlign: 'center' }}>
                     <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 6 }}>Ganancia</div>
-                    <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--success)' }}>${res.totalGanancia.toLocaleString('es-AR', { maximumFractionDigits: 0 })}</div>
+                    <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--success)' }}>{formatMoney(res.totalGanancia, { maximumFractionDigits: 0 })}</div>
                   </div>
                   <div className="card" style={{ padding: 16, textAlign: 'center' }}>
                     <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 6 }}>Margen</div>
@@ -273,8 +273,8 @@ export default function ReportesPage() {
                           return (
                             <tr key={lunes}>
                               <td style={{ fontSize: 12 }}>{semanaLabel(lunes)}</td>
-                              <td>${d.total.toLocaleString('es-AR', { maximumFractionDigits: 0 })}</td>
-                              <td style={{ color: 'var(--success)' }}>${(d.ganancia || 0).toLocaleString('es-AR', { maximumFractionDigits: 0 })}</td>
+                              <td>{formatMoney(d.total, { maximumFractionDigits: 0 })}</td>
+                              <td style={{ color: 'var(--success)' }}>{formatMoney((d.ganancia || 0), { maximumFractionDigits: 0 })}</td>
                               <td style={{ color: mColor, fontWeight: 600 }}>{margenSem.toFixed(1)}%</td>
                             </tr>
                           )
@@ -294,8 +294,8 @@ export default function ReportesPage() {
                           <tr key={nombre}>
                             <td style={{ fontSize: 12 }}>{nombre}</td>
                             <td>{d.cant}</td>
-                            <td>${d.ingresos.toLocaleString('es-AR', { maximumFractionDigits: 0 })}</td>
-                            <td style={{ color: 'var(--success)', fontWeight: 600 }}>${d.ganancia.toLocaleString('es-AR', { maximumFractionDigits: 0 })}</td>
+                            <td>{formatMoney(d.ingresos, { maximumFractionDigits: 0 })}</td>
+                            <td style={{ color: 'var(--success)', fontWeight: 600 }}>{formatMoney(d.ganancia, { maximumFractionDigits: 0 })}</td>
                           </tr>
                         ))}
                       </tbody>

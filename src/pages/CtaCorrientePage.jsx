@@ -333,7 +333,7 @@ export default function CtaCorrientePage() {
                   {ventasCliente.map(v => {
                     const fecha = new Date(v.fecha + 'T00:00:00').toLocaleDateString('es-AR')
                     const desc = v.notas ? v.notas.split('|')[0].trim() : ''
-                    return <option key={v.id} value={v.id}>{fecha} — ${parseFloat(v.total).toLocaleString('es-AR', { maximumFractionDigits: 0 })}{desc ? ` · ${desc}` : ''}</option>
+                    return <option key={v.id} value={v.id}>{fecha} — {fmtMonto(parseFloat(v.total), puedeVerMontos, { maximumFractionDigits: 0 })}{desc ? ` · ${desc}` : ''}</option>
                   })}
                 </select>
               </div>

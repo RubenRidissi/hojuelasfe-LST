@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
 import { fmtMonto } from '../utils/money'
+import { formatMoney } from '../utils/helpers'
 
 const TIPOS_CLIENTE = ['Representante', 'Distribuidor', 'Mayorista', 'Supermercado', 'Minorista']
 
@@ -328,9 +329,9 @@ export default function ProductosPage() {
                       <td style={{ textAlign: 'center', fontSize: 12 }}>{p.pqxbj || '—'}</td>
                       {isAdmin && (
                         <>
-                          <td style={{ fontSize: 12 }}>${parseFloat(p.costo || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}</td>
+                          <td style={{ fontSize: 12 }}>{formatMoney(parseFloat(p.costo || 0), { maximumFractionDigits: 2 })}</td>
                           <td style={{ fontSize: 12, color: 'var(--muted)' }}>
-                            ${costoNeto(p).toLocaleString('es-AR', { maximumFractionDigits: 2 })}
+                            {formatMoney(costoNeto(p), { maximumFractionDigits: 2 })}
                             {parseFloat(p.descuento_costo || 0) > 0 && <span style={{ fontSize: 10, color: 'var(--success)', marginLeft: 4 }}>-{p.descuento_costo}%</span>}
                           </td>
                         </>
@@ -422,10 +423,10 @@ export default function ProductosPage() {
                   <div style={{ background: 'var(--bg)', borderRadius: 8, padding: '8px 10px' }}>
                     <div style={{ fontSize: 10, color: 'var(--muted)', textTransform: 'uppercase' }}>Costo</div>
                     <div style={{ marginTop: 2, fontWeight: 600 }}>
-                      ${parseFloat(verProducto.costo || 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}
+                      {formatMoney(parseFloat(verProducto.costo || 0), { maximumFractionDigits: 2 })}
                       {parseFloat(verProducto.descuento_costo || 0) > 0 && (
                         <span style={{ fontSize: 11, color: 'var(--success)', display: 'block', fontWeight: 400 }}>
-                          neto: ${costoNeto(verProducto).toLocaleString('es-AR', { maximumFractionDigits: 2 })} (-{verProducto.descuento_costo}%)
+                          neto: {formatMoney(costoNeto(verProducto), { maximumFractionDigits: 2 })} (-{verProducto.descuento_costo}%)
                         </span>
                       )}
                     </div>
@@ -600,7 +601,7 @@ export default function ProductosPage() {
                   </div>
                   <div className="form-group">
                     <label>Costo neto</label>
-                    <input readOnly value={`$${calcPrecio(form.costo, form.descuento_costo, 0).toLocaleString('es-AR', { maximumFractionDigits: 2 })}`}
+                    <input readOnly value={`${formatMoney(calcPrecio(form.costo, form.descuento_costo, 0), { maximumFractionDigits: 2 })}`}
                       style={{ background: 'var(--bg)', color: 'var(--muted)', fontWeight: 600 }} />
                   </div>
                 </div>
@@ -630,10 +631,10 @@ export default function ProductosPage() {
                               style={{ width: 80, textAlign: 'right', padding: '4px 6px' }} />
                           </td>
                           <td style={{ padding: '6px 8px', textAlign: 'right', fontWeight: 600, color: 'var(--primary-dark)' }}>
-                            ${precio.toLocaleString('es-AR', { maximumFractionDigits: 2 })}
+                            {formatMoney(precio, { maximumFractionDigits: 2 })}
                           </td>
                           <td style={{ padding: '6px 8px', textAlign: 'right', color: '#1D4ED8', fontSize: 12 }}>
-                            ${(precio * 1.21).toLocaleString('es-AR', { maximumFractionDigits: 2 })}
+                            {formatMoney((precio * 1.21), { maximumFractionDigits: 2 })}
                           </td>
                         </tr>
                       )

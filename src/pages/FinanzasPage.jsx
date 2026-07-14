@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
-import { nombreCliente, hoyAR } from '../utils/helpers'
+import { nombreCliente, hoyAR, formatMoney } from '../utils/helpers'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
 
-const fmt = n => '$' + parseFloat(n || 0).toLocaleString('es-AR', { maximumFractionDigits: 0 })
+const fmt = n => formatMoney(n, { maximumFractionDigits: 0 })
 const sum = arr => arr.reduce((s, x) => s + parseFloat(x.monto || 0), 0)
 const sumCC = (arr, cc) => arr.filter(x => x.centro_costo === cc).reduce((s, x) => s + parseFloat(x.monto || 0), 0)
 
@@ -530,9 +530,9 @@ export default function FinanzasPage() {
                           <td style={{ fontSize: 12, color: 'var(--muted)' }}>#{String(r.numero).padStart(4, '0')}</td>
                           <td style={{ fontSize: 12 }}>{r.fecha_recepcion_real ? new Date(r.fecha_recepcion_real + 'T00:00:00').toLocaleDateString('es-AR') : '—'}</td>
                           <td style={{ fontSize: 12 }}>{r.remito_proveedor || '—'}</td>
-                          <td style={{ textAlign: 'right' }}>${parseFloat(r.total || 0).toLocaleString('es-AR', { maximumFractionDigits: 0 })}</td>
-                          <td style={{ textAlign: 'right', color: 'var(--success)' }}>${parseFloat(r.monto_pagado_prov || 0).toLocaleString('es-AR', { maximumFractionDigits: 0 })}</td>
-                          <td style={{ textAlign: 'right', fontWeight: 600, color: '#DC2626' }}>${saldo.toLocaleString('es-AR', { maximumFractionDigits: 0 })}</td>
+                          <td style={{ textAlign: 'right' }}>{fmt(r.total)}</td>
+                          <td style={{ textAlign: 'right', color: 'var(--success)' }}>{fmt(r.monto_pagado_prov)}</td>
+                          <td style={{ textAlign: 'right', fontWeight: 600, color: '#DC2626' }}>{fmt(saldo)}</td>
                           <td><span style={{ fontSize: 11, fontWeight: 600, color: r.estado_pago_prov === 'parcial' ? '#D97706' : '#DC2626' }}>{r.estado_pago_prov}</span></td>
                         </tr>
                       )

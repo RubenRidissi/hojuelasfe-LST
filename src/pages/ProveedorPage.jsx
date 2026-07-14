@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
 import { useComprobante, ComprobanteModal } from '../hooks/useComprobante.jsx'
-import { hoyAR, fechaISOBuenosAires } from '../utils/helpers'
+import { hoyAR, fechaISOBuenosAires, formatMoney } from '../utils/helpers'
 
 const ESTADOS_BADGE = {
   borrador: 'badge-gray', pendiente: 'badge-yellow', confirmado: 'badge-green',
@@ -273,7 +273,7 @@ export default function ProveedorPage() {
                     <td>{p.proveedores?.nombre || '—'}</td>
                     <td style={{ fontSize: 12 }}>{new Date(p.fecha + 'T00:00:00').toLocaleDateString('es-AR')}</td>
                     <td><span className={`badge ${ESTADOS_BADGE[p.estado] || 'badge-gray'}`}>{getLabel(p.estado)}</span></td>
-                    <td>${parseFloat(p.total_estimado || 0).toLocaleString('es-AR')}</td>
+                    <td>{formatMoney(parseFloat(p.total_estimado || 0))}</td>
                     <td style={{ whiteSpace: 'nowrap' }}>
                       <div style={{ display: 'flex', gap: 4 }}>
                         {(p.estado === 'borrador' || p.estado === 'pendiente') && <>
@@ -318,7 +318,7 @@ export default function ProveedorPage() {
                   <div style={{ fontSize: 12, color: 'var(--muted)' }}>#{String(p.numero).padStart(4, '0')} · {fecha}</div>
                 </div>
                 <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 12 }}>
-                  <div style={{ fontWeight: 700, fontSize: 15 }}>${parseFloat(p.total_estimado || 0).toLocaleString('es-AR', { maximumFractionDigits: 0 })}</div>
+                  <div style={{ fontWeight: 700, fontSize: 15 }}>{formatMoney(parseFloat(p.total_estimado || 0), { maximumFractionDigits: 0 })}</div>
                   <span className={`badge ${ESTADOS_BADGE[p.estado] || 'badge-gray'}`} style={{ marginTop: 4, display: 'inline-block' }}>{getLabel(p.estado)}</span>
                 </div>
               </div>
@@ -399,15 +399,15 @@ export default function ProveedorPage() {
                               style={{ width: 70, padding: '4px 6px', border: '1px solid var(--border)', borderRadius: 6 }}
                               onChange={e => updateCantItem(i.producto_id, e.target.value)} />
                           </td>
-                          <td style={{ textAlign: 'right', fontSize: 13 }}>${i.costo_unitario.toLocaleString('es-AR')}</td>
-                          <td style={{ textAlign: 'right', fontSize: 13 }}>${(i.cantidad * i.costo_unitario).toLocaleString('es-AR')}</td>
+                          <td style={{ textAlign: 'right', fontSize: 13 }}>{formatMoney(i.costo_unitario)}</td>
+                          <td style={{ textAlign: 'right', fontSize: 13 }}>{formatMoney((i.cantidad * i.costo_unitario))}</td>
                           <td><button className="btn btn-sm btn-danger" onClick={() => removeItem(i.producto_id)}>✕</button></td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                   <div style={{ textAlign: 'right', padding: '8px 0', fontWeight: 600, fontSize: 15 }}>
-                    Total estimado: ${totalItems.toLocaleString('es-AR')}
+                    Total estimado: {formatMoney(totalItems)}
                   </div>
                 </div>
               )}

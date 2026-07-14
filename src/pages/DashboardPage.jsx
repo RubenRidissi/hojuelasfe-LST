@@ -3,11 +3,12 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from '../services/supabase'
 import { useAuth } from '../context/AuthContext'
 import { nombreCliente } from '../utils/helpers'
+import { fmtMonto } from '../utils/money'
 import { useToast } from '../hooks/useToast'
 import { ToastContainer } from '../components/Toast'
 
 const ESTADO_BADGE = { pendiente: 'badge-yellow', confirmado: 'badge-blue', entregado: 'badge-green', cancelado: 'badge-red' }
-const fmt = (n, puedeVer = true) => puedeVer ? '$' + parseFloat(n || 0).toLocaleString('es-AR', { maximumFractionDigits: 0 }) : '•••'
+const fmt = (n, puedeVer = true) => fmtMonto(n, puedeVer, { maximumFractionDigits: 0 })
 
 function hoyStr() {
   const now = new Date()
