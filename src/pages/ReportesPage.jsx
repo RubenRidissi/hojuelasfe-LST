@@ -61,38 +61,72 @@ export default function ReportesPage() {
 
   async function cargarAdmin() {
     let q = supabase.from('ventas')
-      .select('id,fecha,total,estado_pago,clientes(nombre,tipo,descuento_pct),venta_items(cantidad,bonificado,precio_unitario,producto_id,productos(costo,nombre,codigo))')
-      .gte('fecha', desde).lte('fecha', hasta).order('fecha')
+      .select('id,fecha,total,estado,estado_pago,cliente_id,clientes(nombre,nombre_fantasia,tipo,descuento_pct),venta_items(cantidad,bonificado,precio_unitario,producto_id,productos(costo,nombre,codigo))')
+      .gte('fecha', desde).lte('fecha', hasta).neq('estado', 'anulada').order('fecha')
     if (filtroVendedor) q = q.eq('vendedor_id', filtroVendedor)
     const { data: ventas } = await q
 
     if (!ventas?.length) { setResAdmin({ vacio: true }); return }
 
-    let totalIngresos = 0, totalCostos = 0
-    const semanas = {}, tipos = {}, productos = {}, muestras = {}
+    // NC/ND emitidas sobre estas ventas (se aplican solo en Cta. Corriente hoy;
+    // acá se netean para que "Total ventas" refleje lo realmente facturado neto)
+    const ventaIds = ventas.map(v => v.id)
+    const { data: ajustes } = await supabase.from('ajustes_cliente')
+      .select('venta_id,tipo,monto').in('venta_id', ventaIds)
+    const netoAjustePorVenta = {}, ncPorVenta = {}
+    ;(ajustes || []).forEach(a => {
+      const monto = parseFloat(a.monto || 0)
+      const signo = a.tipo === 'NC' ? -1 : 1
+      netoAjustePorVenta[a.venta_id] = (netoAjustePorVenta[a.venta_id] || 0) + signo * monto
+      if (a.tipo === 'NC') ncPorVenta[a.venta_id] = (ncPorVenta[a.venta_id] || 0) + monto
+    })
+
+    let totalIngresos = 0, totalCostos = 0, totalAjustesNC = 0
+    const semanas = {}, tipos = {}, productos = {}, muestras = {}, estados = {}, clientesTot = {}
 
     ventas.forEach(v => {
+      const ajusteNeto = netoAjustePorVenta[v.id] || 0
+      const totalNeto = parseFloat(v.total || 0) + ajusteNeto
+      totalAjustesNC += ajusteNeto
+      totalIngresos += totalNeto
+
       const key = semanaKey(v.fecha)
       if (!semanas[key]) semanas[key] = { ventas: 0, total: 0, ganancia: 0 }
       semanas[key].ventas++
-      semanas[key].total += parseFloat(v.total || 0)
+      semanas[key].total += totalNeto
 
       const tipo = v.clientes?.tipo || 'Minorista'
       if (!tipos[tipo]) tipos[tipo] = { ventas: 0, total: 0 }
-      tipos[tipo].ventas++; tipos[tipo].total += parseFloat(v.total || 0)
+      tipos[tipo].ventas++; tipos[tipo].total += totalNeto
+
+      const est = v.estado || 'abierta'
+      if (!estados[est]) estados[est] = { ventas: 0, total: 0 }
+      estados[est].ventas++; estados[est].total += totalNeto
+
+      const cliId = v.cliente_id || '—'
+      if (!clientesTot[cliId]) clientesTot[cliId] = { nombre: v.clientes?.nombre_fantasia || v.clientes?.nombre || '—', ventas: 0, total: 0 }
+      clientesTot[cliId].ventas++; clientesTot[cliId].total += totalNeto
+
+      // Asume que la NC devuelve mercadería proporcionalmente a toda la venta (no hay
+      // detalle de qué ítem puntual volvió), así que el costo se libera en esa misma
+      // proporción. Las ND no liberan costo: no implican devolución de stock.
+      const totalOriginal = parseFloat(v.total || 0)
+      const pctDevuelto = totalOriginal > 0 ? Math.min(ncPorVenta[v.id] || 0, totalOriginal) / totalOriginal : 0
+      const factorVigente = 1 - pctDevuelto
 
       ;(v.venta_items || []).forEach(item => {
         const precio = parseFloat(item.precio_unitario)
         const costo = parseFloat(item.productos?.costo || 0)
         if (precio > 0) {
-          totalIngresos += precio * item.cantidad
-          totalCostos += costo * item.cantidad
-          semanas[key].ganancia += (precio - costo) * item.cantidad
+          const ingresoItem = precio * item.cantidad * factorVigente
+          const costoItem = costo * item.cantidad * factorVigente
+          totalCostos += costoItem
+          semanas[key].ganancia += ingresoItem - costoItem
           const nombre = item.productos?.nombre || '—'
           if (!productos[nombre]) productos[nombre] = { cant: 0, ingresos: 0, ganancia: 0 }
           productos[nombre].cant += item.cantidad
-          productos[nombre].ingresos += precio * item.cantidad
-          productos[nombre].ganancia += (precio - costo) * item.cantidad
+          productos[nombre].ingresos += ingresoItem
+          productos[nombre].ganancia += ingresoItem - costoItem
         }
       })
     })
@@ -111,29 +145,39 @@ export default function ReportesPage() {
     const totalGanancia = totalIngresos - totalCostos
     const margenProm = totalIngresos > 0 ? totalGanancia / totalIngresos * 100 : 0
 
-    setResAdmin({ vacio: false, totalIngresos, totalGanancia, margenProm, cantVentas: ventas.length, semanas, tipos, productos, muestras })
+    setResAdmin({ vacio: false, totalIngresos, totalGanancia, margenProm, totalAjustesNC, cantVentas: ventas.length, semanas, tipos, productos, muestras, estados, clientesTot })
   }
 
   async function cargarVendedor() {
     const { data: ventas } = await supabase.from('ventas')
       .select('id,fecha,total,clientes(nombre,tipo),venta_items(cantidad,precio_unitario)')
       .gte('fecha', desde).lte('fecha', hasta)
-      .eq('vendedor_id', user).order('fecha')
+      .eq('vendedor_id', user).neq('estado', 'anulada').order('fecha')
 
     if (!ventas?.length) { setResVendedor({ vacio: true }); return }
+
+    const ventaIds = ventas.map(v => v.id)
+    const { data: ajustes } = await supabase.from('ajustes_cliente')
+      .select('venta_id,tipo,monto').in('venta_id', ventaIds)
+    const netoAjustePorVenta = {}
+    ;(ajustes || []).forEach(a => {
+      const signo = a.tipo === 'NC' ? -1 : 1
+      netoAjustePorVenta[a.venta_id] = (netoAjustePorVenta[a.venta_id] || 0) + signo * parseFloat(a.monto || 0)
+    })
 
     let totalIngresos = 0
     const semanas = {}, tipos = {}
 
     ventas.forEach(v => {
-      totalIngresos += parseFloat(v.total || 0)
+      const totalNeto = parseFloat(v.total || 0) + (netoAjustePorVenta[v.id] || 0)
+      totalIngresos += totalNeto
       const key = semanaKey(v.fecha)
       if (!semanas[key]) semanas[key] = { ventas: 0, total: 0 }
-      semanas[key].ventas++; semanas[key].total += parseFloat(v.total || 0)
+      semanas[key].ventas++; semanas[key].total += totalNeto
 
       const tipo = v.clientes?.tipo || 'Minorista'
       if (!tipos[tipo]) tipos[tipo] = { ventas: 0, total: 0 }
-      tipos[tipo].ventas++; tipos[tipo].total += parseFloat(v.total || 0)
+      tipos[tipo].ventas++; tipos[tipo].total += totalNeto
     })
 
     setResVendedor({ vacio: false, totalIngresos, cantVentas: ventas.length, semanas, tipos })
@@ -185,6 +229,11 @@ export default function ReportesPage() {
               <div className="card" style={{ padding: 16, textAlign: 'center' }}>
                 <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 6 }}>Total ventas</div>
                 <div style={{ fontSize: 22, fontWeight: 700 }}>{fmtMonto(res.totalIngresos, puedeVerMontos)}</div>
+                {isAdmin && !!res.totalAjustesNC && (
+                  <div style={{ fontSize: 11, color: res.totalAjustesNC < 0 ? 'var(--danger)' : 'var(--success)', marginTop: 4 }}>
+                    {res.totalAjustesNC < 0 ? '− ' : '+ '}{fmtMonto(Math.abs(res.totalAjustesNC), puedeVerMontos)} netos por NC/ND
+                  </div>
+                )}
               </div>
               <div className="card" style={{ padding: 16, textAlign: 'center' }}>
                 <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: 'var(--muted)', marginBottom: 6 }}>Cantidad</div>
@@ -257,6 +306,27 @@ export default function ReportesPage() {
                 </div>
               </div>
             </div>
+
+            {/* Admin: por cliente */}
+            {isAdmin && res.clientesTot && (
+              <div className="card" style={{ marginBottom: 16 }}>
+                <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', fontWeight: 700, fontSize: 13 }}>Por cliente</div>
+                <div className="table-wrap" style={{ maxHeight: 400, overflowY: 'auto' }}>
+                  <table>
+                    <thead><tr><th>Cliente</th><th>Ventas</th><th>Total</th></tr></thead>
+                    <tbody>
+                      {Object.entries(res.clientesTot).sort((a, b) => b[1].total - a[1].total).map(([cliId, d]) => (
+                        <tr key={cliId}>
+                          <td style={{ fontSize: 12 }}>{d.nombre}</td>
+                          <td>{d.ventas}</td>
+                          <td>{fmtMonto(d.total, puedeVerMontos)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
             {/* Admin: margen por semana y ganancia por producto */}
             {isAdmin && (
