@@ -18,6 +18,8 @@ import ProductosPage from './pages/ProductosPage'
 import StockPage from './pages/StockPage'
 import ListasPage from './pages/ListasPage'
 import FinanzasPage from './pages/FinanzasPage'
+import GastosPage from './pages/GastosPage'
+import ComisionesPage from './pages/ComisionesPage'
 import ReportesPage from './pages/ReportesPage'
 import HistorialVisitasPage from './pages/HistorialVisitasPage'
 import ConfigPage from './pages/ConfigPage'
@@ -60,6 +62,8 @@ function AppLayout() {
           <Route path="/stock"       element={<StockPage />} />
           <Route path="/listas"      element={<ListasPage />} />
           <Route path="/finanzas"    element={<AdminRoute><FinanzasPage /></AdminRoute>} />
+          <Route path="/gastos"      element={<AdminRoute><GastosPage /></AdminRoute>} />
+          <Route path="/comisiones"  element={<AdminRoute><ComisionesPage /></AdminRoute>} />
           <Route path="/historial-visitas" element={<AdminRoute><HistorialVisitasPage /></AdminRoute>} />
           <Route path="/reportes"    element={<ReportesPage />} />
           <Route path="/config"      element={<ConfigPage />} />

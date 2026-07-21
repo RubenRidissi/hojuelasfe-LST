@@ -16,6 +16,8 @@ const TABLAS_EXPORT = [
   { nombre: 'Remitos',          tabla: 'remitos',           select: 'id,numero,fecha_generado,fecha_entrega_real,total,origen_tipo,clientes(nombre,nombre_fantasia)', order: 'numero' },
   { nombre: 'Pagos',            tabla: 'pagos',             select: 'id,numero,fecha,monto,medio,centro_costo,notas,clientes(nombre,nombre_fantasia)', order: 'numero' },
   { nombre: 'Recepciones',      tabla: 'recepciones',       select: 'id,numero,fecha_recepcion_real,total,estado,estado_pago_prov,monto_pagado_prov', order: 'numero' },
+  { nombre: 'Gastos',           tabla: 'gastos',            select: 'fecha,categoria,monto,medio,notas,recepciones(numero,remito_proveedor)', order: 'fecha' },
+  { nombre: 'Comisiones',       tabla: 'comisiones',        select: 'fecha,monto,medio,notas', order: 'fecha' },
   { nombre: 'Stock Movimientos',tabla: 'stock_movimientos', select: 'fecha,tipo,origen,cantidad,notas,productos(nombre,codigo),clientes(nombre)', order: undefined },
   { nombre: 'Ajustes Clientes', tabla: 'ajustes_cliente',  select: 'fecha,tipo,monto,concepto,clientes(nombre)', order: undefined },
   { nombre: 'Objetivos Ventas', tabla: 'objetivos_ventas', select: undefined, order: 'anio,mes' },

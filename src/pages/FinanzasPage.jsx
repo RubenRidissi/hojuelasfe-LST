@@ -55,7 +55,7 @@ function FlujoCajaChart({ meses }) {
           <span style={{ width: 10, height: 10, borderRadius: 2, background: 'var(--success)', display: 'inline-block' }} /> Ingresos (cobros)
         </span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ width: 10, height: 10, borderRadius: 2, background: 'var(--danger)', display: 'inline-block' }} /> Egresos (pagos a proveedor)
+          <span style={{ width: 10, height: 10, borderRadius: 2, background: 'var(--danger)', display: 'inline-block' }} /> Egresos (proveedor + gastos + comisiones)
         </span>
       </div>
 
@@ -118,6 +118,10 @@ export default function FinanzasPage() {
   const [pagadoProvHoy, setPagadoProvHoy] = useState(0)
   const [pagadoProvMes, setPagadoProvMes] = useState(0)
 
+  // Gastos y comisiones del mes
+  const [gastosMes, setGastosMes] = useState({ total: 0, porCategoria: [] })
+  const [comisionesMes, setComisionesMes] = useState({ total: 0, porVendedor: [] })
+
   // Caja actual (histórica)
   const [cajaActual, setCajaActual] = useState({ total: 0, cobradoTotal: 0, cc1: 0, cc2: 0 })
 
@@ -149,9 +153,11 @@ export default function FinanzasPage() {
       const desde = new Date(hoy.getFullYear(), hoy.getMonth() - (periodoMeses - 1), 1)
       const hasta = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0)
 
-      const [{ data: cobros }, { data: pagosProv }] = await Promise.all([
+      const [{ data: cobros }, { data: pagosProv }, { data: gastosFlujo }, { data: comisionesFlujo }] = await Promise.all([
         supabase.from('pagos').select('monto,fecha').gte('fecha', isoDate(desde)).lte('fecha', isoDate(hasta)),
-        supabase.from('pagos_proveedor').select('monto,fecha').gte('fecha', isoDate(desde)).lte('fecha', isoDate(hasta))
+        supabase.from('pagos_proveedor').select('monto,fecha').gte('fecha', isoDate(desde)).lte('fecha', isoDate(hasta)),
+        supabase.from('gastos').select('monto,fecha').gte('fecha', isoDate(desde)).lte('fecha', isoDate(hasta)),
+        supabase.from('comisiones').select('monto,fecha').gte('fecha', isoDate(desde)).lte('fecha', isoDate(hasta))
       ])
 
       const porMes = {}
@@ -160,7 +166,7 @@ export default function FinanzasPage() {
         if (!porMes[key]) porMes[key] = { ingresos: 0, egresos: 0 }
         porMes[key].ingresos += parseFloat(c.monto || 0)
       })
-      ;(pagosProv || []).forEach(p => {
+      ;[...(pagosProv || []), ...(gastosFlujo || []), ...(comisionesFlujo || [])].forEach(p => {
         const key = p.fecha.slice(0, 7)
         if (!porMes[key]) porMes[key] = { ingresos: 0, egresos: 0 }
         porMes[key].egresos += parseFloat(p.monto || 0)
@@ -198,11 +204,20 @@ export default function FinanzasPage() {
       let qTodo = supabase.from('pagos').select('monto,centro_costo')
       if (filtroCC) { qHoy = qHoy.eq('centro_costo', filtroCC); qMes = qMes.eq('centro_costo', filtroCC); qTodo = qTodo.eq('centro_costo', filtroCC) }
 
-      const [{ data: cobHoy }, { data: cobMes }, { data: cobTodo }, { data: ppHoy }, { data: ppMes }, { data: ppTodo }] = await Promise.all([
+      const [
+        { data: cobHoy }, { data: cobMes }, { data: cobTodo },
+        { data: ppHoy }, { data: ppMes }, { data: ppTodo },
+        { data: gastosMesData }, { data: gastosTodo },
+        { data: comisionesMesData }, { data: comisionesTodo }
+      ] = await Promise.all([
         qHoy, qMes, qTodo,
         supabase.from('pagos_proveedor').select('monto').eq('fecha', hoy),
         supabase.from('pagos_proveedor').select('monto').gte('fecha', mesDesde).lte('fecha', mesHasta),
-        supabase.from('pagos_proveedor').select('monto')
+        supabase.from('pagos_proveedor').select('monto'),
+        supabase.from('gastos').select('monto,categoria').gte('fecha', mesDesde).lte('fecha', mesHasta),
+        supabase.from('gastos').select('monto'),
+        supabase.from('comisiones').select('monto,vendedor_id').gte('fecha', mesDesde).lte('fecha', mesHasta),
+        supabase.from('comisiones').select('monto')
       ])
 
       setCobradoHoy({ total: sum(cobHoy || []), cc1: sumCC(cobHoy || [], 'CC1'), cc2: sumCC(cobHoy || [], 'CC2') })
@@ -210,8 +225,24 @@ export default function FinanzasPage() {
       setPagadoProvHoy(sum(ppHoy || []))
       setPagadoProvMes(sum(ppMes || []))
 
+      const porCategoria = {}
+      ;(gastosMesData || []).forEach(g => { porCategoria[g.categoria] = (porCategoria[g.categoria] || 0) + parseFloat(g.monto || 0) })
+      setGastosMes({
+        total: sum(gastosMesData || []),
+        porCategoria: Object.entries(porCategoria).sort((a, b) => b[1] - a[1]).map(([categoria, monto]) => ({ categoria, monto }))
+      })
+
+      const porVendedorComision = {}
+      ;(comisionesMesData || []).forEach(c => { porVendedorComision[c.vendedor_id] = (porVendedorComision[c.vendedor_id] || 0) + parseFloat(c.monto || 0) })
+      setComisionesMes({
+        total: sum(comisionesMesData || []),
+        porVendedor: Object.entries(porVendedorComision).sort((a, b) => b[1] - a[1]).map(([vid, monto]) => ({
+          nombre: (vends || []).find(v => v.user_id === vid)?.nombre || 'Sin asignar', monto
+        }))
+      })
+
       setCajaActual({
-        total: sum(cobTodo || []) - sum(ppTodo || []),
+        total: sum(cobTodo || []) - sum(ppTodo || []) - sum(gastosTodo || []) - sum(comisionesTodo || []),
         cobradoTotal: sum(cobTodo || []),
         cc1: sumCC(cobTodo || [], 'CC1'),
         cc2: sumCC(cobTodo || [], 'CC2')
@@ -273,7 +304,7 @@ export default function FinanzasPage() {
     } catch (e) { console.error(e); toast('Error cargando finanzas', 'error') } finally { setLoading(false) }
   }
 
-  const cajaMes = cobradoMes.total - pagadoProvMes
+  const cajaMes = cobradoMes.total - pagadoProvMes - gastosMes.total - comisionesMes.total
   const posicionNeta = totalCobrar - totalPagar
   const cobertura = cajaActual.total + posicionNeta
   const faltaCobrar = Math.max(0, totalPagar - cajaActual.total)
@@ -309,7 +340,7 @@ export default function FinanzasPage() {
                   {fmt(cajaActual.total)}
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
-                  Cobrado histórico {fmt(cajaActual.cobradoTotal)} − Pagado a proveedor histórico {fmt(cajaActual.cobradoTotal - cajaActual.total)}
+                  Cobrado histórico {fmt(cajaActual.cobradoTotal)} − Egresos históricos (proveedor + gastos + comisiones) {fmt(cajaActual.cobradoTotal - cajaActual.total)}
                 </div>
                 {!filtroCC && (
                   <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>
@@ -328,7 +359,7 @@ export default function FinanzasPage() {
                   {cajaMes >= 0 ? '+' : ''}{fmt(cajaMes)}
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
-                  Cobrado {fmt(cobradoMes.total)} − Pagado a proveedor {fmt(pagadoProvMes)}
+                  Cobrado {fmt(cobradoMes.total)} − Proveedor {fmt(pagadoProvMes)} − Gastos {fmt(gastosMes.total)} − Comisiones {fmt(comisionesMes.total)}
                 </div>
                 {filtroCC && (
                   <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2, fontStyle: 'italic' }}>
@@ -402,6 +433,39 @@ export default function FinanzasPage() {
                   )}
                 </div>
               ))}
+            </div>
+          </div>
+
+          {/* GASTOS Y COMISIONES DEL PERÍODO */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
+            <div className="card" style={{ padding: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <div style={{ fontWeight: 700, fontSize: 13 }}>Gastos del mes</div>
+                <div style={{ fontWeight: 700, fontSize: 18, color: '#DC2626' }}>{fmt(gastosMes.total)}</div>
+              </div>
+              {gastosMes.porCategoria.length === 0
+                ? <p style={{ color: 'var(--muted)', fontSize: 13 }}>Sin gastos este mes</p>
+                : gastosMes.porCategoria.map((g, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                    <span>{g.categoria}</span><strong style={{ color: '#DC2626' }}>{fmt(g.monto)}</strong>
+                  </div>
+                ))
+              }
+            </div>
+
+            <div className="card" style={{ padding: 16 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <div style={{ fontWeight: 700, fontSize: 13 }}>Comisiones del mes</div>
+                <div style={{ fontWeight: 700, fontSize: 18, color: '#DC2626' }}>{fmt(comisionesMes.total)}</div>
+              </div>
+              {comisionesMes.porVendedor.length === 0
+                ? <p style={{ color: 'var(--muted)', fontSize: 13 }}>Sin comisiones este mes</p>
+                : comisionesMes.porVendedor.map((c, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                    <span>{c.nombre}</span><strong style={{ color: '#DC2626' }}>{fmt(c.monto)}</strong>
+                  </div>
+                ))
+              }
             </div>
           </div>
 
