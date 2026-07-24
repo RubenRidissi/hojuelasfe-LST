@@ -251,6 +251,23 @@ export default function ClientesPage() {
     } catch (e) { toast('Error al enviar solicitud', 'error') }
   }
 
+  // Temporal: habilita que el vendedor se autoasigne clientes sin asignar sin pasar
+  // por la aprobación del admin. Volver a exigir solicitud/aprobación después.
+  async function autoAsignarCliente(clienteId) {
+    if (isInvitado) { toast('No tenés permiso para asignarte clientes', 'error'); return }
+    if (!confirm('¿Asignarte este cliente a tu cartera?')) return
+    try {
+      const { data, error } = await supabase.from('clientes')
+        .update({ vendedor_id: user })
+        .eq('id', clienteId).is('vendedor_id', null)
+        .select()
+      if (error) throw error
+      if (!data || data.length === 0) { toast('Este cliente ya fue asignado a otro vendedor', 'error'); load(); return }
+      toast('Cliente asignado a tu cartera')
+      load()
+    } catch (e) { toast('Error al asignar', 'error') }
+  }
+
   async function guardarAsignacion() {
     if (!modalAsignar) return
     try {
@@ -323,6 +340,7 @@ export default function ClientesPage() {
         <button className="btn btn-sm btn-secondary" onClick={() => editCliente(c)} title="Editar">✏</button>
       </div>
     )
+    if (!c.vendedor_id) return <button className="btn btn-sm" style={{ background:'#DCFCE7', color:'#166534' }} onClick={() => autoAsignarCliente(c.id)} title="Asignarme este cliente">➕ Asignarme</button>
     if (tieneSolicitud) return <span style={{ fontSize:11, color:'var(--muted)' }}>Solicitud enviada</span>
     return <button className="btn btn-sm" style={{ background:'#FEF3DC', color:'#92400E' }} onClick={() => solicitarCliente(c.id)}>📬 Solicitar</button>
   }
@@ -337,6 +355,7 @@ export default function ClientesPage() {
       </>
     )
     if (c.vendedor_id === user) return <button className="btn btn-secondary" onClick={e => { e.stopPropagation(); editCliente(c) }}>✏ Editar</button>
+    if (!c.vendedor_id) return <button className="btn btn-secondary" style={{ background:'#DCFCE7', color:'#166534' }} onClick={e => { e.stopPropagation(); autoAsignarCliente(c.id) }}>➕ Asignarme</button>
     if (tieneSolicitud) return <span style={{ fontSize:12, color:'var(--muted)', padding:8 }}>📬 Solicitud enviada</span>
     return <button className="btn btn-secondary" style={{ background:'#FEF3DC', color:'#92400E' }} onClick={e => { e.stopPropagation(); solicitarCliente(c.id) }}>📬 Solicitar</button>
   }
